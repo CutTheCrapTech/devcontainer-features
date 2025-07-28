@@ -1,0 +1,136 @@
+{
+  "id": "auto-secrets",
+  "version": "1.0.0",
+  "name": "Auto Secrets Manager",
+  "description": "Automatically manages environment secrets based on git branches with enterprise-grade security",
+  "documentationURL": "https://github.com/your-org/devcontainer-features/tree/main/src/auto-secrets",
+  "licenseURL": "https://github.com/your-org/devcontainer-features/blob/main/LICENSE",
+  "keywords": [
+    "secrets",
+    "environment",
+    "git",
+    "branch",
+    "infisical",
+    "vault",
+    "security",
+    "devcontainer"
+  ],
+  "options": {
+    "detection": {
+      "type": "string",
+      "enum": ["prompt", "manual"],
+      "default": "prompt",
+      "description": "Branch detection method: 'prompt' (default, automatic check on every prompt) or 'manual' (disables automatic checks, for use with Git hooks)."
+    },
+    "shells": {
+      "type": "string",
+      "enum": ["bash", "zsh", "both"],
+      "default": "both",
+      "description": "Shell integration support"
+    },
+    "secretManager": {
+      "type": "string",
+      "enum": ["infisical", "vault", "aws", "azure", "gcp", "bitwarden"],
+      "default": "infisical",
+      "description": "Secret manager backend to use"
+    },
+    "branchMapping": {
+      "type": "object",
+      "default": {
+        "main": "production",
+        "prod": "production",
+        "master": "production",
+        "staging": "staging",
+        "stage": "staging",
+        "develop": "development",
+        "development": "development",
+        "default": "development"
+      },
+      "description": "Git branch to environment mapping"
+    },
+    "autoCommands": {
+      "type": "object",
+      "default": {
+        "terraform": ["/infrastructure/", "/shared/"],
+        "kubectl": ["/kubernetes/", "/shared/"],
+        "helm": ["/kubernetes/", "/shared/"],
+        "aws": ["/infrastructure/", "/shared/"],
+        "tofu": ["/infrastructure/", "/shared/"],
+        "npm": ["/frontend/", "/shared/"],
+        "python": ["/backend/", "/shared/"],
+        "default": ["/shared/"]
+      },
+      "description": "Commands to automatically wrap with secret loading, including secret paths"
+    },
+    "onDemandCommands": {
+      "type": "object",
+      "default": {
+        "load_secrets": true,
+        "inspect_secrets": true,
+        "refresh_secrets": true,
+        "debug_env": true
+      },
+      "description": "Manual secret management commands to enable"
+    },
+    "secretManagerConfig": {
+      "type": "object",
+      "default": {
+        "projectId": "${INFISICAL_PROJECT_ID}",
+        "baseUrl": "https://app.infisical.com",
+        "authMethod": "universal-auth",
+        "clientId": ""
+      },
+      "description": "Secret manager specific configuration"
+    },
+    "cache": {
+      "type": "object",
+      "default": {
+        "refreshInterval": "15m",
+        "strategy": "time_based",
+        "backgroundRefresh": false,
+        "cleanupInterval": "1h"
+      },
+      "description": "Cache behavior configuration"
+    },
+    "offlineMode": {
+      "type": "object",
+      "default": {
+        "allowStaleCache": true,
+        "maxStaleAge": "2h",
+        "gracefulFailure": true,
+        "retryInterval": "5m"
+      },
+      "description": "Offline and network failure handling"
+    },
+    "debug": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable debug logging and verbose output"
+    },
+    "bind": {
+      "type": "object",
+      "default": {
+        "debugKey": false,
+        "refreshKey": false,
+        "inspectKey": false,
+        "markHistory": false
+      },
+      "description": "Configure interactive key bindings."
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.env.linux": {
+          "DEV_ENV_MANAGER_ENABLED": "true"
+        }
+      }
+    }
+  },
+  "containerEnv": {
+    "DEV_ENV_MANAGER_FEATURE": "true"
+  },
+  "init": true,
+  "privileged": false,
+  "installsAfter": ["ghcr.io/devcontainers/features/common-utils"]
+}
