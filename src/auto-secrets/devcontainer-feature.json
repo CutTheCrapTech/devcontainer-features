@@ -1,6 +1,6 @@
 {
   "id": "auto-secrets",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "name": "Auto Secrets Manager",
   "description": "Automatically manages environment secrets based on git branches with enterprise-grade security",
   "documentationURL": "https://github.com/your-org/devcontainer-features/tree/main/src/auto-secrets",
@@ -62,21 +62,11 @@
       },
       "description": "Commands to automatically wrap with secret loading, including secret paths"
     },
-    "onDemandCommands": {
-      "type": "object",
-      "default": {
-        "load_secrets": true,
-        "inspect_secrets": true,
-        "refresh_secrets": true,
-        "debug_env": true
-      },
-      "description": "Manual secret management commands to enable"
-    },
     "secretManagerConfig": {
       "type": "object",
       "default": {
-        "projectId": "${INFISICAL_PROJECT_ID}",
-        "baseUrl": "https://app.infisical.com",
+        "projectId": "",
+        "domain": "https://app.infisical.com",
         "authMethod": "universal-auth",
         "clientId": ""
       },

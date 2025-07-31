@@ -1,0 +1,16 @@
+{
+  "languages": {
+    "Shell Script": {
+      "formatter": {
+        "external": {
+          "command": "shfmt",
+          // Change `--indent 2` to match your preferred tab_size
+          "arguments": ["--filename", "{buffer_path}", "--indent", "2"]
+        }
+      }
+    }
+  },
+  "tab_size": 2,
+  "format_on_save": "on",
+  "autosave": "on_focus_change"
+}

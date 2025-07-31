@@ -4,15 +4,12 @@
 
 # Source common shell utilities
 if [[ -f "$DEV_ENV_MANAGER_DIR/shells/common-shell.sh" ]]; then
-    source "$DEV_ENV_MANAGER_DIR/shells/common-shell.sh"
+  # shellcheck source=shells/common-shell.sh
+  source "$DEV_ENV_MANAGER_DIR/shells/common-shell.sh"
 fi
 
 # Zsh-specific configuration
 ZSH_INTEGRATION_INITIALIZED=false
-
-# Store original precmd functions
-typeset -ga precmd_functions_backup
-precmd_functions_backup=("${precmd_functions[@]}")
 
 # Branch change detection function for zsh
 _zsh_check_environment_change() {
@@ -84,7 +81,9 @@ _setup_zsh_prompt_integration() {
     fi
 
     # Initialize branch tracking
-    export LAST_KNOWN_BRANCH=$(get_current_branch)
+    local temp_branch
+    temp_branch=$(get_current_branch)
+    export LAST_KNOWN_BRANCH="$temp_branch"
 
     log_debug "Zsh prompt integration initialized"
     ZSH_INTEGRATION_INITIALIZED=true
@@ -133,29 +132,32 @@ _zsh_env_indicator() {
 
 # Zsh completion system integration
 _zsh_completion_secrets() {
-    local context state line
-    typeset -A opt_args
+  # shellcheck disable=SC2034  # These variables are used by zsh completion system
+  local context state line
+  # shellcheck disable=SC2034
+  typeset -A opt_args
 
-    case "$service" in
-        "inspect_secrets")
-            _arguments \
-                '--values[Show secret values (truncated)]' \
-                '--json[Output in JSON format]' \
-                '--help[Show help message]'
-            ;;
-        "load_secrets")
-            _arguments \
-                '--all[Load all available secrets]' \
-                '--pattern=[Load secrets matching pattern]:pattern:' \
-                '--help[Show help message]' \
-                '*:secret key:_zsh_complete_secret_keys' \
-                '--:command:_command_names'
-            ;;
-        "debug_env"|"refresh_secrets"|"cleanup_cache")
-            _arguments \
-                '--help[Show help message]'
-            ;;
-    esac
+  # shellcheck disable=SC2154  # service is set by zsh completion system
+  case "$service" in
+      "inspect_secrets")
+          _arguments \
+              '--values[Show secret values (truncated)]' \
+              '--json[Output in JSON format]' \
+              '--help[Show help message]'
+          ;;
+      "load_secrets")
+          _arguments \
+              '--all[Load all available secrets]' \
+              '--pattern=[Load secrets matching pattern]:pattern:' \
+              '--help[Show help message]' \
+              '*:secret key:_zsh_complete_secret_keys' \
+              '--:command:_command_names'
+          ;;
+      "debug_env"|"refresh_secrets"|"cleanup_cache")
+          _arguments \
+              '--help[Show help message]'
+          ;;
+  esac
 }
 
 # Complete available secret keys
@@ -163,10 +165,12 @@ _zsh_complete_secret_keys() {
     local cache_dir
     cache_dir=$(get_cache_dir)
     if is_cache_valid "$cache_dir"; then
-        local secrets_output secrets
-        secrets_output=$(grep -o '^[A-Z_][A-Z0-9_]*' "$cache_dir/secrets.env" 2>/dev/null)
-        secrets=(${(f)secrets_output})
-        _describe 'secret keys' secrets
+      local secrets_output secrets
+      # shellcheck disable=SC2034  # Used in zsh array splitting on next line
+      secrets_output=$(grep -o '^[A-Z_][A-Z0-9_]*' "$cache_dir/secrets.env" 2>/dev/null)
+      # shellcheck disable=SC2296,SC2034  # Valid zsh syntax, used by _describe
+      secrets=("${(@f)secrets_output}")
+      _describe 'secret keys' secrets
     fi
 }
 
@@ -201,8 +205,9 @@ _setup_zsh_keybindings() {
     }
 
     _zsh_inspect_secrets_widget() {
-        BUFFER="inspect_secrets"
-        zle accept-line
+      # shellcheck disable=SC2034  # BUFFER is used by zsh line editor
+      BUFFER="inspect_secrets"
+      zle accept-line
     }
 
     # Register widgets
@@ -242,6 +247,7 @@ _setup_zsh_history_integration() {
         }
 
         # Add to zshaddhistory hook (if available)
+        # shellcheck disable=SC2154  # functions is a zsh built-in associative array
         if (( $+functions[add-zsh-hook] )); then
             add-zsh-hook zshaddhistory _zsh_history_hook
             log_debug "Zsh history integration enabled"
@@ -257,7 +263,8 @@ _setup_zsh_error_handling() {
             local line_number=$LINENO
 
             # Get the failing command from history
-            local command=$(fc -ln -1)
+            local command
+            command=$(fc -ln -1)
 
             # Only handle our errors
             if [[ "$command" =~ (refresh_secrets|inspect_secrets|load_secrets|debug_env) ]]; then
@@ -286,8 +293,9 @@ _setup_zsh_prompt_customization() {
     if [[ "$DEV_ENV_MANAGER_SHOW_ENV_IN_PROMPT" == "true" ]]; then
         # Add environment indicator to RPROMPT if not already present
         if [[ -z "${RPROMPT}" ]] || [[ "${RPROMPT}" != *"_zsh_env_indicator"* ]]; then
-            RPROMPT='$(_zsh_env_indicator)'$RPROMPT
-            log_debug "Environment indicator added to zsh prompt"
+          # shellcheck disable=SC2016
+          RPROMPT='$(_zsh_env_indicator)'$RPROMPT
+          log_debug "Environment indicator added to zsh prompt"
         fi
     fi
 }

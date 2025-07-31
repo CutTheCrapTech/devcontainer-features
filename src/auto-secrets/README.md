@@ -90,12 +90,18 @@ Automatically load secrets for infrastructure commands. The value for each comma
 ```json
 {
   "autoCommands": {
-    "terraform": ["/infrastructure/", "/shared/"],
-    "kubectl": ["/kubernetes/", "/shared/"],
-    "aws": ["/infrastructure/", "/shared/"]
+    "terraform": ["/infrastructure/**", "/shared/**"],         -> loads secrets in the directory, recursively
+    "tofu": ["/kubernetes/*", "/shared/*"],                    -> loads secrets in the directory, but not recursively
+    "kubectl": ["/kubernetes/**", "/shared/*"],                -> Mixed
+    "aws": ["/infrastructure/secret_1", "/shared/secret_2"]    -> loads exact secrets
   }
 }
 ```
+
+**Notes:**
+
+1. For the commands terraform and tofu, the secrets from secret manager are automatically prefixed with `TF_VAR_` to be compatible with Terraform's/OpenTofu's environment variable loading.
+2. The secret loaded will be set as infrastructure_terraform_secret_x environment variable, for a secret `secret_x` in `/infrastructure/terraform` path.
 
 ## Secret Manager Configuration
 
@@ -104,9 +110,10 @@ Automatically load secrets for infrastructure commands. The value for each comma
 ```json
 {
   "secretManagerConfig": {
-    "projectId": "${INFISICAL_PROJECT_ID}",
-    "baseUrl": "https://app.infisical.com",
-    "authMethod": "universal-auth"
+    "projectId": "YOUR_PROJECT_ID",
+    "baseUrl": "https://app.infisical.com",      -> change this to eu.infisical.com if location is Europe or custom url if selfhosted
+    "authMethod": "universal-auth",              -> only universal auth is implemented currently
+    "clientId": "YOUR_CLIENT_ID"
   }
 }
 ```
