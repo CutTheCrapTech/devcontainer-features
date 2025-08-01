@@ -2,22 +2,6 @@
 # Auto Secrets Manager - Cleanup Utilities
 # Handles cache maintenance, resource cleanup, and system maintenance
 
-# Source required modules
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  # shellcheck source=utils/logging.sh
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/permissions.sh" ]]; then
-  # shellcheck source=core/permissions.sh
-  source "$DEV_ENV_MANAGER_DIR/core/permissions.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/cache.sh" ]]; then
-  # shellcheck source=core/cache.sh
-  source "$DEV_ENV_MANAGER_DIR/core/cache.sh"
-fi
-
 # Cleanup configuration
 readonly DEFAULT_CLEANUP_AGE="7d"
 readonly DEFAULT_CLEANUP_INTERVAL="1h"
@@ -493,10 +477,4 @@ full_cleanup() {
 # Set up exit cleanup trap if in interactive shell
 if [[ -n "$PS1" ]]; then
   trap 'cleanup_on_exit $?' EXIT
-fi
-
-# Ensure configuration is loaded when module is sourced
-if [[ -z "$DEV_ENV_MANAGER_VERSION" ]] && [[ -n "$DEV_ENV_MANAGER_DIR" ]] && [[ -f "$DEV_ENV_MANAGER_DIR/config.sh" ]]; then
-  # shellcheck source=/dev/null
-  source "$DEV_ENV_MANAGER_DIR/config.sh"
 fi

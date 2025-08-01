@@ -2,17 +2,6 @@
 # Auto Secrets Manager - HashiCorp Vault Secret Manager Integration
 # Handles fetching secrets from Vault with authentication and error handling
 
-# Source required modules
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  # shellcheck source=utils/logging.sh
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh" ]]; then
-  # shellcheck source=core/environment-mapping.sh
-  source "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh"
-fi
-
 # Vault configuration
 readonly VAULT_API_VERSION="v1"
 readonly VAULT_DEFAULT_MOUNT="secret"

@@ -2,17 +2,6 @@
 # Auto Secrets Manager - Google Cloud Secret Manager Integration
 # Handles fetching secrets from GCP Secret Manager with authentication and error handling
 
-# Source required modules
-#
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  # shellcheck source=utils/logging.sh
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh" ]]; then
-  # shellcheck source=core/environment-mapping.sh
-  source "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh"
-fi
-
 # Get GCP project ID from configuration
 _get_gcp_project_id() {
   local project_id="${DEV_ENV_MANAGER_SECRET_MANAGER_PROJECT_ID:-${GCP_PROJECT_ID:-${GOOGLE_CLOUD_PROJECT:-}}}"

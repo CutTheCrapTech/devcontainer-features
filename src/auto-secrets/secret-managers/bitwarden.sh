@@ -2,17 +2,6 @@
 # Auto Secrets Manager - Bitwarden Integration
 # Handles fetching secrets from Bitwarden with authentication and error handling
 
-# Source required modules
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  # shellcheck source=utils/logging.sh
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh" ]]; then
-  # shellcheck source=core/environment-mapping.sh
-  source "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh"
-fi
-
 # Get Bitwarden server URL from configuration
 _get_bitwarden_server_url() {
   local server_url="${DEV_ENV_MANAGER_SECRET_MANAGER_BASE_URL:-${BW_SERVER_URL:-https://vault.bitwarden.com}}"

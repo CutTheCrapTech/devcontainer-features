@@ -2,16 +2,6 @@
 # Auto Secrets Manager - Environment Mapping Module
 # Maps git branches to secret manager environments
 
-# Source logging utilities
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-
-# Source branch detection
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/branch-detection.sh" ]]; then
-  source "$DEV_ENV_MANAGER_DIR/core/branch-detection.sh"
-fi
-
 # Global environment cache
 CACHED_ENVIRONMENT=""
 CACHED_ENVIRONMENT_BRANCH=""

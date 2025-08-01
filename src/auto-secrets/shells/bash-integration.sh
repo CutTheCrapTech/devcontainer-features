@@ -2,12 +2,6 @@
 # Auto Secrets Manager - Bash Shell Integration
 # Provides bash-specific hooks and prompt integration for branch change detection
 
-# Source common shell utilities
-if [[ -f "$DEV_ENV_MANAGER_DIR/shells/common-shell.sh" ]]; then
-  # shellcheck source=shells/common-shell.sh
-  source "$DEV_ENV_MANAGER_DIR/shells/common-shell.sh"
-fi
-
 # Bash-specific configuration
 BASH_INTEGRATION_INITIALIZED=false
 

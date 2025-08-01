@@ -2,15 +2,6 @@
 # Auto Secrets Manager - Infisical Secret Manager Integration
 # Handles fetching secrets from Infisical with authentication and error handling
 
-# Source required modules
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh" ]]; then
-  source "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh"
-fi
-
 # Fetch secrets for environment using CLI
 _fetch_secrets_with_cli() {
   local environment="$1"
@@ -56,15 +47,6 @@ _fetch_secrets_with_cli() {
 # Authenticate with Infisical if universal auth is configured
 authenticate_infisical() {
   log_info "🔑 Attempting Infisical authentication..."
-
-  # Source config.sh to get the variables set by _setup_configuration
-  # This is needed because infisical.sh might be sourced directly or indirectly
-  if [[ -f "$DEV_ENV_MANAGER_DIR/config.sh" ]]; then
-    source "$DEV_ENV_MANAGER_DIR/config.sh"
-  else
-    log_error "DEV_ENV_MANAGER_DIR/config.sh not found. Cannot authenticate Infisical."
-    return 1
-  fi
 
   local infisical_domain="$DEV_ENV_MANAGER_SECRET_MANAGER_DOMAIN"
   local infisical_client_id="$DEV_ENV_MANAGER_SECRET_MANAGER_CLIENT_ID"

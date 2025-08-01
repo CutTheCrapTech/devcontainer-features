@@ -1,11 +1,12 @@
 #!/bin/bash
-# Auto Secrets Manager Shell Integration Loader
+# Auto Secrets Manager - Simple Dynamic Initialization
+# Sources all modules automatically from directory structure
 
 FEATURE_DIR="{{FEATURE_DIR}}"
 
 # Only initialize if we're in a git repository or if explicitly enabled
 if [[ -d .git ]] || [[ "$DEV_ENV_MANAGER_FORCE" == "true" ]]; then
-  # Load configuration first
+  # Load base configuration first
   if [[ -f "$FEATURE_DIR/config.sh" ]]; then
     # shellcheck source=/dev/null
     source "$FEATURE_DIR/config.sh"
@@ -14,53 +15,44 @@ if [[ -d .git ]] || [[ "$DEV_ENV_MANAGER_FORCE" == "true" ]]; then
     return 1
   fi
 
-  # Source config parser utilities for runtime use
-  if [[ -f "$FEATURE_DIR/utils/config-parser.sh" ]]; then
-    # shellcheck source=utils/config-parser.sh
-    source "$FEATURE_DIR/utils/config-parser.sh"
+  # Phase 1: Load utilities (no dependencies)
+  if [[ -d "$FEATURE_DIR/utils" ]]; then
+    for util_file in "$FEATURE_DIR/utils"/*.sh; do
+      # shellcheck source=/dev/null
+      [[ -f "$util_file" ]] && source "$util_file"
+    done
   fi
 
-  # Load core modules with error checking
-  core_modules=(
-    "utils/logging.sh"
-    "core/branch-detection.sh"
-    "core/environment-mapping.sh"
-    "core/permissions.sh"
-    "core/cache.sh"
-  )
-
-  for module in "${core_modules[@]}"; do
-    if [[ -f "$FEATURE_DIR/$module" ]]; then
+  # Phase 2: Load core modules (depend on utils)
+  if [[ -d "$FEATURE_DIR/core" ]]; then
+    for core_file in "$FEATURE_DIR/core"/*.sh; do
       # shellcheck source=/dev/null
-      source "$FEATURE_DIR/$module"
-    else
-      echo "Error: Required module not found: $FEATURE_DIR/$module" >&2
+      [[ -f "$core_file" ]] && source "$core_file"
+    done
+  fi
+
+  # Phase 3: Load secret managers (depend on utils + core)
+  if [[ -d "$FEATURE_DIR/secret-managers" ]]; then
+    for manager_file in "$FEATURE_DIR/secret-managers"/*.sh; do
+      # shellcheck source=/dev/null
+      [[ -f "$manager_file" ]] && source "$manager_file"
+    done
+  fi
+
+  # Phase 4: Load shell integration (depends on everything above)
+  if [[ -d "$FEATURE_DIR/shells" ]]; then
+    for shell_file in "$FEATURE_DIR/shells"/*.sh; do
+      # shellcheck source=/dev/null
+      [[ -f "$shell_file" ]] && source "$shell_file"
+    done
+  fi
+
+  # Initialize the secret manager
+  if command -v init_manager_interface >/dev/null 2>&1; then
+    if ! init_manager_interface; then
+      echo "Error: Failed to initialize secret manager: $DEV_ENV_MANAGER_SECRET_MANAGER" >&2
       return 1
     fi
-  done
-
-  # Load secret manager interface and implementation
-  if [[ -f "$FEATURE_DIR/secret-managers/manager-interface.sh" ]]; then
-    # shellcheck source=secret-managers/manager-interface.sh
-    source "$FEATURE_DIR/secret-managers/manager-interface.sh"
-  else
-    echo "Error: Secret manager interface not found" >&2
-    return 1
-  fi
-
-  # Initialize the specific secret manager
-  if ! init_manager_interface; then
-    echo "Error: Failed to initialize secret manager: $DEV_ENV_MANAGER_SECRET_MANAGER" >&2
-    return 1
-  fi
-
-  # Load shell-specific integration
-  if [[ -n "$ZSH_VERSION" ]] && [[ "$DEV_ENV_MANAGER_SHELLS" =~ (zsh|both) ]]; then
-    # shellcheck source=shells/zsh-integration.sh
-    source "$FEATURE_DIR/shells/zsh-integration.sh"
-  elif [[ -n "$BASH_VERSION" ]] && [[ "$DEV_ENV_MANAGER_SHELLS" =~ (bash|both) ]]; then
-    # shellcheck source=shells/bash-integration.sh
-    source "$FEATURE_DIR/shells/bash-integration.sh"
   fi
 
   # Initialize environment detection
@@ -73,14 +65,25 @@ if [[ -d .git ]] || [[ "$DEV_ENV_MANAGER_FORCE" == "true" ]]; then
     setup_auto_commands
   fi
 
+  # Success indicator
+  export DEV_ENV_MANAGER_INITIALIZED=true
+
+  # Validate configuration
+  if [[ -f "$FEATURE_DIR/validate-config.sh" ]] && [[ "$DEV_ENV_MANAGER_DEBUG" == "true" ]]; then
+    # shellcheck source=/dev/null
+    source "$FEATURE_DIR/validate-config.sh"
+    if ! validate_runtime_config; then
+      echo "Warning: Configuration validation failed" >&2
+    fi
+  fi
+
   # Log successful initialization
   if command -v log_debug >/dev/null 2>&1; then
-    current_env=""
+    current_env="unknown"
     if command -v get_current_environment >/dev/null 2>&1; then
       current_env=$(get_current_environment)
-    else
-      current_env="unknown"
     fi
-    log_debug "Auto Secrets Manager initialized for environment: $current_env"
+    log_debug "Auto Secrets Manager initialized successfully for environment: $current_env"
   fi
+
 fi

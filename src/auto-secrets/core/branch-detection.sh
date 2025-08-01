@@ -2,11 +2,6 @@
 # Auto Secrets Manager - Branch Detection Module
 # Handles git branch detection with robust detached HEAD support
 
-# Source logging utilities
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-
 # Global variables for caching current branch state
 CACHED_BRANCH=""
 CACHED_BRANCH_TIMESTAMP=0

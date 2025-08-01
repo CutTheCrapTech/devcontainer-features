@@ -2,11 +2,6 @@
 # Auto Secrets Manager - Permissions Module
 # Handles secure file permissions and atomic operations for cache management
 
-# Source logging utilities
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-
 # Security constants
 readonly CACHE_DIR_PERMS="700"  # rwx------ (owner only)
 readonly CACHE_FILE_PERMS="600" # rw------- (owner only)

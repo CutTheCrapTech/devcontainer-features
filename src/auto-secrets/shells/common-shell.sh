@@ -2,48 +2,12 @@
 # Auto Secrets Manager - Common Shell Utilities
 # Shared functions for bash and zsh shell integrations
 
-# Source required modules
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  # shellcheck source=utils/logging.sh
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/cache.sh" ]]; then
-  # shellcheck source=core/cache.sh
-  source "$DEV_ENV_MANAGER_DIR/core/cache.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/branch-detection.sh" ]]; then
-  # shellcheck source=core/branch-detection.sh
-  source "$DEV_ENV_MANAGER_DIR/core/branch-detection.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh" ]]; then
-  # shellcheck source=core/environment-mapping.sh
-  source "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/config-parser.sh" ]]; then
-  # shellcheck source=utils/config-parser.sh
-  source "$DEV_ENV_MANAGER_DIR/utils/config-parser.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/secret-managers/manager-interface.sh" ]]; then
-  # shellcheck source=secret-managers/manager-interface.sh
-  source "$DEV_ENV_MANAGER_DIR/secret-managers/manager-interface.sh"
-fi
-
 # Initialize environment detection for current shell
 init_environment_detection() {
   # Ensure all configuration is loaded
   if [[ -z "$DEV_ENV_MANAGER_DIR" ]]; then
     log_error "DEV_ENV_MANAGER_DIR not set"
     return 1
-  fi
-
-  # Load configuration if not already loaded
-  if [[ -z "$DEV_ENV_MANAGER_VERSION" ]] && [[ -f "$DEV_ENV_MANAGER_DIR/config.sh" ]]; then
-    source "$DEV_ENV_MANAGER_DIR/config.sh"
   fi
 
   # Set up current environment variables
@@ -68,9 +32,7 @@ init_environment_detection() {
 # Refresh secrets from secret manager
 refresh_secrets() {
   # Ensure configuration is loaded
-  if [[ -z "$DEV_ENV_MANAGER_VERSION" ]] && [[ -f "$DEV_ENV_MANAGER_DIR/config.sh" ]]; then
-    source "$DEV_ENV_MANAGER_DIR/config.sh"
-  fi
+  # Config is already loaded by init.sh
 
   local environment
   environment=$(get_current_environment_with_override)

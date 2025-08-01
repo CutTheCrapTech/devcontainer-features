@@ -2,22 +2,6 @@
 # Auto Secrets Manager - Cache Management Module
 # Handles secure caching of secrets in tmpfs with atomic operations
 
-# Source required modules
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  # shellcheck source=utils/logging.sh
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh" ]]; then
-  # shellcheck source=core/environment-mapping.sh
-  source "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/permissions.sh" ]]; then
-  # shellcheck source=core/permissions.sh
-  source "$DEV_ENV_MANAGER_DIR/core/permissions.sh"
-fi
-
 # Cache configuration
 readonly CACHE_BASE_DIR="/dev/shm/dev-env-manager"
 readonly CACHE_FALLBACK_DIR="/tmp/dev-env-manager"

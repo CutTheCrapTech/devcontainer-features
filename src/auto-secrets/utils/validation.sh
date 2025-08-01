@@ -2,12 +2,6 @@
 # Auto Secrets Manager - Validation Utilities
 # Provides input validation and configuration checks
 
-# Source logging utilities
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  # shellcheck source=utils/logging.sh
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-
 # Validate environment name format
 _validate_environment_name() {
   local environment="$1"

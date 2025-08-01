@@ -2,12 +2,6 @@
 # Auto Secrets Manager - Zsh Shell Integration
 # Provides zsh-specific hooks and prompt integration for branch change detection
 
-# Source common shell utilities
-if [[ -f "$DEV_ENV_MANAGER_DIR/shells/common-shell.sh" ]]; then
-  # shellcheck source=shells/common-shell.sh
-  source "$DEV_ENV_MANAGER_DIR/shells/common-shell.sh"
-fi
-
 # Zsh-specific configuration
 ZSH_INTEGRATION_INITIALIZED=false
 

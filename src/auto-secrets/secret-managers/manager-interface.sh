@@ -2,17 +2,6 @@
 # Auto Secrets Manager - Secret Manager Interface
 # Provides a common interface for all secret manager implementations
 
-# Source required modules
-if [[ -f "$DEV_ENV_MANAGER_DIR/utils/logging.sh" ]]; then
-  # shellcheck source=utils/logging.sh
-  source "$DEV_ENV_MANAGER_DIR/utils/logging.sh"
-fi
-
-if [[ -f "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh" ]]; then
-  # shellcheck source=core/environment-mapping.sh
-  source "$DEV_ENV_MANAGER_DIR/core/environment-mapping.sh"
-fi
-
 # Current secret manager
 CURRENT_SECRET_MANAGER=""
 
@@ -29,64 +18,34 @@ _load_secret_manager() {
 
   case "$manager" in
   "infisical")
-    if [[ -f "$DEV_ENV_MANAGER_DIR/secret-managers/infisical.sh" ]]; then
-      source "$DEV_ENV_MANAGER_DIR/secret-managers/infisical.sh"
-      CURRENT_SECRET_MANAGER="infisical"
-      log_debug "Infisical secret manager loaded"
-    else
-      log_error "Infisical secret manager not found"
-      return 1
-    fi
+    # All secret managers are already loaded by init.sh
+    CURRENT_SECRET_MANAGER="infisical"
+    log_debug "Infisical secret manager loaded"
     ;;
   "vault")
-    if [[ -f "$DEV_ENV_MANAGER_DIR/secret-managers/vault.sh" ]]; then
-      source "$DEV_ENV_MANAGER_DIR/secret-managers/vault.sh"
-      CURRENT_SECRET_MANAGER="vault"
-      log_debug "Vault secret manager loaded"
-    else
-      log_error "Vault secret manager not found"
-      return 1
-    fi
+    # All secret managers are already loaded by init.sh
+    CURRENT_SECRET_MANAGER="vault"
+    log_debug "Vault secret manager loaded"
     ;;
   "aws")
-    if [[ -f "$DEV_ENV_MANAGER_DIR/secret-managers/aws-secrets.sh" ]]; then
-      source "$DEV_ENV_MANAGER_DIR/secret-managers/aws-secrets.sh"
-      CURRENT_SECRET_MANAGER="aws"
-      log_debug "AWS Secrets Manager loaded"
-    else
-      log_error "AWS Secrets Manager not found"
-      return 1
-    fi
+    # All secret managers are already loaded by init.sh
+    CURRENT_SECRET_MANAGER="aws"
+    log_debug "AWS Secrets Manager loaded"
     ;;
   "azure")
-    if [[ -f "$DEV_ENV_MANAGER_DIR/secret-managers/azure-keyvault.sh" ]]; then
-      source "$DEV_ENV_MANAGER_DIR/secret-managers/azure-keyvault.sh"
-      CURRENT_SECRET_MANAGER="azure"
-      log_debug "Azure Key Vault loaded"
-    else
-      log_error "Azure Key Vault not found"
-      return 1
-    fi
+    # All secret managers are already loaded by init.sh
+    CURRENT_SECRET_MANAGER="azure"
+    log_debug "Azure Key Vault loaded"
     ;;
   "gcp")
-    if [[ -f "$DEV_ENV_MANAGER_DIR/secret-managers/gcp-secrets.sh" ]]; then
-      source "$DEV_ENV_MANAGER_DIR/secret-managers/gcp-secrets.sh"
-      CURRENT_SECRET_MANAGER="gcp"
-      log_debug "GCP Secret Manager loaded"
-    else
-      log_error "GCP Secret Manager not found"
-      return 1
-    fi
+    # All secret managers are already loaded by init.sh
+    CURRENT_SECRET_MANAGER="gcp"
+    log_debug "GCP Secret Manager loaded"
     ;;
   "bitwarden")
-    if [[ -f "$DEV_ENV_MANAGER_DIR/secret-managers/bitwarden.sh" ]]; then
-      source "$DEV_ENV_MANAGER_DIR/secret-managers/bitwarden.sh"
-      CURRENT_SECRET_MANAGER="bitwarden"
-      log_debug "Bitwarden loaded"
-    else
-      log_error "Bitwarden not found"
-      return 1
-    fi
+    # All secret managers are already loaded by init.sh
+    CURRENT_SECRET_MANAGER="bitwarden"
+    log_debug "Bitwarden loaded"
     ;;
   *)
     log_error "Unknown secret manager: $manager"

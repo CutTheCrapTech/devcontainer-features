@@ -133,14 +133,11 @@ $(generate_full_config \
     'Offline mode:OFFLINE_MODE:'"$OFFLINE_MODE_JSON" \
     'Secret manager:SECRET_MANAGER:'"$SECRET_MANAGER_CONFIG_JSON" \
     'Key binding:BIND:'"$BIND_JSON")
-
-# Source secret manager specific configuration
-source "$FEATURE_DIR/secret-manager-config.sh"
 EOF
 
   # Copy secret manager config template
-  cp "$SCRIPT_DIR/templates/secret-manager-config.template.sh" "$FEATURE_DIR/secret-manager-config.sh"
-  chmod +x "$FEATURE_DIR/secret-manager-config.sh"
+  cp "$SCRIPT_DIR/secret-managers/config.sh" "$FEATURE_DIR/secret-managers/config.sh"
+  chmod +x "$FEATURE_DIR/secret-managers/config.sh"
 
   chmod +x "$FEATURE_DIR/config.sh"
 
