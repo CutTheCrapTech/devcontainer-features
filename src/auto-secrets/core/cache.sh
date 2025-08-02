@@ -31,19 +31,6 @@ get_cache_dir() {
   echo "${base_dir}-${user_id}-${env_hash}"
 }
 
-# Get cache directory for specific environment
-get_cache_dir_for_environment() {
-  local environment="$1"
-  local user_id
-  user_id=$(id -u)
-  local env_hash
-  env_hash=$(get_environment_hash "$environment")
-  local base_dir
-  base_dir=$(_get_cache_base_dir)
-
-  echo "${base_dir}-${user_id}-${env_hash}"
-}
-
 # Create cache directory with proper security
 _create_cache_dir() {
   local cache_dir="$1"
@@ -56,36 +43,16 @@ _create_cache_dir() {
     return 1
   fi
 
-  # Create control files
-  local control_files=(
-    ".version"
-    ".timestamp"
-    ".last_accessed"
-    ".environment"
-    ".branch"
-  )
+  # Create version file and initial empty metadata file
+  if ! create_secure_file "$cache_dir/.version" || ! create_secure_file "$cache_dir/cache.metadata.json"; then
+    log_error "Failed to create control files in $cache_dir"
+    remove_path_secure "$cache_dir"
+    return 1
+  fi
 
-  for file in "${control_files[@]}"; do
-    if ! create_secure_file "$cache_dir/$file"; then
-      log_error "Failed to create control file: $cache_dir/$file"
-      remove_path_secure "$cache_dir"
-      return 1
-    fi
-  done
-
-  # Write initial metadata
-  local current_time
-  current_time=$(date +%s)
-  local current_environment
-  current_environment=$(get_current_environment_with_override)
-  local current_branch
-  current_branch=$(get_current_branch)
-
+  # Write initial data
   write_file_atomic "$cache_dir/.version" "$CACHE_VERSION"
-  write_file_atomic "$cache_dir/.timestamp" "$current_time"
-  write_file_atomic "$cache_dir/.last_accessed" "$current_time"
-  write_file_atomic "$cache_dir/.environment" "$current_environment"
-  write_file_atomic "$cache_dir/.branch" "$current_branch"
+  jq -n '{status: "uninitialized"}' >"$cache_dir/cache.metadata.json"
 
   # Create main secrets file
   if ! create_secure_file "$cache_dir/secrets.json"; then
@@ -114,126 +81,112 @@ is_cache_valid() {
     return 1
   fi
 
-  # Check for required files
-  local required_files=(
-    "secrets.json"
-    ".timestamp"
-    ".last_accessed"
-    ".environment"
-  )
-
-  for file in "${required_files[@]}"; do
-    if [[ ! -f "$cache_dir/$file" ]]; then
-      log_debug "Missing cache file: $cache_dir/$file"
-      return 1
-    fi
-
-    if ! is_path_secure "$cache_dir/$file"; then
-      log_warn "Cache file security compromised: $cache_dir/$file"
-      return 1
-    fi
-  done
+  # Check for essential files
+  if [[ ! -f "$cache_dir/secrets.json" ]] || [[ ! -f "$cache_dir/cache.metadata.json" ]]; then
+    log_debug "Missing essential cache files in $cache_dir"
+    return 1
+  fi
 
   log_debug "Cache is valid: $cache_dir"
   return 0
 }
 
-# Get cache age in seconds
+# Get cache age in seconds from metadata
 get_cache_age() {
   local cache_dir="$1"
-  local timestamp_file="$cache_dir/.timestamp"
+  local metadata_file="$cache_dir/cache.metadata.json"
 
-  if [[ ! -f "$timestamp_file" ]]; then
-    echo "0"
-    return 1
+  if [[ ! -f "$metadata_file" ]]; then
+    echo "-1"
+    return
   fi
 
-  local cache_timestamp
-  cache_timestamp=$(cat "$timestamp_file" 2>/dev/null || echo "0")
+  local last_refresh_str
+  last_refresh_str=$(jq -r '.last_successful_refresh // "0"' "$metadata_file")
+
+  # Handle ISO 8601 date format
+  local last_refresh_ts
+  if [[ "$last_refresh_str" == "0" ]]; then
+    last_refresh_ts=0
+  else
+    last_refresh_ts=$(date -d "$last_refresh_str" +%s)
+  fi
+
   local current_time
   current_time=$(date +%s)
-  local age=$((current_time - cache_timestamp))
+  local age=$((current_time - last_refresh_ts))
 
   echo "$age"
 }
 
-# Check if cache should be refreshed
+# Check if cache should be refreshed based on metadata
 should_refresh_cache() {
   local cache_dir="$1"
-  local max_age="${2:-}"
-
-  if [[ -z "$max_age" ]]; then
-    # Ensure DEV_ENV_MANAGER_CACHE_REFRESH_INTERVAL is available or use default
-    local refresh_interval="${DEV_ENV_MANAGER_CACHE_REFRESH_INTERVAL:-${DEV_ENV_MANAGER_CACHE_EXPIRY:-15m}}"
-    max_age=$(parse_duration "$refresh_interval")
-  fi
+  local metadata_file="$cache_dir/cache.metadata.json"
 
   if ! is_cache_valid "$cache_dir"; then
     log_debug "Cache invalid, needs refresh"
-    return 0
+    return 0 # Needs refresh
   fi
+
+  local status
+  status=$(jq -r '.status // "error"' "$metadata_file")
+
+  if [[ "$status" != "ok" ]]; then
+    log_debug "Cache status is '$status', needs refresh"
+    return 0 # Needs refresh
+  fi
+
+  local max_age
+  local refresh_interval="${DEV_ENV_MANAGER_CACHE_REFRESH_INTERVAL:-15m}"
+  max_age=$(parse_duration "$refresh_interval")
 
   local cache_age
   cache_age=$(get_cache_age "$cache_dir")
 
   if [[ $cache_age -gt $max_age ]]; then
     log_debug "Cache expired (age: ${cache_age}s, max: ${max_age}s)"
-    return 0
+    return 0 # Needs refresh
   fi
 
   log_debug "Cache is fresh (age: ${cache_age}s, max: ${max_age}s)"
-  return 1
+  return 1 # Does not need refresh
 }
 
-# Touch cache access timestamp
+# Touch cache access timestamp in metadata
 touch_cache_access() {
   local cache_dir="$1"
-  local access_file="$cache_dir/.last_accessed"
+  local metadata_file="$cache_dir/cache.metadata.json"
 
-  if [[ -f "$access_file" ]]; then
-    local current_time
-    current_time=$(date +%s)
-    write_file_atomic "$access_file" "$current_time"
+  if [[ -f "$metadata_file" ]]; then
+    local current_metadata
+    current_metadata=$(cat "$metadata_file")
+    local new_metadata
+    new_metadata=$(echo "$current_metadata" | jq --arg date "$(date -Iseconds)" '.last_accessed = $date')
+    write_file_atomic "$metadata_file" "$new_metadata"
     log_cache "Cache access recorded: $cache_dir"
   fi
 }
 
-# Write secrets to cache atomically
+# Write secrets to cache atomically and update metadata
 write_secrets_to_cache() {
   local cache_dir="$1"
   local secrets_content="$2"
 
   log_cache "Writing secrets to cache: $cache_dir"
 
-  # Ensure cache directory exists
-  if [[ ! -d "$cache_dir" ]]; then
-    if ! _create_cache_dir "$cache_dir"; then
-      log_error "Failed to create cache directory for writing"
-      return 1
-    fi
-  fi
-
-  # Verify cache is secure before writing
-  if ! is_cache_valid "$cache_dir"; then
-    log_error "Cache directory invalid, cannot write secrets"
+  if ! ensure_cache_dir >/dev/null; then
+    log_error "Failed to ensure cache directory exists for writing"
     return 1
   fi
 
   # Prepare secrets content as JSON with metadata
   local full_content
-  full_content=$(
-    cat <<EOF
-{
-  "_metadata": {
-    "generated_at": "$(date -Iseconds)",
-    "environment": "$(get_current_environment_with_override)",
-    "branch": "$(get_current_branch)",
-    "version": "$CACHE_VERSION"
-  },
-  "secrets": $secrets_content
-}
-EOF
-  )
+  full_content=$(jq -n --argjson secrets "$secrets_content" \
+    --arg env "$(get_current_environment_with_override)" \
+    --arg branch "$(get_current_branch)" \
+    --arg version "$CACHE_VERSION" \
+    '{ "_metadata": { "generated_at": "$(now | todate)", "environment": $env, "branch": $branch, "version": $version }, "secrets": $secrets }')
 
   # Write secrets atomically
   if ! write_file_atomic "$cache_dir/secrets.json" "$full_content"; then
@@ -241,17 +194,28 @@ EOF
     return 1
   fi
 
-  # Update timestamp
-  local current_time
-  current_time=$(date +%s)
-  write_file_atomic "$cache_dir/.timestamp" "$current_time"
-  touch_cache_access "$cache_dir"
+  # Update metadata file to status: ok
+  local metadata_file="$cache_dir/cache.metadata.json"
+  local current_metadata
+  current_metadata=$(cat "$metadata_file")
+  local new_metadata
+  new_metadata=$(echo "$current_metadata" | jq \
+    --arg status "ok" \
+    --arg date "$(date -Iseconds)" \
+    --arg env "$(get_current_environment_with_override)" \
+    --arg branch "$(get_current_branch)" \
+    '.status = $status | .last_successful_refresh = $date | .environment = $env | .branch = $branch')
+
+  if ! write_file_atomic "$metadata_file" "$new_metadata"; then
+    log_error "Failed to update cache metadata"
+    return 1
+  fi
 
   log_cache "Secrets written to cache successfully"
   return 0
 }
 
-# Get cache status information
+# Get cache status information from metadata
 get_cache_status() {
   local cache_dir
   cache_dir=$(get_cache_dir)
@@ -259,64 +223,81 @@ get_cache_status() {
   echo "Cache Status:"
   echo "  Directory: $cache_dir"
 
-  if is_cache_valid "$cache_dir"; then
+  local metadata_file="$cache_dir/cache.metadata.json"
+  if [[ ! -f "$metadata_file" ]]; then
+    echo "  Status: Not initialized"
+    return
+  fi
+
+  local status
+  status=$(jq -r '.status // "unknown"' "$metadata_file")
+  echo "  Status: $status"
+
+  if [[ "$status" == "ok" ]]; then
     local cache_age
     cache_age=$(get_cache_age "$cache_dir")
     local age_formatted
     age_formatted=$(format_duration "$cache_age")
 
     local environment
-    environment=$(cat "$cache_dir/.environment" 2>/dev/null || echo "unknown")
-
+    environment=$(jq -r '.environment // "unknown"' "$metadata_file")
     local branch
-    branch=$(cat "$cache_dir/.branch" 2>/dev/null || echo "unknown")
+    branch=$(jq -r '.branch // "unknown"' "$metadata_file")
 
-    echo "  Status: Valid"
     echo "  Age: $age_formatted"
     echo "  Environment: $environment"
     echo "  Branch: $branch"
     echo "  Secrets file: $(jq '.secrets | length' <"$cache_dir/secrets.json" 2>/dev/null || echo "0") secrets"
-  else
-    echo "  Status: Invalid or missing"
+  elif [[ "$status" == "error" ]]; then
+    local last_attempt
+    last_attempt=$(jq -r '.last_attempted_refresh // "unknown"' "$metadata_file")
+    local error_message
+    error_message=$(jq -r '.error_message // "-"' "$metadata_file")
+    echo "  Last Attempt: $last_attempt"
+    echo "  Error: $error_message"
   fi
 }
 
-# Clean up old cache directories
+# Clean up old cache directories based on metadata
 cleanup_old_caches() {
   local base_dir
   base_dir=$(_get_cache_base_dir)
   local user_id
   user_id=$(id -u)
   local cleanup_threshold_seconds
-  cleanup_threshold_seconds=$(parse_duration "${DEV_ENV_MANAGER_OFFLINE_MODE_MAX_STALE_AGE:-${DEV_ENV_MANAGER_CACHE_CLEANUP_INTERVAL:-7d}}")
+  cleanup_threshold_seconds=$(parse_duration "${DEV_ENV_MANAGER_CACHE_CLEANUP_INTERVAL:-7d}")
   local current_time
   current_time=$(date +%s)
   local cleaned_count=0
 
   log_info "Cleaning up old cache directories..."
 
-  # Find all cache directories for current user
   for cache_dir in "${base_dir}"-"${user_id}"-*; do
     [[ -d "$cache_dir" ]] || continue
 
-    # Skip if not owned by current user (safety check)
     if ! is_path_secure "$cache_dir"; then
       log_warn "Skipping cache directory with incorrect ownership: $cache_dir"
       continue
     fi
 
-    local last_accessed_file="$cache_dir/.last_accessed"
+    local metadata_file="$cache_dir/cache.metadata.json"
+    [[ -f "$metadata_file" ]] || continue
 
-    # Skip if no access timestamp (newly created cache)
-    [[ -f "$last_accessed_file" ]] || continue
+    local last_accessed_str
+    last_accessed_str=$(jq -r '.last_accessed // "0"' "$metadata_file")
 
-    local last_accessed
-    last_accessed=$(cat "$last_accessed_file" 2>/dev/null || echo "0")
-    local age=$((current_time - last_accessed))
+    local last_accessed_ts
+    if [[ "$last_accessed_str" == "0" ]]; then
+      last_accessed_ts=0
+    else
+      last_accessed_ts=$(date -d "$last_accessed_str" +%s)
+    fi
+
+    local age=$((current_time - last_accessed_ts))
 
     if [[ $age -gt $cleanup_threshold_seconds ]]; then
       local environment
-      environment=$(cat "$cache_dir/.environment" 2>/dev/null || echo "unknown")
+      environment=$(jq -r '.environment // "unknown"' "$metadata_file")
 
       log_info "Removing stale cache: $environment (unused for $(format_duration $age))"
 
@@ -358,7 +339,7 @@ ensure_cache_dir() {
   local cache_dir
   cache_dir=$(get_cache_dir)
 
-  if is_cache_valid "$cache_dir"; then
+  if [[ -d "$cache_dir" ]]; then
     touch_cache_access "$cache_dir"
     echo "$cache_dir"
     return 0

@@ -2,6 +2,97 @@
 # Auto Secrets Manager - Common Shell Utilities
 # Shared functions for bash and zsh shell integrations
 
+# Internal function to prompt the user for confirmation.
+_prompt_user_to_continue() {
+  local warning_message="$1"
+  echo "$warning_message"
+  read -p "Do you want to run the command anyway? (y/N) " -r
+  echo # for newline
+  if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+    return 0 # Success (user chose to continue)
+  else
+    return 1 # Failure (user chose to abort)
+  fi
+}
+
+# Internal function to display formatted metadata and prompt the user.
+_display_cache_metadata_and_prompt() {
+  local header_msg="$1"
+  local status="$2"
+  local environment="$3"
+  local branch="$4"
+  local timestamp_label="$5"
+  local timestamp_value="$6"
+  local error_label="$7"
+  local error_value="$8"
+  local warning_msg="$9"
+  echo "$header_msg"
+  echo "------------------------------------"
+  printf "%-15s %s\n" "Status:" "$status"
+  printf "%-15s %s\n" "Environment:" "$environment"
+  printf "%-15s %s\n" "Branch:" "$branch"
+  printf "%-15s %s\n" "$timestamp_label:" "$timestamp_value"
+  if [[ -n "$error_value" ]]; then
+    printf "%-15s %s\n" "$error_label:" "$error_value"
+  fi
+  echo "------------------------------------"
+  _prompt_user_to_continue "$warning_msg"
+  return $?
+}
+
+# Guard function to check cache health before running commands.
+_check_cache_health_and_prompt() {
+  local metadata_file
+  metadata_file="$(get_cache_dir)/cache.metadata.json"
+
+  if [[ ! -f "$metadata_file" ]]; then
+    _prompt_user_to_continue "Secrets cache is not initialized. Please run 'refresh_secrets' first."
+    return $?
+  fi
+
+  local metadata_content
+  metadata_content=$(cat "$metadata_file")
+  local status
+  status=$(echo "$metadata_content" | jq -r '.status // "error"')
+
+  case "$status" in
+  "ok")
+    return 0
+    ;;
+  "error")
+    _display_cache_metadata_and_prompt \
+      "⚠️ Auto-secrets refresh failed." \
+      "$status" \
+      "$(echo "$metadata_content" | jq -r '.environment // "-"')" \
+      "$(echo "$metadata_content" | jq -r '.branch // "-"')" \
+      "Attempted at" \
+      "$(echo "$metadata_content" | jq -r '.last_attempted_refresh // "-"')" \
+      "Error" \
+      "$(echo "$metadata_content" | jq -r '.error_message // "-"')" \
+      "Your secrets are likely missing or stale."
+    return $?
+    ;;
+  "in_progress")
+    local prev_error
+    prev_error=""
+    if [[ $(echo "$metadata_content" | jq 'has("previous_error")') == "true" ]]; then
+      prev_error=$(echo "$metadata_content" | jq -r '.previous_error')
+    fi
+    _display_cache_metadata_and_prompt \
+      "⏳ Auto-secrets refresh is in progress." \
+      "$status" \
+      "$(echo "$metadata_content" | jq -r '.environment // "-"')" \
+      "$(echo "$metadata_content" | jq -r '.branch // "-"')" \
+      "Started at" \
+      "$(echo "$metadata_content" | jq -r '.last_attempted_refresh // "-"')" \
+      "(Previous Error)" \
+      "$prev_error" \
+      "The cache is currently being updated. Running a command now may result in errors or the use of using stale data."
+    return $?
+    ;;
+  esac
+}
+
 # Initialize environment detection for current shell
 init_environment_detection() {
   # Ensure all configuration is loaded
@@ -31,6 +122,7 @@ init_environment_detection() {
 
 # Refresh secrets from secret manager
 refresh_secrets() {
+  _check_cache_health_and_prompt || return 1
   # Ensure configuration is loaded
   # Config is already loaded by init.sh
 
@@ -91,6 +183,7 @@ refresh_secrets() {
 
 # Inspect available secrets (keys only by default)
 inspect_secrets() {
+  _check_cache_health_and_prompt || return 1
   local show_values=false
   local output_format="list"
 
@@ -176,6 +269,7 @@ inspect_secrets() {
 
 # Load specific secrets and execute command
 load_secrets() {
+  _check_cache_health_and_prompt || return 1
   local secrets_to_load=()
   local command_args=()
   local parsing_command=false
@@ -279,6 +373,7 @@ load_secrets() {
 
 # Debug environment and cache status
 debug_env() {
+  _check_cache_health_and_prompt || return 1
   echo "🔍 Auto Secrets Manager Debug Information"
   echo "========================================"
 
@@ -344,9 +439,6 @@ setup_auto_commands() {
     while IFS= read -r cmd; do
       [[ -n "$cmd" ]] && auto_commands+=("$cmd")
     done < <(echo "$AUTO_COMMANDS_JSON" | jq -r 'keys[]')
-  else
-    # Default auto commands if not configured
-    auto_commands=("terraform" "kubectl" "helm" "aws" "tofu" "docker-compose")
   fi
 
   # Set up aliases for commands that exist on the system
@@ -439,12 +531,15 @@ _load_secrets_for_command() {
         # Add TF_VAR_ prefix for Terraform/Tofu commands
         if [[ "$command" == "terraform" || "$command" == "tofu" ]]; then
           export "TF_VAR_${clean_key}=${value}"
+          export "TF_VAR_${clean_key}"="$value"
           log_debug "Exported TF_VAR_${clean_key} for ${command}"
         else
           export "${clean_key}=${value}"
+          export "${clean_key}"="$value"
         fi
 
         export "${clean_key}=${value}"
+        export "${clean_key}"="$value"
       fi
     done < <(echo "$secrets_json" | jq -r 'to_entries[] | "\(.key)=\(.value)"')
 
@@ -462,6 +557,7 @@ _load_secrets_for_command() {
 
 # Clean up cache
 cleanup_cache() {
+  _check_cache_health_and_prompt || return 1
   cleanup_old_caches
 }
 

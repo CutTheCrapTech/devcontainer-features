@@ -59,10 +59,18 @@ _load_secret_manager() {
 # Generic function to fetch secrets from current manager
 fetch_secrets_from_manager() {
   local environment="$1"
+  local cache_dir
+  cache_dir=$(get_cache_dir)
+  local metadata_file="$cache_dir/cache.metadata.json"
+
+  # Write in_progress status
+  jq -n --arg date "$(date -Iseconds)" '{status: "in_progress", last_attempted_refresh: $date}' > "$metadata_file"
+
 
   if [[ -z "$CURRENT_SECRET_MANAGER" ]]; then
     if ! _load_secret_manager; then
       log_error "No secret manager loaded"
+      jq -n --arg date "$(date -Iseconds)" --arg msg "No secret manager loaded" '{status: "error", last_attempted_refresh: $date, error_message: $msg}' > "$metadata_file"
       return 1
     fi
   fi
@@ -70,7 +78,8 @@ fetch_secrets_from_manager() {
   log_debug "Fetching secrets using $CURRENT_SECRET_MANAGER manager"
 
   # Call the specific implementation
-  case "$CURRENT_SECRET_MANAGER" in
+  local secrets_content
+  if secrets_content=$(case "$CURRENT_SECRET_MANAGER" in
   "infisical")
     fetch_infisical_secrets "$environment"
     ;;
@@ -93,7 +102,19 @@ fetch_secrets_from_manager() {
     log_error "No fetch function available for manager: $CURRENT_SECRET_MANAGER"
     return 1
     ;;
-  esac
+  esac); then
+    if write_secrets_to_cache "$cache_dir" "$secrets_content"; then
+        jq -n --arg date "$(date -Iseconds)" '{status: "ok", last_successful_refresh: $date}' > "$metadata_file"
+        echo "$secrets_content"
+        return 0
+    else
+        jq -n --arg date "$(date -Iseconds)" --arg msg "Failed to write secrets to cache" '{status: "error", last_attempted_refresh: $date, error_message: $msg}' > "$metadata_file"
+        return 1
+    fi
+  else
+    jq -n --arg date "$(date -Iseconds)" --arg msg "Failed to fetch secrets from $CURRENT_SECRET_MANAGER" '{status: "error", last_attempted_refresh: $date, error_message: $msg}' > "$metadata_file"
+    return 1
+  fi
 }
 
 # Generic function to test secret manager connection
