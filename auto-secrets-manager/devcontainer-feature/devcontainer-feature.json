@@ -1,0 +1,104 @@
+{
+  "id": "auto-secrets-manager",
+  "version": "1.0.0",
+  "name": "Auto Secrets Manager",
+  "description": "Automatically manages environment secrets based on git branches using Infisical with Python backend and shell integration",
+  "documentationURL": "https://github.com/your-org/devcontainer-features/tree/main/auto-secrets-manager",
+  "licenseURL": "https://github.com/your-org/devcontainer-features/blob/main/LICENSE",
+  "keywords": [
+    "secrets",
+    "environment",
+    "git",
+    "branch",
+    "infisical",
+    "security",
+    "devcontainer",
+    "python",
+    "hybrid"
+  ],
+  "options": {
+    "secretManager": {
+      "type": "string",
+      "enum": ["infisical"],
+      "default": "infisical",
+      "description": "Secret manager backend to use (currently only Infisical is supported)"
+    },
+    "shells": {
+      "type": "string",
+      "enum": ["bash", "zsh", "both"],
+      "default": "both",
+      "description": "Shell integration support"
+    },
+    "branchMapping": {
+      "type": "object",
+      "default": {},
+      "description": "Git branch to environment mapping (REQUIRED for security - no default mappings provided)"
+    },
+    "secretManagerConfig": {
+      "type": "object",
+      "default": {
+        "host": "https://app.infisical.com"
+      },
+      "description": "Secret manager configuration (project_id and client_id must be set via this option in case of infisical)"
+    },
+    "autoCommands": {
+      "type": "object",
+      "default": {},
+      "description": "Commands to automatically wrap with secret loading (must be explicitly configured)"
+    },
+    "cacheConfig": {
+      "type": "object",
+      "default": {
+        "refresh_interval": "15m",
+        "cleanup_interval": "7d",
+        "max_stale_age": "2h",
+        "background_refresh": true
+      },
+      "description": "Cache behavior configuration"
+    },
+    "offlineModeConfig": {
+      "type": "object",
+      "default": {
+        "allow_stale_cache": true,
+        "max_stale_age": "2h",
+        "graceful_failure": true,
+        "retry_interval": "5m"
+      },
+      "description": "Offline and network failure handling"
+    },
+    "showEnvInPrompt": {
+      "type": "boolean",
+      "default": false,
+      "description": "Show current environment in shell prompt"
+    },
+    "markHistory": {
+      "type": "boolean",
+      "default": false,
+      "description": "Mark secrets-related commands in shell history"
+    },
+    "debug": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable debug logging and verbose output"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.env.linux": {
+          "AUTO_SECRETS_ENABLED": "true"
+        }
+      }
+    }
+  },
+  "containerEnv": {
+    "AUTO_SECRETS_FEATURE": "true"
+  },
+  "postStartCommand": "nohup sh -c 'while true; do auto-secrets-daemon 2>&1 | tee -a /tmp/auto-secrets-daemon.log; sleep 60; done' &",
+  "init": true,
+  "privileged": false,
+  "installsAfter": [
+    "ghcr.io/devcontainers/features/common-utils",
+    "ghcr.io/devcontainers/features/python"
+  ]
+}
