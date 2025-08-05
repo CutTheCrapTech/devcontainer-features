@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 from .logging_config import setup_logging, get_logger, log_system_info
 from .core.config import load_config
@@ -545,16 +546,17 @@ def main() -> None:
     args = parser.parse_args()
 
     # Set up logging
-    debug_mode = args.debug or os.getenv('AUTO_SECRETS_DEBUG', '').lower() == 'true'
-    log_level = args.log_level or os.getenv('AUTO_SECRETS_LOG_LEVEL', 'INFO')
+    config = load_config()
+    log_level = "DEBUG" if config.get('debug', False) else "INFO"
+    logs_dir = Path(config["log_dir"])
 
     logger = setup_logging(
         log_level=log_level,
-        debug=debug_mode,
-        console_output=debug_mode
+        log_dir=str(logs_dir),
+        log_file="daemon.log"
     )
 
-    if debug_mode:
+    if log_level == "DEBUG":
         log_system_info(logger)
 
     # Execute command

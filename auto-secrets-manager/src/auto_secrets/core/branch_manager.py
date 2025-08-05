@@ -9,7 +9,6 @@ import os
 import re
 import subprocess
 import time
-from pathlib import Path
 from typing import Dict, Any, Optional, List
 
 from ..logging_config import get_logger
@@ -308,7 +307,7 @@ class BranchManager:
         Returns:
             Dict[str, Any]: Test results including successes and failures
         """
-        results = {
+        results: Dict[str, Any] = {
             "total": len(test_cases),
             "passed": 0,
             "failed": 0,

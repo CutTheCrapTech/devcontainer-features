@@ -6,7 +6,7 @@ Handles fetching secrets from Infisical using the Python SDK.
 
 import os
 from typing import Dict, List, Optional, Any
-from infisical_sdk import InfisicalSDKClient
+from infisical_sdk import InfisicalSDKClient      # type: ignore
 
 from .base import (
     SecretManagerBase,
@@ -45,17 +45,17 @@ class InfisicalSecretManager(SecretManagerBase):
         project_id = config.get("project_id") or os.getenv("INFISICAL_PROJECT_ID")
         if not project_id:
             raise SecretManagerError("Infisical project_id is required")
-        self.project_id: str = project_id
+        self.project_id = project_id
 
         client_id = config.get("client_id") or os.getenv("INFISICAL_CLIENT_ID")
         if not client_id:
             raise SecretManagerError("Infisical client_id is required")
-        self.client_id: str = client_id
+        self.client_id = client_id
 
         client_secret = os.getenv("INFISICAL_CLIENT_SECRET")
         if not client_secret:
             raise SecretManagerError("Infisical client_secret is required")
-        self.client_secret: str = client_secret
+        self.client_secret = client_secret
 
     def _get_client(self) -> InfisicalSDKClient:
         """Get authenticated Infisical client."""

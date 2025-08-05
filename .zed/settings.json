@@ -10,6 +10,18 @@
       }
     }
   },
+  "lsp": {
+    "pylsp": {
+      "settings": {
+        "plugins": {
+          "mccabe": {
+            "enabled": true,
+            "threshold": 25
+          }
+        }
+      }
+    }
+  },
   "tab_size": 2,
   "format_on_save": "on",
   "autosave": "on_focus_change"

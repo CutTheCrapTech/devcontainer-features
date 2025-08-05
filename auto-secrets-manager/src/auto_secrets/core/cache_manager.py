@@ -532,7 +532,7 @@ class CacheManager:
         Returns:
             Dict[str, Any]: Cache statistics
         """
-        stats = {
+        stats: Dict[str, Any] = {
             "cache_dir": str(self.cache_dir),
             "cache_dir_exists": self.cache_dir.exists(),
             "total_environments": 0,

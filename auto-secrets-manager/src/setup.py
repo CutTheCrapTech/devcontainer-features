@@ -6,6 +6,7 @@ Setup script for Auto Secrets Manager Python package.
 from setuptools import setup, find_packages
 from pathlib import Path
 
+
 # Read requirements from requirements.txt
 def read_requirements():
     requirements_file = Path(__file__).parent / "requirements.txt"
@@ -18,6 +19,7 @@ def read_requirements():
             ]
     return []
 
+
 # Read version from __init__.py
 def get_version():
     init_file = Path(__file__).parent / "auto_secrets" / "__init__.py"
@@ -27,6 +29,7 @@ def get_version():
                 if line.startswith("__version__"):
                     return line.split("=")[1].strip().strip('"').strip("'")
     return "1.0.0"
+
 
 setup(
     name="auto-secrets-manager",
