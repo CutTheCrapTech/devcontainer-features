@@ -39,7 +39,7 @@ setup(
     install_requires=read_requirements(),
     entry_points={
         "console_scripts": [
-            "auto-secrets-py=auto_secrets.cli:main",
+            "auto-secrets=auto_secrets.cli:main",
             "auto-secrets-daemon=auto_secrets.daemon:main",
         ]
     },

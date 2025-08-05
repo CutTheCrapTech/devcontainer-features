@@ -291,7 +291,7 @@ class SecretsDaemon:
             self.logger.info(f"Daemon started with refresh interval: {refresh_interval}s")
 
             last_cleanup = time.time()
-            cleanup_interval = 3600  # Clean up every hour
+            cleanup_check_interval = 3600  # Attempt clean up every hour
 
             while self.running:
                 start_time = time.time()
@@ -318,7 +318,7 @@ class SecretsDaemon:
 
                     # Periodic cleanup
                     current_time = time.time()
-                    if current_time - last_cleanup > cleanup_interval:
+                    if current_time - last_cleanup > cleanup_check_interval:
                         self._cleanup_old_caches()
                         last_cleanup = current_time
 

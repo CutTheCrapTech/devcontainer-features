@@ -92,9 +92,9 @@ _auto_secrets_check_branch_change() {
     # Only notify if we have a valid branch and the change is meaningful
     if [[ -n "$current_branch" ]] && [[ "$current_branch" != "$cached_branch" ]]; then
       # Notify Python daemon in background (non-blocking)
-      if command -v auto-secrets-py >/dev/null 2>&1; then
+      if command -v auto-secrets >/dev/null 2>&1; then
         {
-          auto-secrets-py branch-changed "$current_branch" "$current_repo" 2>/dev/null || true
+          auto-secrets branch-changed "$current_branch" "$current_repo" 2>/dev/null || true
         } &
         # Don't wait for the background process
         disown 2>/dev/null || true
@@ -125,8 +125,8 @@ _auto_secrets_get_current_env() {
   local branch
   branch=$(_auto_secrets_get_current_branch)
 
-  if [[ -n "$branch" ]] && command -v auto-secrets-py >/dev/null 2>&1; then
-    auto-secrets-py current-env --prompt-format 2>/dev/null || echo ""
+  if [[ -n "$branch" ]] && command -v auto-secrets >/dev/null 2>&1; then
+    auto-secrets current-env --prompt-format 2>/dev/null || echo ""
   else
     echo ""
   fi
@@ -150,7 +150,7 @@ _auto_secrets_branch_detection_health() {
   echo "Current Branch: $(_auto_secrets_get_current_branch)"
   echo "Cached Branch: $(_auto_secrets_get_cached_branch)"
   echo "Git Repository: $(if git rev-parse --git-dir >/dev/null 2>&1; then echo "Yes"; else echo "No"; fi)"
-  echo "auto-secrets-py Available: $(if command -v auto-secrets-py >/dev/null 2>&1; then echo "Yes"; else echo "No"; fi)"
+  echo "auto-secrets Available: $(if command -v auto-secrets >/dev/null 2>&1; then echo "Yes"; else echo "No"; fi)"
   echo "=================================================="
 }
 

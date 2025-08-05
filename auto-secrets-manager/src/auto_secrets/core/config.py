@@ -7,9 +7,8 @@ Uses proper UPPER_SNAKE_CASE naming convention with AUTO_SECRETS_ prefix.
 
 import json
 import os
-import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, Optional, Any, Union
 
 from ..logging_config import get_logger
 
@@ -117,7 +116,8 @@ def load_config() -> Dict[str, Any]:
     try:
         cache_config = json.loads(cache_config_json)
         # Apply defaults
-        cache_config.setdefault("max_age_seconds", 900)  # 15 minutes
+        cache_config.setdefault("refresh_interval", "15m")  # 15 minutes
+        cache_config.setdefault("cleanup_interval", "7d")  # 15 minutes
         cache_config.setdefault("background_refresh", True)
         cache_config.setdefault("cleanup_on_exit", False)
         config["cache_config"] = cache_config
@@ -149,19 +149,6 @@ def load_config() -> Dict[str, Any]:
     config["feature_dir"] = os.getenv("AUTO_SECRETS_FEATURE_DIR", "/usr/local/share/auto-secrets")
     config["log_dir"] = os.getenv("AUTO_SECRETS_LOG_DIR", "/var/log/auto-secrets")
     config["log_level"] = os.getenv("AUTO_SECRETS_LOG_LEVEL", "INFO").upper()
-
-    # === Offline Mode Configuration ===
-
-    offline_config_json = os.getenv("AUTO_SECRETS_OFFLINE_MODE_CONFIG", '{}')
-    try:
-        offline_config = json.loads(offline_config_json)
-        # Apply defaults
-        offline_config.setdefault("enabled", False)
-        offline_config.setdefault("cache_only", False)
-        offline_config.setdefault("fail_on_missing", True)
-        config["offline_mode"] = offline_config
-    except json.JSONDecodeError as e:
-        raise ConfigError(f"Invalid AUTO_SECRETS_OFFLINE_MODE_CONFIG JSON: {e}")
 
     # === Validation ===
 

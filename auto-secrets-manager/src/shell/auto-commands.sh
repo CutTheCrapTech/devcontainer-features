@@ -5,8 +5,8 @@
 # Function to call auto-secrets Python module
 _call_auto_secrets() {
   # Try console script first, fallback to direct module call
-  if command -v auto-secrets-py >/dev/null 2>&1; then
-    auto-secrets-py "$@"
+  if command -v auto-secrets >/dev/null 2>&1; then
+    auto-secrets "$@"
   elif command -v python3 >/dev/null 2>&1; then
     # Try to find the module in common locations
     local module_paths=(
@@ -29,7 +29,7 @@ _call_auto_secrets() {
     echo "ERROR: auto_secrets module not found" >&2
     return 1
   else
-    echo "ERROR: Neither auto-secrets-py nor python3 found" >&2
+    echo "ERROR: Neither auto-secrets nor python3 found" >&2
     return 1
   fi
 }

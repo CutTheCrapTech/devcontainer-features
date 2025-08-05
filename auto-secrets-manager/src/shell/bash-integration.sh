@@ -38,7 +38,7 @@ if [[ "$AUTO_SECRETS_MARK_HISTORY" == "true" ]]; then
   _auto_secrets_mark_secret_commands() {
     local cmd="$1"
     # Mark commands that deal with secrets
-    if [[ "$cmd" =~ (refresh-secrets|inspect-secrets|load-secrets|auto-secrets-py) ]]; then
+    if [[ "$cmd" =~ (auto-secrets) ]]; then
       # Add to history with [SECRETS] marker
       history -s "# [SECRETS] $cmd"
       return 1 # Don't add the original command to history
@@ -71,8 +71,8 @@ if [[ "$AUTO_SECRETS_DEBUG" == "true" ]]; then
     local exit_code=$?
     local cmd="${BASH_COMMAND}"
 
-    if [[ "$cmd" =~ (refresh-secrets|inspect-secrets|auto-secrets-py) ]]; then
-      echo "💡 Secret command failed. Run 'auto-secrets-py debug' for diagnostics" >&2
+    if [[ "$cmd" =~ (auto-secrets) ]]; then
+      echo "💡 Secret command failed. Run 'auto-secrets debug' for diagnostics" >&2
     fi
 
     return $exit_code

@@ -58,9 +58,9 @@ terraform plan  # Automatically loads production secrets if on main branch
 kubectl get pods  # Uses staging secrets if on develop branch
 
 # Manual commands
-refresh-secrets  # Force refresh secrets cache
-inspect-secrets  # View cached secrets (redacted)
-debug-env       # Comprehensive troubleshooting
+auto-secrets refresh  # Force refresh secrets cache
+auto-secrets inspect  # View cached secrets (redacted)
+auto-secrets debug    # Comprehensive troubleshooting
 ```
 
 ## 📋 Configuration Options
@@ -187,19 +187,19 @@ Planned support for:
 
 ```bash
 # Secret management
-refresh-secrets              # Refresh secrets cache
-inspect-secrets              # View cached secrets (redacted)
-inspect-secrets --show-values # View actual values (insecure)
-inspect-secrets --format json # JSON output
+auto-secrets refresh                 # Refresh secrets cache
+auto-secrets inspect                 # View cached secrets (redacted)
+auto-secrets inspect --show-values   # View actual values (insecure)
+auto-secrets inspect --format json   # JSON output
 
 # Debugging and info
-debug-env                    # Comprehensive environment debug
-auto-secrets-py current-env  # Show current environment state
-auto-secrets-py --help       # Full CLI help
+auto-secrets debug        # Comprehensive environment debug
+auto-secrets current-env  # Show current environment state
+auto-secrets --help       # Full CLI help
 
 # Cleanup
-auto-secrets-py cleanup      # Clean stale cache files
-auto-secrets-py cleanup --all # Clean all cache files
+auto-secrets cleanup         # Clean stale cache files
+auto-secrets cleanup --all   # Clean all cache files
 ```
 
 ### Auto Commands
@@ -212,10 +212,6 @@ terraform plan
 kubectl get pods
 docker build .
 ansible-playbook site.yml
-
-# Or use explicit wrappers
-terraform-with-secrets plan
-kubectl-with-secrets get pods
 ```
 
 ### Shell Integration
@@ -226,8 +222,8 @@ auto-secrets-bash-health     # Bash integration status
 auto-secrets-zsh-health      # Zsh integration status (if zsh available)
 
 # Manual environment loading
-eval "$(auto-secrets-py output-env)"                    # Load all secrets
-eval "$(auto-secrets-py output-env --paths /infra/**)" # Load specific paths
+eval "$(auto-secrets output-env)"                    # Load all secrets
+eval "$(auto-secrets output-env --paths /infra/**)" # Load specific paths
 ```
 
 ## 🏗️ Architecture
@@ -290,12 +286,6 @@ eval "$(auto-secrets-py output-env --paths /infra/**)" # Load specific paths
 ├── branch-detection.sh                # Core branch detection
 ├── bash-integration.sh                # Bash integration
 └── zsh-integration.sh                 # Zsh integration
-
-/usr/local/bin/                        # User commands
-├── auto-secrets-py                    # Main CLI
-├── refresh-secrets                    # Convenience wrapper
-├── inspect-secrets                    # Convenience wrapper
-└── debug-env                          # Convenience wrapper
 ```
 
 ## 🐞 Troubleshooting
@@ -312,27 +302,27 @@ debug-env
 git status
 
 # Check branch mappings
-auto-secrets-py current-env --json
+auto-secrets current-env --json
 ```
 
 #### "No cached secrets found"
 
 ```bash
 # Refresh secrets manually
-refresh-secrets
+auto-secrets refresh
 
 # Check secret manager connection
-debug-env
+auto-secrets debug
 
 # Verify environment variables
 env | grep INFISICAL
 ```
 
-#### "Command not found: auto-secrets-py"
+#### "Command not found: auto-secrets"
 
 ```bash
 # Check installation
-which auto-secrets-py
+which auto-secrets
 
 # Reload shell
 source ~/.bashrc  # or ~/.zshrc
@@ -375,10 +365,10 @@ _auto_secrets_check_branch_change
 
 ```bash
 # Clear cache
-auto-secrets-py cleanup --all
+auto-secrets cleanup --all
 
 # Check cache status
-inspect-secrets
+auto-secrets inspect
 
 # Verify cache directory permissions
 ls -la /dev/shm/auto-secrets-$USER/
@@ -431,7 +421,6 @@ auto-secrets-manager/
 │   │   └── secret_managers/         # Secret manager plugins
 │   │       ├── base.py             # Abstract base
 │   │       └── infisical.py        # Infisical implementation
-│   ├── bin/                         # Helper scripts to be copied, to run provide readable commands
 │   ├── shell/                       # Shell integration
 │   │   ├── auto-commands.sh        # Auto commands logic
 │   │   ├── branch-detection.sh     # Core branch detection logic
@@ -509,14 +498,14 @@ mypy src/auto_secrets/
 
    ```bash
    # Refresh after credential changes
-   refresh-secrets
+   auto-secrets refresh
    ```
 
 4. **Monitor access**:
 
    ```bash
    # Check cache access
-   inspect-secrets
+   auto-secrets inspect
 
    # Review logs
    tail /var/log/auto-secrets/auto-secrets.log
@@ -554,14 +543,15 @@ Please report security vulnerabilities privately to [security@your-org.com](mail
    {
      "cacheConfig": {
        "max_age_seconds": 1800, // 30 minutes for less frequent fetches
-       "background_refresh": true
+       "background_refresh": true,
+       "cleanup_on_exit": true // Clean up branch cache on shell exit
      }
    }
    ```
 
 3. **Monitor cache efficiency**:
    ```bash
-   inspect-secrets  # Check cache age and hit rates
+   auto-secrets inspect  # Check cache age and hit rates
    ```
 
 ## 🛣️ Roadmap

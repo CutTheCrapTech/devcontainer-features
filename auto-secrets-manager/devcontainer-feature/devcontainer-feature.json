@@ -51,20 +51,10 @@
       "default": {
         "refresh_interval": "15m",
         "cleanup_interval": "7d",
-        "max_stale_age": "2h",
-        "background_refresh": true
+        "background_refresh": true,
+        "cleanup_on_exit": false
       },
       "description": "Cache behavior configuration"
-    },
-    "offlineModeConfig": {
-      "type": "object",
-      "default": {
-        "allow_stale_cache": true,
-        "max_stale_age": "2h",
-        "graceful_failure": true,
-        "retry_interval": "5m"
-      },
-      "description": "Offline and network failure handling"
     },
     "showEnvInPrompt": {
       "type": "boolean",
@@ -94,7 +84,7 @@
   "containerEnv": {
     "AUTO_SECRETS_FEATURE": "true"
   },
-  "postStartCommand": "nohup sh -c 'while true; do auto-secrets-daemon 2>&1 | tee -a /tmp/auto-secrets-daemon.log; sleep 60; done' &",
+  "postStartCommand": "whoami > /tmp/poststart-user.txt",
   "init": true,
   "privileged": false,
   "installsAfter": [

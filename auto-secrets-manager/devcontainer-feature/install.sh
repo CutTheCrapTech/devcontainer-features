@@ -21,8 +21,7 @@ BIN_DIR="/usr/local/bin"
 SECRET_MANAGER="${SECRETMANAGER:-infisical}"
 SHELLS="${SHELLS:-both}"
 SECRET_MANAGER_CONFIG="${SECRETMANAGERCONFIG:-'{"host":"https://app.infisical.com"}'}"
-CACHE_CONFIG=${CACHECONFIG:-'{"max_age_seconds":900,"background_refresh":true}'}
-OFFLINE_MODE_CONFIG=${OFFLINEMODECONFIG:-'{"enabled":false}'}
+CACHE_CONFIG=${CACHECONFIG:-'{"max_age_seconds":900,"background_refresh":true,"cleanup_on_exit":false}'}
 SHOW_ENV_IN_PROMPT="${SHOWENVINPROMPT:-false}"
 MARK_HISTORY="${MARKHISTORY:-false}"
 DEBUG="${DEBUG:-false}"
@@ -116,47 +115,6 @@ chmod 755 "$INSTALL_DIR"/*.sh
 
 echo "✅ Shell integration files installed"
 
-# Create wrapper scripts in /usr/local/bin
-echo "🔗 Creating command wrapper scripts..."
-
-# Main CLI wrapper
-cat >"$BIN_DIR/auto-secrets-py" <<'EOF'
-#!/bin/bash
-exec python3 -m auto_secrets.cli "$@"
-EOF
-
-# User-friendly command wrappers
-cat >"$BIN_DIR/refresh-secrets" <<'EOF'
-#!/bin/bash
-exec auto-secrets-py refresh "$@"
-EOF
-
-cat >"$BIN_DIR/inspect-secrets" <<'EOF'
-#!/bin/bash
-exec auto-secrets-py inspect "$@"
-EOF
-
-cat >"$BIN_DIR/debug-env" <<'EOF'
-#!/bin/bash
-exec auto-secrets-py debug "$@"
-EOF
-
-cat >"$BIN_DIR/load-secrets" <<'EOF'
-#!/bin/bash
-# Load secrets into current environment (for sourcing)
-auto-secrets-py output-env "$@"
-EOF
-
-# Make all scripts executable
-chmod +x "$BIN_DIR"/auto-secrets-py
-chmod +x "$BIN_DIR"/refresh-secrets
-chmod +x "$BIN_DIR"/inspect-secrets
-chmod +x "$BIN_DIR"/debug-env
-chmod +x "$BIN_DIR"/load-secrets
-chmod +x "$BIN_DIR"/*-with-secrets 2>/dev/null || true
-
-echo "✅ Command wrappers created"
-
 # Set up shell integration based on SHELLS option
 echo "🐚 Setting up shell integration..."
 
@@ -172,7 +130,6 @@ export AUTO_SECRETS_BRANCH_MAPPINGS="$BRANCH_MAPPING"
 export AUTO_SECRETS_SECRET_MANAGER_CONFIG="${SECRET_MANAGER_CONFIG}"
 export AUTO_SECRETS_AUTO_COMMANDS="${AUTO_COMMANDS}"
 export AUTO_SECRETS_CACHE_CONFIG="${CACHE_CONFIG}"
-export AUTO_SECRETS_OFFLINE_MODE_CONFIG="${OFFLINE_MODE_CONFIG}"
 
 # Feature settings
 export AUTO_SECRETS_SHOW_ENV_IN_PROMPT="${SHOW_ENV_IN_PROMPT}"
@@ -272,7 +229,7 @@ else
 fi
 
 # Test CLI command
-if auto-secrets-py --help >/dev/null 2>&1; then
+if auto-secrets --help >/dev/null 2>&1; then
   echo "✅ CLI command validation passed"
 else
   echo "❌ CLI command validation failed"
@@ -301,8 +258,8 @@ echo ""
 echo "📚 Available commands:"
 echo "  refresh-secrets          - Refresh secrets cache"
 echo "  inspect-secrets          - Inspect cached secrets"
-echo "  debug-env               - Debug environment and configuration"
-echo "  auto-secrets-py         - Full CLI interface"
+echo "  debug-env                - Debug environment and configuration"
+echo "  auto-secrets             - Full CLI interface"
 echo ""
 echo "🔧 Integration status:"
 echo "  Shell integration: $SHELLS"
@@ -316,4 +273,4 @@ echo "  2. Navigate to a git repository"
 echo "  3. Run: debug-env (to verify configuration)"
 echo "  4. Run: refresh-secrets (to cache secrets for current environment)"
 echo ""
-echo "📖 For more information, see the documentation or run: auto-secrets-py --help"
+echo "📖 For more information, see the documentation or run: auto-secrets --help"

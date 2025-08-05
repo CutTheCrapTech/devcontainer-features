@@ -1,7 +1,7 @@
 """
 Auto Secrets Manager - CLI Interface
 
-Main CLI entry point for the auto-secrets-py command.
+Main CLI entry point for the auto-secrets command.
 Provides all user-facing commands and integrates Python components.
 """
 
@@ -477,7 +477,7 @@ def main() -> None:
     """Main CLI entry point."""
     # Set up argument parser
     parser = argparse.ArgumentParser(
-        prog='auto-secrets-py',
+        prog='auto-secrets',
         description='Auto Secrets Manager - Automatic environment secrets management'
     )
 
