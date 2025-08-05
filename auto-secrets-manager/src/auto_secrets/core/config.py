@@ -214,8 +214,7 @@ def get_cache_dir(config: Dict[str, Any], environment: Optional[str] = None) -> 
     Returns:
         Path: Cache directory path
     """
-    user_id = os.getuid()
-    base_path = Path(config["cache_base_dir"]) / f"user-{user_id}"
+    base_path = Path(config["cache_base_dir"])
 
     if environment:
         return base_path / "environments" / environment

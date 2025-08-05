@@ -294,7 +294,6 @@ def get_environment_debug_info(config: Optional[Dict[str, Any]] = None) -> Dict[
     debug_info = {
         "state_manager": state_info,
         "working_directory": os.getcwd(),
-        "user_id": os.getuid(),
         "environment_variables": {
             key: value for key, value in os.environ.items()
             if key.startswith('AUTO_SECRETS_')

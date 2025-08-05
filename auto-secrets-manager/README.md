@@ -41,6 +41,8 @@ The Auto Secrets Manager eliminates the need to manually manage environment vari
 }
 ```
 
+> **Note:** Due to a limitation in the DevContainer feature specification, JSON objects must be provided as escaped strings.
+
 ### 2. Set Environment Variables
 
 ```bash
@@ -67,55 +69,45 @@ auto-secrets debug    # Comprehensive troubleshooting
 
 ### Required Configuration
 
-| Option                | Type   | Description                    | Example                                 |
-| --------------------- | ------ | ------------------------------ | --------------------------------------- |
-| `secretManager`       | string | Secret manager type            | `"infisical"`                           |
-| `shells`              | string | Shell integration              | `"bash"`, `"zsh"`, `"both"`             |
-| `branchMapping`       | object | Branch to environment mappings | See [Branch Mapping](#branch-mapping)   |
-| `secretManagerConfig` | object | Secret manager configuration   | See [Secret Managers](#secret-managers) |
+| Option                | Type   | Description                                     | Example                                                                                                            |
+| --------------------- | ------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `secretManager`       | string | Secret manager type                             | `"infisical"`                                                                                                      |
+| `shells`              | string | Shell integration                               | `"bash"`, `"zsh"`, `"both"`                                                                                        |
+| `branchMapping`       | string | Branch to environment mappings (as JSON string) | `"{\"main\":\"production\",\"develop\":\"staging\",\"default\":\"development\"}"`                                  |
+| `secretManagerConfig` | string | Secret manager configuration (as JSON string)   | `"{\"project_id\":\"your-project-id\",\"client_id\":\"your-client-id\",\"client_secret\":\"your-client-secret\"}"` |
 
 ### Optional Configuration
 
-| Option            | Type    | Default   | Description                      |
-| ----------------- | ------- | --------- | -------------------------------- |
-| `autoCommands`    | object  | `{}`      | Commands that auto-load secrets  |
-| `cacheConfig`     | object  | See below | Cache behavior settings          |
-| `showEnvInPrompt` | boolean | `false`   | Show environment in shell prompt |
-| `markHistory`     | boolean | `false`   | Mark secret commands in history  |
-| `debug`           | boolean | `false`   | Enable debug logging             |
+| Option            | Type    | Default   | Description                                      |
+| ----------------- | ------- | --------- | ------------------------------------------------ |
+| `autoCommands`    | string  | `{}`      | Commands that auto-load secrets (as JSON string) |
+| `cacheConfig`     | string  | See below | Cache behavior settings (as JSON string)         |
+| `showEnvInPrompt` | boolean | `false`   | Show environment in shell prompt                 |
+| `markHistory`     | boolean | `false`   | Mark secret commands in history                  |
+| `debug`           | boolean | `false`   | Enable debug logging                             |
 
 ### Default Cache Configuration
 
-```json
-{
-  "max_age_seconds": 900,
-  "background_refresh": true,
-  "cleanup_on_exit": false
-}
-```
+The default `cacheConfig` string is:
+`"{\"max_age_seconds\":900,\"background_refresh\":true,\"cleanup_on_exit\":false}"`
 
 ## 🌳 Branch Mapping
 
-Branch mappings use pattern matching to determine environments:
+Branch mappings use pattern matching to determine environments. Provide them as a single JSON string in your `devcontainer.json`.
 
 ```json
 {
-  "branchMapping": {
-    "main": "production",
-    "master": "production",
-    "staging": "staging",
-    "develop": "development",
-    "dev": "development",
+  "branchMapping": "{\"main\":\"production\",\"master\":\"production\",\"staging\":\"staging\",\"develop\":\"development\",\"dev\":\"development\",
 
     // Pattern matching
-    "feature/*": "development", // feature/auth -> development
-    "feature/**": "development", // feature/ui/components -> development
-    "release/*": "staging", // release/v1.0 -> staging
-    "hotfix/*": "production", // hotfix/security -> production
+    \"feature/*\": \"development\", // feature/auth -> development
+    \"feature/**\": \"development\", // feature/ui/components -> development
+    \"release/*\": \"staging\", // release/v1.0 -> staging
+    \"hotfix/*\": \"production\", // hotfix/security -> production
 
     // Default for unmapped branches (required)
-    "default": "development"
-  }
+    \"default\": \"development\"
+  }"
 }
 ```
 
@@ -138,14 +130,11 @@ Currently supported secret manager with SDK-based integration.
 
 #### Configuration
 
+Provide the configuration as a JSON string:
+
 ```json
 {
-  "secretManagerConfig": {
-    "project_id": "your-infisical-project-id",
-    "client_id": "your-infisical-client-id",
-    "client_secret": "your-infisical-client-secret",
-    "site_url": "https://app.infisical.com" // Optional
-  }
+  "secretManagerConfig": "{\"project_id\":\"your-infisical-project-id\",\"client_id\":\"your-infisical-client-id\",\"client_secret\":\"your-infisical-client-secret\",\"site_url\":\"https://app.infisical.com\"}"
 }
 ```
 

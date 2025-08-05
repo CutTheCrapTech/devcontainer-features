@@ -73,10 +73,7 @@ class SecretsDaemon:
     def _setup_logging(self) -> None:
         """Set up logging for the daemon."""
         try:
-            # Create logs directory
-            user_id = os.getuid()
-            logs_dir = Path(f"{self.config['cache_base_dir']}-{user_id}/logs")
-            logs_dir.mkdir(parents=True, exist_ok=True)
+            logs_dir = Path(self.config["log_dir"])
 
             self.log_file = logs_dir / "daemon.log"
 
@@ -84,7 +81,8 @@ class SecretsDaemon:
             from .logging_config import setup_logging
             setup_logging(
                 log_level="DEBUG" if self.config.get('debug', False) else "INFO",
-                log_file=str(self.log_file)
+                log_dir=str(logs_dir),
+                log_file="daemon.log"
             )
 
             self.logger = get_logger("daemon")
@@ -97,8 +95,7 @@ class SecretsDaemon:
     def _setup_pid_file(self) -> None:
         """Set up PID file for daemon process management."""
         try:
-            user_id = os.getuid()
-            state_dir = Path(f"{self.config['cache_base_dir']}-{user_id}/state")
+            state_dir = self.cache_manager.cache_dir / "state"
             state_dir.mkdir(parents=True, exist_ok=True)
 
             self.pid_file = state_dir / "daemon.pid"
@@ -213,8 +210,7 @@ class SecretsDaemon:
 
             # Check other environments that have stale caches
             try:
-                # Get list of cached environments
-                cache_dir = Path(f"{self.config['cache_base_dir']}-{os.getuid()}")
+                cache_dir = self.cache_manager.cache_dir / "environments"
 
                 if cache_dir.exists():
                     for cache_file in cache_dir.glob("*.env"):

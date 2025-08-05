@@ -30,30 +30,23 @@
       "description": "Shell integration support"
     },
     "branchMapping": {
-      "type": "object",
-      "default": {},
+      "type": "string",
+      "default": "{}",
       "description": "Git branch to environment mapping (REQUIRED for security - no default mappings provided)"
     },
     "secretManagerConfig": {
-      "type": "object",
-      "default": {
-        "host": "https://app.infisical.com"
-      },
+      "type": "string",
+      "default": "{\"host\":\"https://app.infisical.com\"}",
       "description": "Secret manager configuration (project_id and client_id must be set via this option in case of infisical)"
     },
     "autoCommands": {
-      "type": "object",
-      "default": {},
+      "type": "string",
+      "default": "{}",
       "description": "Commands to automatically wrap with secret loading (must be explicitly configured)"
     },
     "cacheConfig": {
-      "type": "object",
-      "default": {
-        "refresh_interval": "15m",
-        "cleanup_interval": "7d",
-        "background_refresh": true,
-        "cleanup_on_exit": false
-      },
+      "type": "string",
+      "default": "{\"refresh_interval\":\"15m\",\"cleanup_interval\":\"7d\",\"background_refresh\":true,\"cleanup_on_exit\":false}",
       "description": "Cache behavior configuration"
     },
     "showEnvInPrompt": {
@@ -84,7 +77,7 @@
   "containerEnv": {
     "AUTO_SECRETS_FEATURE": "true"
   },
-  "postStartCommand": "whoami > /tmp/poststart-user.txt",
+  "postStartCommand": "nohup sh -c 'while true; do auto-secrets-daemon 2>&1 | tee -a /tmp/auto-secrets-daemon.log; sleep 60; done' &",
   "init": true,
   "privileged": false,
   "installsAfter": [

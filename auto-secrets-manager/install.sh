@@ -6,10 +6,9 @@ set -e
 
 echo "🔐 Installing Auto Secrets Manager..."
 
-# Feature source directory (where this script is located) - Alpine compatible
-SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
-FEATURE_DIR="$(dirname "$SCRIPT_PATH")"
-SOURCE_DIR="$(dirname "$FEATURE_DIR")/src"
+# Feature source directory (where this script is located)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE_DIR="$SCRIPT_DIR/src"
 
 # Installation directories
 INSTALL_DIR="/usr/local/share/auto-secrets"
@@ -91,7 +90,7 @@ fi
 
 # Install the auto_secrets Python package
 cd "$SOURCE_DIR"
-pip3 install -e . || {
+pip3 install . || {
   echo "❌ Failed to install Python package"
   exit 1
 }
@@ -143,7 +142,6 @@ export AUTO_SECRETS_PREFETCH_ON_BRANCH_CHANGE="false"
 export AUTO_SECRETS_FEATURE_DIR="$INSTALL_DIR"
 export AUTO_SECRETS_CACHE_DIR="/dev/shm/auto-secrets"
 export AUTO_SECRETS_LOG_DIR="/var/log/auto-secrets"
-export AUTO_SECRETS_LOG_LEVEL="INFO"
 
 # Create log directory with proper permissions
 if [[ -w /var/log ]]; then
@@ -210,10 +208,12 @@ echo "✅ Shell integration configured"
 echo "💾 Setting up cache directories..."
 
 # Create cache base directory
-mkdir -p /dev/shm/auto-secrets 2>/dev/null || {
-  echo "⚠️  Cannot create /dev/shm/auto-secrets, using /tmp fallback"
-  mkdir -p /tmp/auto-secrets
-}
+mkdir -p /dev/shm/auto-secrets
+chmod 1777 /dev/shm/auto-secrets
+
+# Create and set permissions for the log directory
+mkdir -p /var/log/auto-secrets
+chmod 1777 /var/log/auto-secrets
 
 echo "✅ Cache directories created"
 
