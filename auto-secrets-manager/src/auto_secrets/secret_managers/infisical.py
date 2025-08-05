@@ -154,7 +154,9 @@ class InfisicalSecretManager(SecretManagerBase):
                         # Path doesn't exist, continue with other paths
                         continue
                     elif "unauthorized" in error_msg or "forbidden" in error_msg:
-                        raise AuthenticationError(f"Insufficient permissions for environment '{environment}' or path '{secret_path}'")
+                        raise AuthenticationError(
+                          f"Insufficient permissions for environment '{environment}' or path '{secret_path}'"
+                        )
                     elif "network" in error_msg or "timeout" in error_msg:
                         raise NetworkError(f"Network error fetching secrets from path '{secret_path}': {e}")
                     else:

@@ -182,6 +182,7 @@ class SecretManagerBase(ABC):
             secret_key = '/' + secret_key
         if not pattern.startswith('/'):
             pattern = '/' + pattern
+        pattern = pattern.strip()
 
         # Handle different pattern types
         if pattern.endswith('/**'):
@@ -189,7 +190,8 @@ class SecretManagerBase(ABC):
             base_path = pattern[:-3]  # Remove /**
             return secret_key.startswith(base_path + '/')
         elif pattern.endswith('/*'):
-            # Non-recursive: /infrastructure/* matches /infrastructure/something but not /infrastructure/something/deeper
+            # Non-recursive: /infrastructure/* matches /infrastructure/something
+            # but not /infrastructure/something/deeper
             base_path = pattern[:-2]  # Remove /*
             remaining = secret_key[len(base_path):] if secret_key.startswith(base_path) else ""
             return remaining.startswith('/') and '/' not in remaining[1:]

@@ -35,7 +35,8 @@ setup(
     name="auto-secrets-manager",
     version=get_version(),
     description="Automatic environment secrets management based on git branches",
-    long_description="A hybrid Python/Shell solution for automatic environment secrets management with enterprise-grade security.",
+    long_description="A hybrid Python/Shell solution for \
+      automatic environment secrets management with enterprise-grade security.",
     author="Auto Secrets Manager Team",
     python_requires=">=3.8",
     packages=find_packages(),

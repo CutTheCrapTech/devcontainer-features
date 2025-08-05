@@ -149,6 +149,7 @@ def log_system_info(logger: logging.Logger) -> None:
 # Initialize default logger on import
 _default_logger = None
 
+
 def init_default_logger(debug: bool = False) -> None:
     """Initialize the default logger for the package."""
     global _default_logger

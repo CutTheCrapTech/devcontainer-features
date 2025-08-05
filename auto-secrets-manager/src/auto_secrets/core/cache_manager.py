@@ -252,7 +252,9 @@ class CacheManager:
             metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
             is_stale = metadata.is_stale(max_age)
 
-            self.logger.debug(f"Cache staleness check for {environment}: stale={is_stale}, age={metadata.age_seconds()}s")
+            self.logger.debug(
+              f"Cache staleness check for {environment}: stale={is_stale}, age={metadata.age_seconds()}s"
+            )
             return is_stale
 
         except Exception as e:

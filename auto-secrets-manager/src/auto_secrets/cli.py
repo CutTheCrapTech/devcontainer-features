@@ -485,8 +485,11 @@ def main() -> None:
     # Global options
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     parser.add_argument('--quiet', action='store_true', help='Suppress output messages')
-    parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-                       help='Set log level')
+    parser.add_argument(
+      '--log-level',
+      choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+      help='Set log level'
+    )
 
     # Subcommands
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
@@ -507,10 +510,16 @@ def main() -> None:
     inspect_parser = subparsers.add_parser('inspect', help='Inspect cached secrets')
     inspect_parser.add_argument('--environment', help='Specific environment to inspect')
     inspect_parser.add_argument('--paths', nargs='*', help='Specific secret paths to inspect')
-    inspect_parser.add_argument('--format', choices=['table', 'json', 'env', 'keys'],
-                               default='table', help='Output format')
-    inspect_parser.add_argument('--show-values', action='store_true',
-                               help='Show actual secret values (security risk)')
+    inspect_parser.add_argument(
+      '--format',
+      choices=['table', 'json', 'env', 'keys'],
+      default='table', help='Output format'
+    )
+    inspect_parser.add_argument(
+      '--show-values',
+      action='store_true',
+      help='Show actual secret values (security risk)'
+    )
     inspect_parser.set_defaults(func=handle_inspect_secrets)
 
     # Execute command with secrets
@@ -528,8 +537,11 @@ def main() -> None:
 
     # Current environment command
     current_parser = subparsers.add_parser('current-env', help='Show current environment')
-    current_parser.add_argument('--prompt-format', action='store_true',
-                               help='Format for shell prompt')
+    current_parser.add_argument(
+      '--prompt-format',
+      action='store_true',
+      help='Format for shell prompt'
+    )
     current_parser.add_argument('--json', action='store_true', help='JSON output format')
     current_parser.set_defaults(func=handle_current_env)
 

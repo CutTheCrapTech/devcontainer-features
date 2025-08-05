@@ -9,7 +9,6 @@ import json
 import os
 import time
 from dataclasses import dataclass, asdict
-from pathlib import Path
 from typing import Dict, Optional, Any
 
 from ..logging_config import get_logger
@@ -82,8 +81,10 @@ class EnvironmentStateManager:
         current_time = time.time()
 
         # Check cache first
-        if (use_cache and self._cached_state and self._cache_time and
-            current_time - self._cache_time < self._cache_ttl):
+        if (
+          use_cache and self._cached_state and self._cache_time
+          and current_time - self._cache_time < self._cache_ttl
+        ):
             self.logger.debug("Using cached environment state")
             return self._cached_state
 

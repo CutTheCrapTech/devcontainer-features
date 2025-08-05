@@ -154,8 +154,10 @@ class BranchManager:
         # Check cache if enabled
         if use_cache and self._branch_cache:
             cached_dir, cached_time, cached_branch = self._branch_cache
-            if (cached_dir == current_dir and
-                current_time - cached_time < self._cache_ttl):
+            if (
+              cached_dir == current_dir
+              and current_time - cached_time < self._cache_ttl
+            ):
                 self.logger.debug(f"Using cached branch: {cached_branch}")
                 return cached_branch
 
