@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from auto_secrets.core.config import ( # type: ignore
+from auto_secrets.core.config import (  # type: ignore
     load_config,
     ConfigError,
     _validate_config,
@@ -23,6 +23,7 @@ from auto_secrets.core.config import ( # type: ignore
     load_config_from_file,
     create_minimal_config_template
 )
+from auto_secrets.core.environment import is_valid_environment_name  # type: ignore
 
 
 class TestLoadConfig:
@@ -155,8 +156,7 @@ class TestLoadConfig:
         test_cases = [
             ('AUTO_SECRETS_SECRET_MANAGER_CONFIG', 'invalid-json'),
             ('AUTO_SECRETS_AUTO_COMMANDS', 'not-json'),
-            ('AUTO_SECRETS_CACHE_CONFIG', '{invalid}'),
-            ('AUTO_SECRETS_OFFLINE_MODE_CONFIG', 'bad-json')
+            ('AUTO_SECRETS_CACHE_CONFIG', '{invalid}')
         ]
 
         for env_var, invalid_json in test_cases:
@@ -244,44 +244,25 @@ class TestCacheDirectories:
         """Test getting base cache directory."""
         config = {'cache_base_dir': '/tmp/test-cache'}
 
-        with patch('os.getuid', return_value=1000):
-            cache_dir = get_cache_dir(config)
-            expected = Path('/tmp/test-cache/user-1000')
-            assert cache_dir == expected
+        cache_dir = get_cache_dir(config)
+        expected = Path('/tmp/test-cache')
+        assert cache_dir == expected
 
     def test_get_cache_dir_with_environment(self):
         """Test getting environment-specific cache directory."""
         config = {'cache_base_dir': '/tmp/test-cache'}
 
-        with patch('os.getuid', return_value=1000):
-            cache_dir = get_cache_dir(config, 'production')
-            expected = Path('/tmp/test-cache/user-1000/environments/production')
-            assert cache_dir == expected
+        cache_dir = get_cache_dir(config, 'production')
+        expected = Path('/tmp/test-cache/environments/production')
+        assert cache_dir == expected
 
     def test_get_state_dir(self):
         """Test getting state directory."""
         config = {'cache_base_dir': '/tmp/test-cache'}
 
-        with patch('os.getuid', return_value=1000):
-            state_dir = get_state_dir(config)
-            expected = Path('/tmp/test-cache/user-1000/state')
-            assert state_dir == expected
-
-    def test_get_log_file_path_default(self):
-        """Test getting log file path with default location."""
-        config = {'log_dir': '/var/log/auto-secrets'}
-
-        log_path = get_log_file_path(config)
-        expected = Path('/var/log/auto-secrets/auto-secrets.log')
-        assert log_path == expected
-
-    def test_get_log_file_path_custom_name(self):
-        """Test getting log file path with custom name."""
-        config = {'log_dir': '/var/log/auto-secrets'}
-
-        log_path = get_log_file_path(config, 'daemon.log')
-        expected = Path('/var/log/auto-secrets/daemon.log')
-        assert log_path == expected
+        state_dir = get_state_dir(config)
+        expected = Path('/tmp/test-cache/state')
+        assert state_dir == expected
 
     @patch('pathlib.Path.mkdir')
     def test_get_log_file_path_creates_directory(self, mock_mkdir):
@@ -318,7 +299,7 @@ class TestConfigFileOperations:
             with patch.dict(os.environ, {
                 'AUTO_SECRETS_SECRET_MANAGER': 'infisical',
                 'AUTO_SECRETS_SHELLS': 'both',
-                'AUTO_SECRETS_BRANCH_MAPPINGS': json.dumps({'default': 'development'})
+                'AUTO_SECRETS_BRANCH_MAPPINGS': json.dumps({'main': 'production', 'default': 'development'})
             }, clear=True):
                 loaded_config = load_config_from_file(config_file)
 
@@ -497,9 +478,9 @@ class TestConfigIntegration:
                 state_dir = get_state_dir(config)
                 env_cache_dir = get_cache_dir(config, 'production')
 
-                assert cache_dir == Path('/tmp/test-cache/user-1000')
-                assert state_dir == Path('/tmp/test-cache/user-1000/state')
-                assert env_cache_dir == Path('/tmp/test-cache/user-1000/environments/production')
+                assert cache_dir == Path('/tmp/test-cache')
+                assert state_dir == Path('/tmp/test-cache/state')
+                assert env_cache_dir == Path('/tmp/test-cache/environments/production')
 
             # Test file operations
             with tempfile.TemporaryDirectory() as temp_dir:

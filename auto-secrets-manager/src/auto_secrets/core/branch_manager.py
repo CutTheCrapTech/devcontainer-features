@@ -393,13 +393,12 @@ class BranchManager:
             if pattern == "default":
                 continue
 
-            if '*' in pattern or '?' in pattern:
-                try:
-                    # Test the pattern conversion
-                    test_pattern = pattern.replace('**', '.*').replace('*', '[^/]*').replace('?', '.')
-                    re.compile(f"^{test_pattern}$")
-                except re.error:
-                    errors.append(f"Invalid pattern syntax: {pattern}")
+            try:
+                # Test the pattern conversion - validate all patterns, not just wildcards
+                test_pattern = pattern.replace('**', '.*').replace('*', '[^/]*').replace('?', '.')
+                re.compile(f"^{test_pattern}$")
+            except re.error:
+                errors.append(f"Invalid pattern syntax: {pattern}")
 
         # Check for duplicate environment names (might be intentional, so just warn)
         environments = list(branch_mappings.values())

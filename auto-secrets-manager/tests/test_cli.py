@@ -1,0 +1,776 @@
+"""
+Tests for auto_secrets.cli module.
+
+Tests the command-line interface functionality including argument parsing,
+command execution, and integration with other modules.
+"""
+
+import json
+import os
+import sys
+from io import StringIO
+from pathlib import Path
+from unittest.mock import Mock, MagicMock, patch, mock_open
+import pytest
+import tempfile
+import argparse
+
+from auto_secrets.cli import (
+    main,
+    handle_branch_change,
+    handle_refresh_secrets,
+    handle_inspect_secrets,
+    handle_exec_command,
+    handle_exec_for_shell,
+    handle_current_env,
+    handle_debug_env,
+    handle_cleanup,
+    _background_refresh_secrets,
+)
+from auto_secrets.core.config import ConfigError
+from auto_secrets.secret_managers.base import (
+    SecretManagerError,
+    AuthenticationError,
+    ConnectionTestResult,
+)
+from auto_secrets.core.environment import EnvironmentState
+
+
+class TestHandleBranchChange:
+    """Test handle_branch_change function."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.mock_args = Mock()
+        self.mock_args.branch = "main"
+        self.mock_args.repo_path = "/path/to/repo"
+
+        self.mock_config = {
+            "branch_mappings": {
+                "main": "production",
+                "develop": "staging",
+                "default": "development"
+            }
+        }
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.BranchManager')
+    @patch('auto_secrets.cli.CacheManager')
+    @patch('auto_secrets.cli.get_current_environment')
+    def test_handle_branch_change_new_environment(self, mock_get_env, mock_cache_manager,
+                                                 mock_branch_manager, mock_load_config):
+        """Test handling branch change to new environment."""
+        mock_load_config.return_value = self.mock_config
+
+        mock_branch_instance = Mock()
+        mock_branch_instance.map_branch_to_environment.return_value = "production"
+        mock_branch_manager.return_value = mock_branch_instance
+
+        mock_cache_instance = Mock()
+        mock_cache_manager.return_value = mock_cache_instance
+
+        # Current environment is different
+        mock_current_state = EnvironmentState(environment="staging", branch="develop")
+        mock_get_env.return_value = mock_current_state
+
+        with patch('time.time', return_value=1234567890):
+            handle_branch_change(self.mock_args)
+
+        mock_cache_instance.save_current_state.assert_called_once()
+        mock_cache_instance.mark_environment_stale.assert_called_once_with("production")
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.BranchManager')
+    @patch('auto_secrets.cli.CacheManager')
+    @patch('auto_secrets.cli.get_current_environment')
+    def test_handle_branch_change_same_environment(self, mock_get_env, mock_cache_manager,
+                                                  mock_branch_manager, mock_load_config):
+        """Test handling branch change to same environment."""
+        mock_load_config.return_value = self.mock_config
+
+        mock_branch_instance = Mock()
+        mock_branch_instance.map_branch_to_environment.return_value = "production"
+        mock_branch_manager.return_value = mock_branch_instance
+
+        mock_cache_instance = Mock()
+        mock_cache_manager.return_value = mock_cache_instance
+
+        # Current environment is the same
+        mock_current_state = EnvironmentState(environment="production", branch="main")
+        mock_get_env.return_value = mock_current_state
+
+        handle_branch_change(self.mock_args)
+
+        # Should not update state or mark stale
+        mock_cache_instance.save_current_state.assert_not_called()
+        mock_cache_instance.mark_environment_stale.assert_not_called()
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.BranchManager')
+    def test_handle_branch_change_no_mapping(self, mock_branch_manager, mock_load_config):
+        """Test handling branch change with no mapping found."""
+        mock_load_config.return_value = self.mock_config
+
+        mock_branch_instance = Mock()
+        mock_branch_instance.map_branch_to_environment.return_value = None
+        mock_branch_manager.return_value = mock_branch_instance
+
+        # Should not raise exception, just return early
+        handle_branch_change(self.mock_args)
+
+    @patch('auto_secrets.cli.load_config')
+    def test_handle_branch_change_error(self, mock_load_config):
+        """Test handling branch change with error."""
+        mock_load_config.side_effect = Exception("Config error")
+
+        with pytest.raises(SystemExit):
+            handle_branch_change(self.mock_args)
+
+
+class TestHandleRefreshSecrets:
+    """Test handle_refresh_secrets function."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.mock_args = Mock()
+        self.mock_args.environment = "production"
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.CacheManager')
+    @patch('auto_secrets.cli.create_secret_manager')
+    def test_handle_refresh_secrets_specified_env(self, mock_create_manager, mock_cache_manager, mock_load_config):
+        """Test refreshing secrets for specified environment."""
+        mock_config = {"secret_manager": {"type": "infisical"}}
+        mock_load_config.return_value = mock_config
+
+        mock_cache_instance = Mock()
+        mock_cache_manager.return_value = mock_cache_instance
+
+        mock_manager = Mock()
+        mock_manager.fetch_secrets.return_value = {"key": "value"}
+        mock_create_manager.return_value = mock_manager
+
+        handle_refresh_secrets(self.mock_args)
+
+        mock_manager.fetch_secrets.assert_called_once_with("production")
+        mock_cache_instance.update_environment_cache.assert_called_once()
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.CacheManager')
+    @patch('auto_secrets.cli.get_current_environment')
+    def test_handle_refresh_secrets_current_env(self, mock_get_env, mock_cache_manager, mock_load_config):
+        """Test refreshing secrets for current environment."""
+        self.mock_args.environment = None
+
+        mock_config = {"secret_manager": {"type": "infisical"}}
+        mock_load_config.return_value = mock_config
+
+        mock_current_state = EnvironmentState(environment="staging")
+        mock_get_env.return_value = mock_current_state
+
+        mock_cache_instance = Mock()
+        mock_cache_manager.return_value = mock_cache_instance
+
+        with patch('auto_secrets.cli.create_secret_manager') as mock_create_manager:
+            mock_manager = Mock()
+            mock_manager.fetch_secrets.return_value = {"key": "value"}
+            mock_create_manager.return_value = mock_manager
+
+            handle_refresh_secrets(self.mock_args)
+
+            mock_manager.fetch_secrets.assert_called_once_with("staging")
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.get_current_environment')
+    def test_handle_refresh_secrets_no_current_env(self, mock_get_env, mock_load_config):
+        """Test refreshing secrets with no current environment."""
+        self.mock_args.environment = None
+
+        mock_config = {}
+        mock_load_config.return_value = mock_config
+
+        mock_current_state = EnvironmentState()  # No environment
+        mock_get_env.return_value = mock_current_state
+
+        with pytest.raises(SystemExit):
+            handle_refresh_secrets(self.mock_args)
+
+
+class TestHandleInspectSecrets:
+    """Test handle_inspect_secrets function."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.mock_args = Mock()
+        self.mock_args.environment = "production"
+        self.mock_args.format = "table"
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.CacheManager')
+    def test_handle_inspect_secrets_with_cache(self, mock_cache_manager, mock_load_config):
+        """Test inspecting cached secrets."""
+        mock_config = {}
+        mock_load_config.return_value = mock_config
+
+        mock_cache_instance = Mock()
+        mock_cache_instance.get_cached_secrets.return_value = {
+            "/api/key": "secret123",
+            "/db/password": "dbpass456"
+        }
+        mock_cache_manager.return_value = mock_cache_instance
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            handle_inspect_secrets(self.mock_args)
+
+            output = mock_stdout.getvalue()
+            assert "api/key" in output
+            assert "db/password" in output
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.CacheManager')
+    def test_handle_inspect_secrets_no_cache(self, mock_cache_manager, mock_load_config):
+        """Test inspecting secrets with no cache."""
+        mock_config = {}
+        mock_load_config.return_value = mock_config
+
+        mock_cache_instance = Mock()
+        mock_cache_instance.get_cached_secrets.return_value = None
+        mock_cache_manager.return_value = mock_cache_instance
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            handle_inspect_secrets(self.mock_args)
+
+            output = mock_stdout.getvalue()
+            assert "No cached secrets found" in output
+
+
+class TestHandleExecCommand:
+    """Test handle_exec_command function."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.mock_args = Mock()
+        self.mock_args.environment = "production"
+        self.mock_args.command = ["echo", "test"]
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.CacheManager')
+    @patch('subprocess.run')
+    def test_handle_exec_command_success(self, mock_subprocess, mock_cache_manager, mock_load_config):
+        """Test executing command with secrets."""
+        mock_config = {}
+        mock_load_config.return_value = mock_config
+
+        mock_cache_instance = Mock()
+        mock_cache_instance.get_cached_secrets.return_value = {
+            "/api/key": "secret123",
+            "/db/password": "dbpass456"
+        }
+        mock_cache_manager.return_value = mock_cache_instance
+
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_subprocess.return_value = mock_result
+
+        handle_exec_command(self.mock_args)
+
+        mock_subprocess.assert_called_once()
+        # Check that environment was modified
+        call_args = mock_subprocess.call_args
+        env_arg = call_args[1]['env']
+        assert 'API_KEY' in env_arg
+        assert 'DB_PASSWORD' in env_arg
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.CacheManager')
+    def test_handle_exec_command_no_secrets(self, mock_cache_manager, mock_load_config):
+        """Test executing command with no secrets available."""
+        mock_config = {}
+        mock_load_config.return_value = mock_config
+
+        mock_cache_instance = Mock()
+        mock_cache_instance.get_cached_secrets.return_value = None
+        mock_cache_manager.return_value = mock_cache_instance
+
+        with pytest.raises(SystemExit):
+            handle_exec_command(self.mock_args)
+
+
+class TestHandleExecForShell:
+    """Test handle_exec_for_shell function."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.mock_args = Mock()
+        self.mock_args.environment = "production"
+        self.mock_args.shell = "bash"
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.CacheManager')
+    def test_handle_exec_for_shell_bash(self, mock_cache_manager, mock_load_config):
+        """Test generating bash script."""
+        mock_config = {}
+        mock_load_config.return_value = mock_config
+
+        mock_cache_instance = Mock()
+        mock_cache_instance.get_cached_secrets.return_value = {
+            "/api/key": "secret123",
+            "/db/password": "dbpass456"
+        }
+        mock_cache_manager.return_value = mock_cache_instance
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            handle_exec_for_shell(self.mock_args)
+
+            output = mock_stdout.getvalue()
+            assert "export API_KEY=" in output
+            assert "export DB_PASSWORD=" in output
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.CacheManager')
+    def test_handle_exec_for_shell_fish(self, mock_cache_manager, mock_load_config):
+        """Test generating fish script."""
+        self.mock_args.shell = "fish"
+
+        mock_config = {}
+        mock_load_config.return_value = mock_config
+
+        mock_cache_instance = Mock()
+        mock_cache_instance.get_cached_secrets.return_value = {
+            "/api/key": "secret123"
+        }
+        mock_cache_manager.return_value = mock_cache_instance
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            handle_exec_for_shell(self.mock_args)
+
+            output = mock_stdout.getvalue()
+            assert "set -gx API_KEY" in output
+
+
+class TestHandleCurrentEnv:
+    """Test handle_current_env function."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.mock_args = Mock()
+        self.mock_args.prompt_format = False
+
+    @patch('auto_secrets.cli.get_current_environment')
+    def test_handle_current_env_normal(self, mock_get_env):
+        """Test displaying current environment normally."""
+        mock_current_state = EnvironmentState(
+            environment="production",
+            branch="main",
+            repo_path="/path/to/repo"
+        )
+        mock_get_env.return_value = mock_current_state
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            handle_current_env(self.mock_args)
+
+            output = mock_stdout.getvalue()
+            assert "Current Environment: production" in output
+            assert "Branch: main" in output
+
+    @patch('auto_secrets.cli.get_current_environment')
+    def test_handle_current_env_prompt_format(self, mock_get_env):
+        """Test displaying current environment for prompt."""
+        self.mock_args.prompt_format = True
+
+        mock_current_state = EnvironmentState(environment="production")
+        mock_get_env.return_value = mock_current_state
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            handle_current_env(self.mock_args)
+
+            output = mock_stdout.getvalue()
+            assert "[production]" in output
+
+    @patch('auto_secrets.cli.get_current_environment')
+    def test_handle_current_env_no_environment(self, mock_get_env):
+        """Test displaying current environment when none set."""
+        mock_current_state = EnvironmentState()  # No environment
+        mock_get_env.return_value = mock_current_state
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            handle_current_env(self.mock_args)
+
+            output = mock_stdout.getvalue()
+            assert "No active environment" in output
+
+
+class TestHandleDebugEnv:
+    """Test handle_debug_env function."""
+
+    @patch('auto_secrets.cli.get_current_environment')
+    @patch('auto_secrets.cli.load_config')
+    def test_handle_debug_env(self, mock_load_config, mock_get_env):
+        """Test debug environment information."""
+        mock_config = {
+            "secret_manager": {"type": "infisical"},
+            "branch_mappings": {"main": "production"}
+        }
+        mock_load_config.return_value = mock_config
+
+        mock_current_state = EnvironmentState(environment="production", branch="main")
+        mock_get_env.return_value = mock_current_state
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout, \
+             patch('auto_secrets.cli.BranchManager') as mock_branch_manager, \
+             patch('auto_secrets.cli.CacheManager') as mock_cache_manager:
+
+            mock_branch_instance = Mock()
+            mock_branch_instance.get_mapping_status.return_value = {
+                "current_branch": "main",
+                "current_environment": "production"
+            }
+            mock_branch_manager.return_value = mock_branch_instance
+
+            mock_cache_instance = Mock()
+            mock_cache_instance.get_cache_info.return_value = {
+                "total_environments": 1,
+                "environments": {"production": {"status": "ok"}}
+            }
+            mock_cache_manager.return_value = mock_cache_instance
+
+            handle_debug_env()
+
+            output = mock_stdout.getvalue()
+            assert "Auto Secrets Manager Debug Information" in output
+            assert "System Information" in output
+            assert "Configuration" in output
+
+
+class TestHandleCleanup:
+    """Test handle_cleanup function."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.mock_args = Mock()
+        self.mock_args.all = False
+        self.mock_args.stale = False
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.CacheManager')
+    def test_handle_cleanup_all(self, mock_cache_manager, mock_load_config):
+        """Test cleanup all caches."""
+        self.mock_args.all = True
+
+        mock_config = {}
+        mock_load_config.return_value = mock_config
+
+        mock_cache_instance = Mock()
+        mock_cache_instance.cleanup_all.return_value = {"removed": 3}
+        mock_cache_manager.return_value = mock_cache_instance
+
+        handle_cleanup(self.mock_args)
+
+        mock_cache_instance.cleanup_all.assert_called_once()
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.CacheManager')
+    def test_handle_cleanup_stale(self, mock_cache_manager, mock_load_config):
+        """Test cleanup stale caches."""
+        self.mock_args.stale = True
+
+        mock_config = {}
+        mock_load_config.return_value = mock_config
+
+        mock_cache_instance = Mock()
+        mock_cache_instance.cleanup_stale.return_value = {"removed": 2, "kept": 1}
+        mock_cache_manager.return_value = mock_cache_instance
+
+        handle_cleanup(self.mock_args)
+
+        mock_cache_instance.cleanup_stale.assert_called_once()
+
+
+class TestBackgroundRefreshSecrets:
+    """Test _background_refresh_secrets function."""
+
+    @patch('auto_secrets.cli.create_secret_manager')
+    @patch('auto_secrets.cli.CacheManager')
+    def test_background_refresh_success(self, mock_cache_manager, mock_create_manager):
+        """Test successful background refresh."""
+        environment = "production"
+        config = {"secret_manager": {"type": "infisical"}}
+
+        mock_manager = Mock()
+        mock_manager.test_connection.return_value = ConnectionTestResult(
+            success=True, message="OK", details={}, authenticated=True
+        )
+        mock_manager.fetch_secrets.return_value = {"key": "value"}
+        mock_create_manager.return_value = mock_manager
+
+        mock_cache_instance = Mock()
+        mock_cache_manager.return_value = mock_cache_instance
+
+        # Should not raise exception
+        _background_refresh_secrets(environment, config)
+
+        mock_manager.fetch_secrets.assert_called_once_with(environment)
+
+    @patch('auto_secrets.cli.create_secret_manager')
+    def test_background_refresh_no_manager(self, mock_create_manager):
+        """Test background refresh with no secret manager."""
+        environment = "production"
+        config = {}
+
+        mock_create_manager.return_value = None
+
+        # Should not raise exception, just log warning
+        _background_refresh_secrets(environment, config)
+
+
+class TestMainFunction:
+    """Test main CLI function."""
+
+    @patch('auto_secrets.cli.setup_logging')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_branch_change_command(self, mock_parse_args, mock_setup_logging):
+        """Test main function with branch-change command."""
+        mock_args = Mock()
+        mock_args.debug = False
+        mock_args.quiet = False
+        mock_args.command = "branch-change"
+        mock_args.branch = "main"
+        mock_args.repo_path = "/repo"
+        mock_parse_args.return_value = mock_args
+
+        with patch('auto_secrets.cli.handle_branch_change') as mock_handle:
+            main()
+
+            mock_setup_logging.assert_called_once()
+            mock_handle.assert_called_once_with(mock_args)
+
+    @patch('auto_secrets.cli.setup_logging')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_refresh_command(self, mock_parse_args, mock_setup_logging):
+        """Test main function with refresh command."""
+        mock_args = Mock()
+        mock_args.debug = False
+        mock_args.quiet = False
+        mock_args.command = "refresh"
+        mock_args.environment = "production"
+        mock_parse_args.return_value = mock_args
+
+        with patch('auto_secrets.cli.handle_refresh_secrets') as mock_handle:
+            main()
+
+            mock_handle.assert_called_once_with(mock_args)
+
+    @patch('auto_secrets.cli.setup_logging')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_inspect_command(self, mock_parse_args, mock_setup_logging):
+        """Test main function with inspect command."""
+        mock_args = Mock()
+        mock_args.debug = False
+        mock_args.quiet = False
+        mock_args.command = "inspect"
+        mock_args.environment = "production"
+        mock_parse_args.return_value = mock_args
+
+        with patch('auto_secrets.cli.handle_inspect_secrets') as mock_handle:
+            main()
+
+            mock_handle.assert_called_once_with(mock_args)
+
+    @patch('auto_secrets.cli.setup_logging')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_exec_command(self, mock_parse_args, mock_setup_logging):
+        """Test main function with exec command."""
+        mock_args = Mock()
+        mock_args.debug = False
+        mock_args.quiet = False
+        mock_args.command = "exec"
+        mock_args.environment = "production"
+        mock_args.command_to_run = ["echo", "test"]
+        mock_parse_args.return_value = mock_args
+
+        with patch('auto_secrets.cli.handle_exec_command') as mock_handle:
+            main()
+
+            mock_handle.assert_called_once_with(mock_args)
+
+    @patch('auto_secrets.cli.setup_logging')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_shell_command(self, mock_parse_args, mock_setup_logging):
+        """Test main function with shell command."""
+        mock_args = Mock()
+        mock_args.debug = False
+        mock_args.quiet = False
+        mock_args.command = "shell"
+        mock_args.shell = "bash"
+        mock_parse_args.return_value = mock_args
+
+        with patch('auto_secrets.cli.handle_exec_for_shell') as mock_handle:
+            main()
+
+            mock_handle.assert_called_once_with(mock_args)
+
+    @patch('auto_secrets.cli.setup_logging')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_current_env_command(self, mock_parse_args, mock_setup_logging):
+        """Test main function with current-env command."""
+        mock_args = Mock()
+        mock_args.debug = False
+        mock_args.quiet = False
+        mock_args.command = "current-env"
+        mock_parse_args.return_value = mock_args
+
+        with patch('auto_secrets.cli.handle_current_env') as mock_handle:
+            main()
+
+            mock_handle.assert_called_once_with(mock_args)
+
+    @patch('auto_secrets.cli.setup_logging')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_debug_command(self, mock_parse_args, mock_setup_logging):
+        """Test main function with debug command."""
+        mock_args = Mock()
+        mock_args.debug = False
+        mock_args.quiet = False
+        mock_args.command = "debug-env"
+        mock_parse_args.return_value = mock_args
+
+        with patch('auto_secrets.cli.handle_debug_env') as mock_handle:
+            main()
+
+            mock_handle.assert_called_once()
+
+    @patch('auto_secrets.cli.setup_logging')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_cleanup_command(self, mock_parse_args, mock_setup_logging):
+        """Test main function with cleanup command."""
+        mock_args = Mock()
+        mock_args.debug = False
+        mock_args.quiet = False
+        mock_args.command = "cleanup"
+        mock_args.all = True
+        mock_parse_args.return_value = mock_args
+
+        with patch('auto_secrets.cli.handle_cleanup') as mock_handle:
+            main()
+
+            mock_handle.assert_called_once_with(mock_args)
+
+    @patch('auto_secrets.cli.setup_logging')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_unknown_command(self, mock_parse_args, mock_setup_logging):
+        """Test main function with unknown command."""
+        mock_args = Mock()
+        mock_args.debug = False
+        mock_args.quiet = False
+        mock_args.command = "unknown"
+        mock_parse_args.return_value = mock_args
+
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            main()
+
+            error_output = mock_stderr.getvalue()
+            assert "Unknown command" in error_output
+
+    @patch('auto_secrets.cli.setup_logging')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_debug_logging(self, mock_parse_args, mock_setup_logging):
+        """Test main function with debug logging enabled."""
+        mock_args = Mock()
+        mock_args.debug = True
+        mock_args.quiet = False
+        mock_args.command = "debug-env"
+        mock_parse_args.return_value = mock_args
+
+        with patch('auto_secrets.cli.handle_debug_env'):
+            main()
+
+            mock_setup_logging.assert_called_once_with(debug=True, quiet=False)
+
+    @patch('auto_secrets.cli.setup_logging')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_quiet_logging(self, mock_parse_args, mock_setup_logging):
+        """Test main function with quiet logging enabled."""
+        mock_args = Mock()
+        mock_args.debug = False
+        mock_args.quiet = True
+        mock_args.command = "debug-env"
+        mock_parse_args.return_value = mock_args
+
+        with patch('auto_secrets.cli.handle_debug_env'):
+            main()
+
+            mock_setup_logging.assert_called_once_with(debug=False, quiet=True)
+
+
+class TestCLIIntegration:
+    """Integration tests for CLI functionality."""
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.CacheManager')
+    @patch('auto_secrets.cli.BranchManager')
+    @patch('auto_secrets.cli.create_secret_manager')
+    def test_complete_workflow(self, mock_create_manager, mock_branch_manager,
+                              mock_cache_manager, mock_load_config):
+        """Test complete CLI workflow."""
+        # Setup config
+        mock_config = {
+            "secret_manager": {"type": "infisical", "project_id": "test"},
+            "branch_mappings": {"main": "production", "default": "development"}
+        }
+        mock_load_config.return_value = mock_config
+
+        # Setup managers
+        mock_manager = Mock()
+        mock_manager.fetch_secrets.return_value = {"/api/key": "secret123"}
+        mock_create_manager.return_value = mock_manager
+
+        mock_cache_instance = Mock()
+        mock_cache_manager.return_value = mock_cache_instance
+
+        mock_branch_instance = Mock()
+        mock_branch_instance.map_branch_to_environment.return_value = "production"
+        mock_branch_manager.return_value = mock_branch_instance
+
+        # Test branch change workflow
+        branch_args = Mock()
+        branch_args.branch = "main"
+        branch_args.repo_path = "/repo"
+
+        with patch('auto_secrets.cli.get_current_environment') as mock_get_env, \
+             patch('time.time', return_value=1234567890):
+
+            mock_get_env.return_value = EnvironmentState()  # No current env
+            handle_branch_change(branch_args)
+
+            # Should save new state
+            mock_cache_instance.save_current_state.assert_called()
+
+        # Test refresh secrets
+        refresh_args = Mock()
+        refresh_args.environment = "production"
+
+        handle_refresh_secrets(refresh_args)
+
+        # Should fetch and cache secrets
+        mock_manager.fetch_secrets.assert_called_with("production")
+        mock_cache_instance.update_environment_cache.assert_called()
+
+    def test_error_handling_workflow(self):
+        """Test error handling across CLI functions."""
+        # Test config loading error
+        with patch('auto_secrets.cli.load_config', side_effect=ConfigError("Config error")):
+            args = Mock()
+            args.environment = "production"
+
+            with pytest.raises(SystemExit):
+                handle_refresh_secrets(args)
+
+        # Test secret manager error
+        with patch('auto_secrets.cli.load_config', return_value={}), \
+             patch('auto_secrets.cli.create_secret_manager', side_effect=SecretManagerError("Manager error")):
+
+            args = Mock()
+            args.environment = "production"
+
+            with pytest.raises(SystemExit):
+                handle_refresh_secrets(args)

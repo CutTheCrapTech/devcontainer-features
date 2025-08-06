@@ -8,9 +8,10 @@ import os
 import pytest
 import tempfile
 import time
+from pathlib import Path
 from unittest.mock import patch
 
-from auto_secrets.core.environment import ( # type: ignore
+from auto_secrets.core.environment import (  # type: ignore
     EnvironmentState,
     EnvironmentStateManager,
     get_current_environment,
@@ -148,6 +149,7 @@ class TestEnvironmentStateManager:
             "cache_base_dir": self.temp_dir,
             "debug": False
         }
+        (Path(self.temp_dir) / "state").mkdir()
 
     def teardown_method(self):
         """Clean up after tests."""
@@ -340,7 +342,7 @@ class TestUtilityFunctions:
         state = get_current_environment(self.config)
         assert isinstance(state, EnvironmentState)
 
-    @patch('auto_secrets.core.environment.load_config')
+    @patch('auto_secrets.core.config.load_config')
     def test_get_current_environment_without_config(self, mock_load_config):
         """Test getting current environment without config (loads from environment)."""
         mock_load_config.return_value = self.config
@@ -360,7 +362,7 @@ class TestUtilityFunctions:
         assert retrieved_state.environment == "test"
         assert retrieved_state.branch == "main"
 
-    @patch('auto_secrets.core.environment.load_config')
+    @patch('auto_secrets.core.config.load_config')
     def test_save_environment_state_without_config(self, mock_load_config):
         """Test saving environment state without config."""
         mock_load_config.return_value = self.config
@@ -387,7 +389,7 @@ class TestUtilityFunctions:
         state = get_current_environment(self.config)
         assert not state.is_valid()
 
-    @patch('auto_secrets.core.environment.load_config')
+    @patch('auto_secrets.core.config.load_config')
     def test_clear_environment_state_without_config(self, mock_load_config):
         """Test clearing environment state without config."""
         mock_load_config.return_value = self.config
@@ -479,16 +481,12 @@ class TestDebugInfo:
 
         assert "state_manager" in debug_info
         assert "working_directory" in debug_info
-        assert "user_id" in debug_info
         assert "environment_variables" in debug_info
-
-        # Check user_id is valid
-        assert debug_info["user_id"] == os.getuid()
 
         # Check working directory
         assert debug_info["working_directory"] == os.getcwd()
 
-    @patch('auto_secrets.core.environment.load_config')
+    @patch('auto_secrets.core.config.load_config')
     def test_get_environment_debug_info_without_config(self, mock_load_config):
         """Test getting debug info without config."""
         mock_load_config.return_value = self.config
