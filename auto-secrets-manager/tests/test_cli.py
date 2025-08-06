@@ -730,20 +730,15 @@ class TestMainFunction:
 
     @patch('auto_secrets.cli.load_config')
     @patch('auto_secrets.cli.setup_logging')
-    @patch('argparse.ArgumentParser.parse_args')
-    def test_main_unknown_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
+    def test_main_unknown_command(self, mock_setup_logging, mock_load_config):
         """Test main function with unknown command."""
         mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical", "log_dir": "/tmp"}
-        mock_args = Mock()
+        # Use spec to limit mock attributes - explicitly exclude 'func'
+        mock_args = Mock(spec=['debug', 'quiet', 'command'])
         mock_args.debug = False
         mock_args.quiet = False
         mock_args.command = "unknown"
         # Don't set func attribute to simulate unknown command
-        mock_parse_args.return_value = mock_args
-
-        # Ensure mock_args has no func attribute
-        if hasattr(mock_args, 'func'):
-            delattr(mock_args, 'func')
 
         with patch('sys.exit') as mock_exit, \
              patch.dict(os.environ, {
