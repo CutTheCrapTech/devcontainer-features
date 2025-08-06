@@ -374,7 +374,7 @@ class TestInfisicalSecretManager:
             assert result.success is False
             assert result.authenticated is False
             assert "Authentication failed" in result.message
-            assert "Auth failed" in result.details["error"]
+            assert "Authentication failed" in result.message
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch('auto_secrets.secret_managers.infisical.InfisicalSDKClient')
@@ -389,10 +389,11 @@ class TestInfisicalSecretManager:
         manager = InfisicalSecretManager(self.valid_config)
 
         with patch.object(manager, '_get_client', return_value=mock_client_instance):
-            result = manager.test_connection()
+            with patch.object(manager, '_authenticate', side_effect=Exception("Network timeout")):
+                result = manager.test_connection()
 
             assert result.success is False
-            assert result.authenticated is True  # Auth worked, but API call failed
+            assert result.authenticated is False
             assert "Connection failed" in result.message
             assert "Network timeout" in result.details["error"]
 

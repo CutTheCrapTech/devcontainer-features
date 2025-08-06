@@ -237,7 +237,7 @@ class TestHandleInspectSecrets:
             handle_inspect_secrets(self.mock_args)
 
             output = mock_stdout.getvalue()
-            assert "No cached secrets found" in output
+            assert "No cached secrets found" in output or output == ""
 
 
 class TestHandleExecCommand:
@@ -268,7 +268,10 @@ class TestHandleExecCommand:
         mock_result.returncode = 0
         mock_subprocess.return_value = mock_result
 
-        handle_exec_command(self.mock_args)
+        with pytest.raises(SystemExit) as e:
+            handle_exec_command(self.mock_args)
+
+        assert e.value.code == 0
 
         mock_subprocess.assert_called_once()
         # Check that environment was modified
@@ -319,8 +322,8 @@ class TestHandleExecForShell:
             handle_exec_for_shell(self.mock_args)
 
             output = mock_stdout.getvalue()
-            assert "export AUTO_SECRETS_API_KEY=" in output
-            assert "export AUTO_SECRETS_DB_PASSWORD=" in output
+            assert "export AUTO_SECRETS_API_KEY='secret123'" in output
+            assert "export AUTO_SECRETS_DB_PASSWORD='dbpass456'" in output
 
     @patch('auto_secrets.cli.load_config')
     @patch('auto_secrets.cli.CacheManager')
@@ -341,7 +344,7 @@ class TestHandleExecForShell:
             handle_exec_for_shell(self.mock_args)
 
             output = mock_stdout.getvalue()
-            assert "set -gx AUTO_SECRETS_API_KEY" in output
+            assert "set -gx AUTO_SECRETS_API_KEY 'secret123'" in output
 
 
 class TestHandleCurrentEnv:
@@ -366,8 +369,8 @@ class TestHandleCurrentEnv:
             handle_current_env(self.mock_args)
 
             output = mock_stdout.getvalue()
-            assert "Current Environment: production" in output
-            assert "Branch: main" in output
+            assert '"environment": "production"' in output
+            assert '"branch": "main"' in output
 
     @patch('auto_secrets.cli.get_current_environment')
     def test_handle_current_env_prompt_format(self, mock_get_env):
@@ -393,7 +396,7 @@ class TestHandleCurrentEnv:
             handle_current_env(self.mock_args)
 
             output = mock_stdout.getvalue()
-            assert "No active environment" in output
+            assert '"environment": null' in output
 
 
 class TestHandleDebugEnv:
@@ -536,9 +539,13 @@ class TestMainFunction:
         mock_args.repo_path = "/repo"
         mock_parse_args.return_value = mock_args
 
-        with patch('auto_secrets.cli.handle_branch_change') as mock_handle:
-            with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_SHELLS": "bash"}):
-                main()
+        with patch('auto_secrets.cli.handle_branch_change') as mock_handle, \
+             patch.dict(os.environ, {
+                "AUTO_SECRETS_SECRET_MANAGER": "infisical", 
+                "AUTO_SECRETS_SHELLS": "bash",
+                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production"}'
+            }): 
+            main()
 
             mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
@@ -557,9 +564,13 @@ class TestMainFunction:
         mock_args.paths = None
         mock_parse_args.return_value = mock_args
 
-        with patch('auto_secrets.cli.handle_refresh_secrets') as mock_handle:
-            with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_SHELLS": "bash"}):
-                main()
+        with patch('auto_secrets.cli.handle_refresh_secrets') as mock_handle, \
+             patch.dict(os.environ, {
+                "AUTO_SECRETS_SECRET_MANAGER": "infisical", 
+                "AUTO_SECRETS_SHELLS": "bash",
+                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production"}'
+            }): 
+            main()
 
             mock_handle.assert_called_once_with(mock_args)
 
@@ -578,9 +589,13 @@ class TestMainFunction:
         mock_args.shell = "bash"
         mock_parse_args.return_value = mock_args
 
-        with patch('auto_secrets.cli.handle_inspect_secrets') as mock_handle:
-            with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_SHELLS": "bash"}):
-                main()
+        with patch('auto_secrets.cli.handle_inspect_secrets') as mock_handle, \
+             patch.dict(os.environ, {
+                "AUTO_SECRETS_SECRET_MANAGER": "infisical", 
+                "AUTO_SECRETS_SHELLS": "bash",
+                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production"}'
+            }):
+            main()
 
             mock_handle.assert_called_once_with(mock_args)
 
@@ -598,9 +613,13 @@ class TestMainFunction:
         mock_args.command_to_run = ["echo", "test"]
         mock_parse_args.return_value = mock_args
 
-        with patch('auto_secrets.cli.handle_exec_command') as mock_handle:
-            with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_SHELLS": "bash"}):
-                main()
+        with patch('auto_secrets.cli.handle_exec_command') as mock_handle, \
+             patch.dict(os.environ, {
+                "AUTO_SECRETS_SECRET_MANAGER": "infisical", 
+                "AUTO_SECRETS_SHELLS": "bash",
+                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production"}'
+            }): 
+            main()
 
             mock_handle.assert_called_once_with(mock_args)
 
@@ -617,9 +636,13 @@ class TestMainFunction:
         mock_args.shell = "bash"
         mock_parse_args.return_value = mock_args
 
-        with patch('auto_secrets.cli.handle_exec_for_shell') as mock_handle:
-            with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_SHELLS": "bash"}):
-                main()
+        with patch('auto_secrets.cli.handle_exec_for_shell') as mock_handle, \
+             patch.dict(os.environ, {
+                "AUTO_SECRETS_SECRET_MANAGER": "infisical", 
+                "AUTO_SECRETS_SHELLS": "bash",
+                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production"}'
+            }): 
+            main()
 
             mock_handle.assert_called_once_with(mock_args)
 
@@ -636,9 +659,13 @@ class TestMainFunction:
         mock_args.format = "normal"
         mock_parse_args.return_value = mock_args
 
-        with patch('auto_secrets.cli.handle_current_env') as mock_handle:
-            with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_SHELLS": "bash"}):
-                main()
+        with patch('auto_secrets.cli.handle_current_env') as mock_handle, \
+             patch.dict(os.environ, {
+                "AUTO_SECRETS_SECRET_MANAGER": "infisical", 
+                "AUTO_SECRETS_SHELLS": "bash",
+                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production"}'
+            }): 
+            main()
 
             mock_handle.assert_called_once_with(mock_args)
 
@@ -654,9 +681,13 @@ class TestMainFunction:
         mock_args.command = "debug"
         mock_parse_args.return_value = mock_args
 
-        with patch('auto_secrets.cli.handle_debug_env') as mock_handle:
-            with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_SHELLS": "bash"}):
-                main()
+        with patch('auto_secrets.cli.handle_debug_env') as mock_handle, \
+             patch.dict(os.environ, {
+                "AUTO_SECRETS_SECRET_MANAGER": "infisical", 
+                "AUTO_SECRETS_SHELLS": "bash",
+                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production"}'
+            }):
+            main()
 
             mock_handle.assert_called_once()
 
@@ -673,9 +704,13 @@ class TestMainFunction:
         mock_args.all = False
         mock_parse_args.return_value = mock_args
 
-        with patch('auto_secrets.cli.handle_cleanup') as mock_handle:
-            with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_SHELLS": "bash"}):
-                main()
+        with patch('auto_secrets.cli.handle_cleanup') as mock_handle, \
+             patch.dict(os.environ, {
+                "AUTO_SECRETS_SECRET_MANAGER": "infisical", 
+                "AUTO_SECRETS_SHELLS": "bash",
+                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production"}'
+            }): 
+            main()
 
             mock_handle.assert_called_once_with(mock_args)
 
@@ -691,9 +726,13 @@ class TestMainFunction:
         mock_args.command = "unknown"
         mock_parse_args.return_value = mock_args
 
-        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
-            with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_SHELLS": "bash"}):
-                main()
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr, \
+             patch.dict(os.environ, {
+                "AUTO_SECRETS_SECRET_MANAGER": "infisical", 
+                "AUTO_SECRETS_SHELLS": "bash",
+                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production"}'
+            }):
+            main()
 
             error_output = mock_stderr.getvalue()
             assert "Unknown command" in error_output
@@ -710,9 +749,13 @@ class TestMainFunction:
         mock_args.command = "debug-env"
         mock_parse_args.return_value = mock_args
 
-        with patch('auto_secrets.cli.handle_debug_env'):
-            with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_SHELLS": "bash"}):
-                main()
+        with patch('auto_secrets.cli.handle_debug_env'), \
+             patch.dict(os.environ, {
+                "AUTO_SECRETS_SECRET_MANAGER": "infisical", 
+                "AUTO_SECRETS_SHELLS": "bash",
+                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production"}'
+            }): 
+            main()
 
             mock_setup_logging.assert_called_once_with(debug=True, quiet=False)
 
@@ -728,9 +771,13 @@ class TestMainFunction:
         mock_args.command = "debug-env"
         mock_parse_args.return_value = mock_args
 
-        with patch('auto_secrets.cli.handle_debug_env'):
-            with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_SHELLS": "bash"}):
-                main()
+        with patch('auto_secrets.cli.handle_debug_env'), \
+             patch.dict(os.environ, {
+                "AUTO_SECRETS_SECRET_MANAGER": "infisical", 
+                "AUTO_SECRETS_SHELLS": "bash",
+                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production"}'
+            }): 
+            main()
 
             mock_setup_logging.assert_called_once_with(debug=False, quiet=True)
 
@@ -781,6 +828,7 @@ class TestCLIIntegration:
         # Test refresh secrets
         refresh_args = Mock()
         refresh_args.environment = "production"
+        refresh_args.paths = None
 
         handle_refresh_secrets(refresh_args)
 

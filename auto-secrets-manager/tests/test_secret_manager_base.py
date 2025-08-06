@@ -375,7 +375,7 @@ class TestSecretManagerBase:
 
         assert manager.get_config_value("test-api-key") == "env_value"
 
-    @patch.dict(os.environ, {"AUTO_SECRETS_OVERRIDE_KEY": "env_override"})
+            @patch.dict(os.environ, {"AUTO_SECRETS_OVERRIDE_KEY": "env_override"})
     def test_get_config_value_environment_over_config(self):
         """Test environment variable overrides config value."""
         config = {"override-key": "config_value"}
