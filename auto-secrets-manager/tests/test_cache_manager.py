@@ -273,6 +273,8 @@ class TestCacheManager:
             cache_dir = Path(temp_dir) / "cache"
             mock_get_cache_dir.return_value = cache_dir
 
+            CacheManager(self.test_config)
+
             assert cache_dir.exists()
             assert (cache_dir / "environments").exists()
             assert (cache_dir / "state").exists()
@@ -635,7 +637,14 @@ class TestCacheManager:
             fresh_env = envs_dir / "fresh_env"
             fresh_env.mkdir()
             fresh_cache_data = {
-                "metadata": {"environment": "fresh_env", "created_at": 1234567890, "last_updated": 1234567890, "last_accessed": 1234567890, "secret_count": 1, "status": "ok"},
+                "metadata": {
+                  "environment": "fresh_env",
+                  "created_at": 1234567890,
+                  "last_updated": 1234567890,
+                  "last_accessed": 1234567890,
+                  "secret_count": 1,
+                  "status": "ok",
+                },
                 "secrets": {"key": "value"}
             }
             with open(fresh_env / "fresh_env.json", 'w') as f:
@@ -776,6 +785,7 @@ class TestCacheManager:
     def test_update_access_time_success(self):
         """Test updating access time successfully."""
         config = self._get_temp_config()
+        CacheManager(config)
 
         def test_update_access_time_success(self, mock_get_cache_dir):
             """Test successful access time update."""

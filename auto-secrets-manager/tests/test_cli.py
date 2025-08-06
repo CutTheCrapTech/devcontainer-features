@@ -552,7 +552,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-            }):
+             }):
             mock_args.func = mock_handle
             main()
 
@@ -578,7 +578,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-            }):
+             }):
             mock_args.func = mock_handle
             main()
 
@@ -604,7 +604,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-            }):
+             }):
             mock_args.func = mock_handle
             main()
 
@@ -625,11 +625,11 @@ class TestMainFunction:
         mock_parse_args.return_value = mock_args
 
         with patch('auto_secrets.cli.handle_exec_command') as mock_handle, \
-          patch.dict(os.environ, {
+             patch.dict(os.environ, {
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-          }):
+             }):
             mock_args.func = mock_handle
             main()
 
@@ -654,7 +654,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-            }):
+             }):
             mock_args.func = mock_handle
             main()
 
@@ -679,7 +679,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-            }):
+             }):
             mock_args.func = mock_handle
             main()
 
@@ -702,7 +702,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-            }):
+             }):
             mock_args.func = mock_handle
             main()
 
@@ -726,7 +726,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-            }):
+             }):
             mock_args.func = mock_handle
             main()
 
@@ -749,7 +749,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-            }):
+             }):
             with patch('auto_secrets.cli.argparse.ArgumentParser') as MockParser:
                 mock_parser_instance = Mock()
                 MockParser.return_value = mock_parser_instance
@@ -777,7 +777,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-            }):
+             }):
             mock_args.func = mock_handle
             main()
 
@@ -800,12 +800,10 @@ class TestMainFunction:
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-            }):
+             }):
             main()
 
             mock_setup_logging.assert_called_once_with(log_level='INFO', log_dir='/tmp', log_file='daemon.log')
-
-
 
 
 class TestCLIIntegration:
@@ -815,8 +813,10 @@ class TestCLIIntegration:
     @patch('auto_secrets.cli.CacheManager')
     @patch('auto_secrets.cli.BranchManager')
     @patch('auto_secrets.cli.create_secret_manager')
-    def test_complete_workflow(self, mock_create_manager, mock_branch_manager,
-                              mock_cache_manager, mock_load_config):
+    def test_complete_workflow(
+      self, mock_create_manager, mock_branch_manager,
+      mock_cache_manager, mock_load_config
+    ):
         """Test complete CLI workflow."""
         # Setup config
         mock_config = {
