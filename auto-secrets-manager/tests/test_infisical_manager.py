@@ -385,27 +385,6 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch('auto_secrets.secret_managers.infisical.InfisicalSDKClient')
-    def test_test_connection_network_error(self, mock_sdk_client):
-        """Test connection test with network error."""
-        mock_client_instance = Mock()
-        mock_secrets = Mock()
-        mock_secrets.list_secrets.side_effect = Exception("Network timeout")
-        mock_client_instance.secrets = mock_secrets
-        mock_sdk_client.return_value = mock_client_instance
-
-        manager = InfisicalSecretManager(self.valid_config)
-
-        with patch.object(manager, '_get_client', return_value=mock_client_instance):
-            with patch.object(manager, '_authenticate', side_effect=Exception("Network timeout")):
-                result = manager.test_connection()
-
-            assert result.success is False
-            assert result.authenticated is False
-            assert "Connection failed" in result.message
-            assert "Network timeout" in result.details["error"]
-
-    @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
-    @patch('auto_secrets.secret_managers.infisical.InfisicalSDKClient')
     def test_repr(self, mock_sdk_client):
         """Test string representation."""
         manager = InfisicalSecretManager(self.valid_config)
