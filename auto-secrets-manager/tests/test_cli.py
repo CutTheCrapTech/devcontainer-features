@@ -549,6 +549,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
             }):
+            mock_args.func = mock_handle
             main()
 
             mock_setup_logging.assert_called_once()
@@ -574,6 +575,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
             }):
+            mock_args.func = mock_handle
             main()
 
             mock_handle.assert_called_once_with(mock_args)
@@ -599,6 +601,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
             }):
+            mock_args.func = mock_handle
             main()
 
             mock_handle.assert_called_once_with(mock_args)
@@ -614,7 +617,7 @@ class TestMainFunction:
         mock_args.quiet = False
         mock_args.command = "exec"
         mock_args.environment = "production"
-        mock_args.command_to_run = ["echo", "test"]
+        mock_args.command = ["echo", "test"]
         mock_parse_args.return_value = mock_args
 
         with patch('auto_secrets.cli.handle_exec_command') as mock_handle, \
@@ -623,6 +626,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
             }):
+            mock_args.func = mock_handle
             main()
 
             mock_handle.assert_called_once_with(mock_args)
@@ -637,7 +641,8 @@ class TestMainFunction:
         mock_args.debug = False
         mock_args.quiet = False
         mock_args.command = "output-env"
-        mock_args.shell = "bash"
+        mock_args.environment = "production"
+        mock_args.paths = None
         mock_parse_args.return_value = mock_args
 
         with patch('auto_secrets.cli.handle_exec_for_shell') as mock_handle, \
@@ -646,6 +651,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
             }):
+            mock_args.func = mock_handle
             main()
 
             mock_handle.assert_called_once_with(mock_args)
@@ -658,9 +664,10 @@ class TestMainFunction:
         mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical", "log_dir": "/tmp"}
         mock_args = Mock()
         mock_args.debug = False
-        mock_args.quiet = True
+        mock_args.quiet = False
         mock_args.command = "current-env"
-        mock_args.format = "normal"
+        mock_args.prompt_format = False
+        mock_args.json = False
         mock_parse_args.return_value = mock_args
 
         with patch('auto_secrets.cli.handle_current_env') as mock_handle, \
@@ -669,6 +676,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
             }):
+            mock_args.func = mock_handle
             main()
 
             mock_handle.assert_called_once_with(mock_args)
@@ -691,6 +699,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
             }):
+            mock_args.func = mock_handle
             main()
 
             mock_handle.assert_called_once()
@@ -705,7 +714,7 @@ class TestMainFunction:
         mock_args.debug = False
         mock_args.quiet = False
         mock_args.command = "cleanup"
-        mock_args.all = False
+        mock_args.all = True
         mock_parse_args.return_value = mock_args
 
         with patch('auto_secrets.cli.handle_cleanup') as mock_handle, \
@@ -714,6 +723,7 @@ class TestMainFunction:
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
             }):
+            mock_args.func = mock_handle
             main()
 
             mock_handle.assert_called_once_with(mock_args)
@@ -728,37 +738,44 @@ class TestMainFunction:
         mock_args.debug = False
         mock_args.quiet = False
         mock_args.command = "unknown"
+        # Don't set func attribute to simulate unknown command
         mock_parse_args.return_value = mock_args
 
-        with patch('sys.stderr', new_callable=StringIO) as mock_stderr, \
+        with patch('sys.exit') as mock_exit, \
+             patch('auto_secrets.cli.argparse.ArgumentParser') as mock_parser_class, \
              patch.dict(os.environ, {
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
             }):
+            mock_parser = Mock()
+            mock_parser.parse_args.return_value = mock_args
+            mock_parser_class.return_value = mock_parser
+
             main()
 
-            error_output = mock_stderr.getvalue()
-            assert "Unknown command" in error_output
+            mock_parser.print_help.assert_called_once()
+            mock_exit.assert_called_once_with(1)
 
     @patch('auto_secrets.cli.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_debug_logging(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with debug logging enabled."""
-        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical", "log_dir": "/tmp"}
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical", "log_dir": "/tmp", "debug": True}
         mock_args = Mock()
         mock_args.debug = True
         mock_args.quiet = False
-        mock_args.command = "debug-env"
+        mock_args.command = "debug"
         mock_parse_args.return_value = mock_args
 
-        with patch('auto_secrets.cli.handle_debug_env'), \
+        with patch('auto_secrets.cli.handle_debug_env') as mock_handle, \
              patch.dict(os.environ, {
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
             }):
+            mock_args.func = mock_handle
             main()
 
             mock_setup_logging.assert_called_once_with(log_level='DEBUG', log_dir='/tmp', log_file='daemon.log')
