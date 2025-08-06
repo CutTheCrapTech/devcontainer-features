@@ -96,7 +96,12 @@ class CacheManager:
         """Get cache directory for specific environment."""
         return self.cache_dir / "environments" / environment
 
-    def update_environment_cache(self, environment: str, secrets: Dict[str, str], branch: Optional[str] = None, repo_path: Optional[str] = None) -> None:
+    def update_environment_cache(
+      self, environment: str,
+      secrets: Dict[str, str],
+      branch: Optional[str] = None,
+      repo_path: Optional[str] = None
+    ) -> None:
         """
         Update environment cache atomically.
 
