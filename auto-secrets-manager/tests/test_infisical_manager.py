@@ -8,6 +8,7 @@ import os
 import pytest
 from unittest.mock import Mock, patch
 from dataclasses import dataclass
+from typing import Optional
 
 from auto_secrets.secret_managers.infisical import InfisicalSecretManager  # type: ignore
 from auto_secrets.secret_managers.base import (  # type: ignore
@@ -21,7 +22,7 @@ from auto_secrets.secret_managers.base import (  # type: ignore
 class MockSecret:
     """Mock secret response from Infisical SDK."""
     secretKey: str
-    secretValue: str
+    secretValue: Optional[str]
     secretPath: str
 
 

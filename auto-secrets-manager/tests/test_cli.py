@@ -765,7 +765,12 @@ class TestMainFunction:
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_debug_logging(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with debug logging enabled."""
-        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical", "log_dir": "/tmp", "debug": True}
+        mock_load_config.return_value = {
+          "cache_base_dir": "/tmp",
+          "secret_manager": "infisical",
+          "log_dir": "/tmp",
+          "debug": True,
+        }
         mock_args = Mock()
         mock_args.debug = True
         mock_args.quiet = False
