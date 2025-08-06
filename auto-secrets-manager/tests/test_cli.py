@@ -5,15 +5,10 @@ Tests the command-line interface functionality including argument parsing,
 command execution, and integration with other modules.
 """
 
-import json
 import os
-import sys
 from io import StringIO
-from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch, mock_open
+from unittest.mock import Mock, patch
 import pytest
-import tempfile
-import argparse
 
 from auto_secrets.cli import (
     main,
@@ -526,10 +521,12 @@ class TestBackgroundRefreshSecrets:
 class TestMainFunction:
     """Test main CLI function."""
 
+    @patch('auto_secrets.core.config.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_branch_change_command(self, mock_parse_args, mock_setup_logging):
+    def test_main_branch_change_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with branch-change command."""
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical"}
         mock_args = Mock()
         mock_args.debug = False
         mock_args.quiet = False
@@ -544,15 +541,18 @@ class TestMainFunction:
             mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
+    @patch('auto_secrets.core.config.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_refresh_command(self, mock_parse_args, mock_setup_logging):
+    def test_main_refresh_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with refresh command."""
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical"}
         mock_args = Mock()
         mock_args.debug = False
         mock_args.quiet = False
         mock_args.command = "refresh"
         mock_args.environment = "production"
+        mock_args.paths = None
         mock_parse_args.return_value = mock_args
 
         with patch('auto_secrets.cli.handle_refresh_secrets') as mock_handle:
@@ -560,15 +560,19 @@ class TestMainFunction:
 
             mock_handle.assert_called_once_with(mock_args)
 
+    @patch('auto_secrets.core.config.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_inspect_command(self, mock_parse_args, mock_setup_logging):
+    def test_main_inspect_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with inspect command."""
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical"}
         mock_args = Mock()
         mock_args.debug = False
         mock_args.quiet = False
         mock_args.command = "inspect"
         mock_args.environment = "production"
+        mock_args.paths = None
+        mock_args.shell = "bash"
         mock_parse_args.return_value = mock_args
 
         with patch('auto_secrets.cli.handle_inspect_secrets') as mock_handle:
@@ -576,10 +580,12 @@ class TestMainFunction:
 
             mock_handle.assert_called_once_with(mock_args)
 
+    @patch('auto_secrets.core.config.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_exec_command(self, mock_parse_args, mock_setup_logging):
+    def test_main_exec_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with exec command."""
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical"}
         mock_args = Mock()
         mock_args.debug = False
         mock_args.quiet = False
@@ -593,10 +599,12 @@ class TestMainFunction:
 
             mock_handle.assert_called_once_with(mock_args)
 
+    @patch('auto_secrets.core.config.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_shell_command(self, mock_parse_args, mock_setup_logging):
+    def test_main_shell_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with shell command."""
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical"}
         mock_args = Mock()
         mock_args.debug = False
         mock_args.quiet = False
@@ -609,14 +617,17 @@ class TestMainFunction:
 
             mock_handle.assert_called_once_with(mock_args)
 
+    @patch('auto_secrets.core.config.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_current_env_command(self, mock_parse_args, mock_setup_logging):
+    def test_main_current_env_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with current-env command."""
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical"}
         mock_args = Mock()
         mock_args.debug = False
-        mock_args.quiet = False
+        mock_args.quiet = True
         mock_args.command = "current-env"
+        mock_args.format = "normal"
         mock_parse_args.return_value = mock_args
 
         with patch('auto_secrets.cli.handle_current_env') as mock_handle:
@@ -624,14 +635,16 @@ class TestMainFunction:
 
             mock_handle.assert_called_once_with(mock_args)
 
+    @patch('auto_secrets.core.config.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_debug_command(self, mock_parse_args, mock_setup_logging):
+    def test_main_debug_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with debug command."""
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical"}
         mock_args = Mock()
         mock_args.debug = False
         mock_args.quiet = False
-        mock_args.command = "debug-env"
+        mock_args.command = "debug"
         mock_parse_args.return_value = mock_args
 
         with patch('auto_secrets.cli.handle_debug_env') as mock_handle:
@@ -639,15 +652,17 @@ class TestMainFunction:
 
             mock_handle.assert_called_once()
 
+    @patch('auto_secrets.core.config.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_cleanup_command(self, mock_parse_args, mock_setup_logging):
+    def test_main_cleanup_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with cleanup command."""
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical"}
         mock_args = Mock()
         mock_args.debug = False
         mock_args.quiet = False
         mock_args.command = "cleanup"
-        mock_args.all = True
+        mock_args.all = False
         mock_parse_args.return_value = mock_args
 
         with patch('auto_secrets.cli.handle_cleanup') as mock_handle:
@@ -655,10 +670,12 @@ class TestMainFunction:
 
             mock_handle.assert_called_once_with(mock_args)
 
+    @patch('auto_secrets.core.config.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_unknown_command(self, mock_parse_args, mock_setup_logging):
+    def test_main_unknown_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with unknown command."""
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical"}
         mock_args = Mock()
         mock_args.debug = False
         mock_args.quiet = False
@@ -671,10 +688,12 @@ class TestMainFunction:
             error_output = mock_stderr.getvalue()
             assert "Unknown command" in error_output
 
+    @patch('auto_secrets.core.config.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_debug_logging(self, mock_parse_args, mock_setup_logging):
+    def test_main_debug_logging(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with debug logging enabled."""
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical"}
         mock_args = Mock()
         mock_args.debug = True
         mock_args.quiet = False
@@ -686,10 +705,12 @@ class TestMainFunction:
 
             mock_setup_logging.assert_called_once_with(debug=True, quiet=False)
 
+    @patch('auto_secrets.core.config.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
-    def test_main_quiet_logging(self, mock_parse_args, mock_setup_logging):
+    def test_main_quiet_logging(self, mock_parse_args, mock_setup_logging, mock_load_config):
         """Test main function with quiet logging enabled."""
+        mock_load_config.return_value = {"cache_base_dir": "/tmp", "secret_manager": "infisical"}
         mock_args = Mock()
         mock_args.debug = False
         mock_args.quiet = True

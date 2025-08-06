@@ -6,16 +6,13 @@ Tests the InfisicalSecretManager implementation.
 
 import os
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 from dataclasses import dataclass
 
 from auto_secrets.secret_managers.infisical import InfisicalSecretManager
 from auto_secrets.secret_managers.base import (
     SecretManagerError,
     AuthenticationError,
-    NetworkError,
-    SecretNotFoundError,
-    ConnectionTestResult,
 )
 
 

@@ -7,12 +7,9 @@ formatters, handlers, and system information logging.
 
 import logging
 import os
-import sys
 import tempfile
 from io import StringIO
-from pathlib import Path
-from unittest.mock import Mock, patch, mock_open
-import pytest
+from unittest.mock import Mock, patch
 
 from auto_secrets.logging_config import (
     setup_logging,

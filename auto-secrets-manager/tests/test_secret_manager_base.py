@@ -6,8 +6,7 @@ Tests the SecretManagerBase abstract class and related utilities.
 
 import os
 import pytest
-from unittest.mock import Mock, patch
-from abc import ABC
+from unittest.mock import patch
 
 from auto_secrets.secret_managers.base import (
     SecretManagerError,

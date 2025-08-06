@@ -96,13 +96,15 @@ class CacheManager:
         """Get cache directory for specific environment."""
         return self.cache_dir / "environments" / environment
 
-    def update_environment_cache(self, environment: str, secrets: Dict[str, str]) -> None:
+    def update_environment_cache(self, environment: str, secrets: Dict[str, str], branch: Optional[str] = None, repo_path: Optional[str] = None) -> None:
         """
         Update environment cache atomically.
 
         Args:
             environment: Environment name
             secrets: Dictionary of secret key-value pairs
+            branch: Optional branch name
+            repo_path: Optional repository path
 
         Raises:
             CacheError: If cache update fails
@@ -127,6 +129,8 @@ class CacheManager:
                 last_updated=current_time,
                 last_accessed=current_time,
                 secret_count=len(secrets),
+                branch=branch,
+                repo_path=repo_path,
                 status="ok"
             )
 
@@ -295,7 +299,7 @@ class CacheManager:
         except Exception as e:
             self.logger.error(f"Failed to mark {environment} as stale: {e}")
 
-    def cleanup_stale(self, max_age_seconds: Optional[int] = None) -> int:
+    def cleanup_stale(self, max_age_seconds: Optional[int] = None) -> Dict[str, int]:
         """
         Clean up stale cache entries.
 
@@ -303,7 +307,7 @@ class CacheManager:
             max_age_seconds: Custom max age, uses config default if None
 
         Returns:
-            int: Number of cleaned up cache entries
+            Dict[str, int]: Dictionary with "removed" key containing number of cleaned up cache entries
         """
         max_age = max_age_seconds or self.max_age_seconds
         cleaned_count = 0
@@ -313,7 +317,7 @@ class CacheManager:
         try:
             env_dir = self.cache_dir / "environments"
             if not env_dir.exists():
-                return 0
+                return {"removed": 0}
 
             for env_cache_dir in env_dir.iterdir():
                 if not env_cache_dir.is_dir():
@@ -329,23 +333,30 @@ class CacheManager:
                         self.logger.warning(f"Failed to clean up cache for {environment}: {e}")
 
             self.logger.info(f"Cleaned up {cleaned_count} stale cache entries")
-            return cleaned_count
+            return {"removed": cleaned_count}
 
         except Exception as e:
             self.logger.error(f"Error during cache cleanup: {e}")
-            return cleaned_count
+            return {"removed": cleaned_count}
 
-    def cleanup_all(self) -> None:
+    def cleanup_all(self) -> Dict[str, int]:
         """Clean up all cache files."""
         self.logger.info("Cleaning up all cache files")
+        removed_count = 0
 
         try:
             if self.cache_dir.exists():
+                # Count environments before removal
+                env_dir = self.cache_dir / "environments"
+                if env_dir.exists():
+                    removed_count = len([d for d in env_dir.iterdir() if d.is_dir()])
+
                 shutil.rmtree(self.cache_dir)
                 self.logger.info("All cache files cleaned up")
 
             # Recreate directory structure
             self._ensure_cache_directory()
+            return {"removed": removed_count}
 
         except Exception as e:
             self.logger.error(f"Failed to clean up all caches: {e}")
