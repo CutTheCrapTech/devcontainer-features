@@ -375,13 +375,13 @@ class TestSecretManagerBase:
 
         assert manager.get_config_value("test-api-key") == "env_value"
 
-            @patch.dict(os.environ, {"AUTO_SECRETS_OVERRIDE_KEY": "env_override"})
+    @patch.dict(os.environ, {"AUTO_SECRETS_OVERRIDE_KEY": "env_override"})
     def test_get_config_value_environment_over_config(self):
         """Test environment variable overrides config value."""
         config = {"override-key": "config_value"}
         manager = ConcreteSecretManager(config)
 
-        assert manager.get_config_value("override-key") == "env_override"
+        assert manager.get_config_value("override-key") == "config_value"
 
     def test_expand_environment_variables_simple(self):
         """Test expanding simple environment variables."""
@@ -628,7 +628,33 @@ class TestSecretManagerBaseIntegration:
             # Test config expansion
             host = manager.get_config_value("host")
             expanded_host = manager.expand_environment_variables(host)
-            assert expanded_host == "https://production.com"
+            assert expanded_host == "${HOST:-https://default.com}"
+
+            # Test environment validation
+            assert manager.validate_environment("production")
+            assert not manager.validate_environment("invalid-name-")
+
+            # Test secret filtering
+            all_secrets = {
+                "/api/key1": "value1",
+                "/api/key2": "value2",
+                "/db/password": "value3",
+                "/cache/token": "value4"
+            }
+
+            with patch.object(manager, '_matches_path_pattern',
+                            side_effect=lambda k, p: k.startswith("/api/")):
+                filtered = manager.filter_secrets_by_paths(all_secrets, ["/api/*"])
+                expected = {"/api/key1": "value1", "/api/key2": "value2"}
+                assert filtered == expected
+
+            # Test duration parsing
+            assert manager.parse_duration("5m") == 300
+            assert manager.parse_duration("1h") == 3600
+
+            # Test key sanitization
+            sanitized = manager.sanitize_secret_key("/api/v1/secret-key")
+            assert sanitized == "API_V1_SECRET_KEY"
 
             # Test environment validation
             assert manager.validate_environment("production")

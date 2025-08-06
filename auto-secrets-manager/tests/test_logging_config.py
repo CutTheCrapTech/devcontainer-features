@@ -21,14 +21,20 @@ from auto_secrets.logging_config import (
 class TestLoggingFormatting:
     """Test logging formatting and output."""
 
-    def test_log_message_formatting(self):
-        """Test that log messages are properly formatted."""
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
-            logger = setup_logging(console_output=True, log_level="INFO")
-            logger.info("Test message")
+    def test_log_message_formatting(self, tmp_path):
+        """Test that log messages are formatted correctly."""
+        log_file = tmp_path / "test.log"
+        setup_logging(log_file=str(log_file))
 
-            output = mock_stdout.getvalue()
-            assert "Test message" in output
+        logger = get_logger("test_logger")
+        logger.info("Test message")
+
+        with open(log_file, "r") as f:
+            output = f.read()
+
+        assert "INFO" in output
+        assert "test_logger" in output
+        assert "Test message" in output
 
     def test_different_log_levels(self):
         """Test different log levels are handled properly."""
