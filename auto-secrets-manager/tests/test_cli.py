@@ -741,21 +741,25 @@ class TestMainFunction:
         # Don't set func attribute to simulate unknown command
         mock_parse_args.return_value = mock_args
 
+        # Ensure mock_args has no func attribute
+        if hasattr(mock_args, 'func'):
+            delattr(mock_args, 'func')
+
         with patch('sys.exit') as mock_exit, \
-             patch('auto_secrets.cli.argparse.ArgumentParser') as mock_parser_class, \
              patch.dict(os.environ, {
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
             }):
-            mock_parser = Mock()
-            mock_parser.parse_args.return_value = mock_args
-            mock_parser_class.return_value = mock_parser
+            with patch('auto_secrets.cli.argparse.ArgumentParser') as MockParser:
+                mock_parser_instance = Mock()
+                MockParser.return_value = mock_parser_instance
+                mock_parser_instance.parse_args.return_value = mock_args
 
-            main()
+                main()
 
-            mock_parser.print_help.assert_called_once()
-            mock_exit.assert_called_once_with(1)
+                mock_parser_instance.print_help.assert_called_once()
+                mock_exit.assert_called_once_with(1)
 
     @patch('auto_secrets.cli.load_config')
     @patch('auto_secrets.cli.setup_logging')
