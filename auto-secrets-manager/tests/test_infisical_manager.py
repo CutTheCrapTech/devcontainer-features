@@ -359,7 +359,7 @@ class TestInfisicalSecretManager:
 
             assert result.success is True
             assert result.authenticated is True
-            assert "Connection successful" in result.message
+            assert "Connection test successful" in result.message
             assert "project_id" in result.details
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})

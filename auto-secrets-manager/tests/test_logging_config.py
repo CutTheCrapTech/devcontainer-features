@@ -24,7 +24,7 @@ class TestLoggingFormatting:
     def test_log_message_formatting(self):
         """Test that log messages are properly formatted."""
         with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
-            logger = setup_logging(console_output=True)
+            logger = setup_logging(console_output=True, log_level="INFO")
             logger.info("Test message")
 
             output = mock_stdout.getvalue()

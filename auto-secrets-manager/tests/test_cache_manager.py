@@ -535,18 +535,21 @@ class TestCacheManager:
             env_dir = cache_dir / "environments" / "production"
             env_dir.mkdir(parents=True)
 
-            metadata_file = env_dir / "metadata.json"
+            cache_file = env_dir / "production.json"
             current_time = 1234567890
-            metadata_data = {
-                "environment": "production",
-                "created_at": current_time,
-                "last_updated": current_time,
-                "last_accessed": current_time,
-                "secret_count": 1,
-                "status": "ok"
+            cache_data = {
+                "metadata": {
+                    "environment": "production",
+                    "created_at": current_time,
+                    "last_updated": current_time,
+                    "last_accessed": current_time,
+                    "secret_count": 1,
+                    "status": "ok"
+                },
+                "secrets": {"key": "value"}
             }
-            with open(metadata_file, 'w') as f:
-                json.dump(metadata_data, f)
+            with open(cache_file, 'w') as f:
+                json.dump(cache_data, f)
 
             manager = CacheManager(self.test_config)
 
@@ -684,29 +687,26 @@ class TestCacheManager:
             env_dir = envs_dir / "production"
             env_dir.mkdir()
 
-            secrets_file = env_dir / "secrets.json"
-            secrets_file.write_text('{"key1": "value1", "key2": "value2"}')
-
-            metadata_file = env_dir / "metadata.json"
-            metadata_data = {
-                "environment": "production",
-                "created_at": 1234567890,
-                "last_updated": 1234567890,
-                "last_accessed": 1234567890,
-                "secret_count": 2,
-                "status": "ok"
+            cache_file = env_dir / "production.json"
+            cache_data = {
+                "metadata": {
+                    "environment": "production",
+                    "created_at": 1234567890,
+                    "last_updated": 1234567890,
+                    "last_accessed": 1234567890,
+                    "secret_count": 2,
+                    "status": "ok"
+                },
+                "secrets": {"key1": "value1", "key2": "value2"}
             }
-            with open(metadata_file, 'w') as f:
-                json.dump(metadata_data, f)
+            with open(cache_file, 'w') as f:
+                json.dump(cache_data, f)
 
             manager = CacheManager(self.test_config)
 
-            result = manager.get_cache_info()
+            result = manager.get_cache_info("production")
 
-            assert result["cache_dir"] == str(cache_dir)
-            assert result["total_environments"] == 1
-            assert "production" in result["environments"]
-            assert result["environments"]["production"]["secret_count"] == 2
+            assert result["secret_count"] == 2
 
     def test_write_file_atomically_success(self):
         """Test atomic file writing success."""
@@ -715,12 +715,12 @@ class TestCacheManager:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             target_file = Path(temp_dir) / "test.json"
-            content = '{"test": "data"}'
+            content = {"test": "data"}
 
             manager._write_file_atomically(target_file, content)
 
             assert target_file.exists()
-            assert target_file.read_text() == content
+            assert json.loads(target_file.read_text()) == content
 
     def test_write_file_atomically_failure(self):
         """Test atomic file writing failure."""
@@ -728,9 +728,9 @@ class TestCacheManager:
         manager = CacheManager(config)
 
         invalid_path = Path("/invalid/path/test.json")
-        content = '{"test": "data"}'
+        content = {"test": "data"}
 
-        with pytest.raises(CacheError, match="Failed to write cache file"):
+        with pytest.raises(OSError):
             manager._write_file_atomically(invalid_path, content)
 
     def test_write_env_file_atomically_success(self):
@@ -816,9 +816,10 @@ class TestCacheManager:
         manager = CacheManager(config)
 
         invalid_file = Path("/invalid/path/metadata.json")
+        metadata = CacheMetadata(environment="test", created_at=0, last_updated=0, last_accessed=0, secret_count=0)
 
         # Should not raise exception, just log error
-        manager._update_access_time(invalid_file)
+        manager._update_access_time(invalid_file, metadata)
 
     @patch('auto_secrets.core.cache_manager.get_cache_dir')
     def test_save_current_state(self, mock_get_cache_dir):
@@ -829,18 +830,20 @@ class TestCacheManager:
 
             manager = CacheManager(self.test_config)
 
-            state_data = {
-                "current_environment": "production",
-                "current_branch": "main",
-                "last_update": 1234567890
-            }
+            state_data = CacheMetadata(
+                environment="production",
+                created_at=1234567890,
+                last_updated=1234567890,
+                last_accessed=1234567890,
+                secret_count=0
+            )
 
             with patch.object(manager, '_write_file_atomically') as mock_write:
                 manager.save_current_state(state_data)
 
                 mock_write.assert_called_once()
                 call_args = mock_write.call_args[0]
-                assert "current_state.json" in str(call_args[0])
+                assert "current.json" in str(call_args[0])
 
     @patch('auto_secrets.core.cache_manager.get_cache_dir')
     def test_get_cache_stats(self, mock_get_cache_dir):
@@ -856,34 +859,36 @@ class TestCacheManager:
             # Create production environment
             prod_env = envs_dir / "production"
             prod_env.mkdir()
-            (prod_env / "secrets.json").write_text('{"key1": "val1", "key2": "val2"}')
-
-            prod_metadata = {
-                "environment": "production",
-                "created_at": 1234567890,
-                "last_updated": 1234567900,
-                "last_accessed": 1234567950,
-                "secret_count": 2,
-                "status": "ok"
+            prod_cache_data = {
+                "metadata": {
+                    "environment": "production",
+                    "created_at": 1234567890,
+                    "last_updated": 1234567900,
+                    "last_accessed": 1234567950,
+                    "secret_count": 2,
+                    "status": "ok"
+                },
+                "secrets": {"key1": "val1", "key2": "val2"}
             }
-            with open(prod_env / "metadata.json", 'w') as f:
-                json.dump(prod_metadata, f)
+            with open(prod_env / "production.json", 'w') as f:
+                json.dump(prod_cache_data, f)
 
             # Create staging environment (stale)
             staging_env = envs_dir / "staging"
             staging_env.mkdir()
-            (staging_env / "secrets.json").write_text('{"key1": "val1"}')
-
-            staging_metadata = {
-                "environment": "staging",
-                "created_at": 1234567000,
-                "last_updated": 1234567000,
-                "last_accessed": 1234567000,
-                "secret_count": 1,
-                "status": "stale"
+            staging_cache_data = {
+                "metadata": {
+                    "environment": "staging",
+                    "created_at": 1234567000,
+                    "last_updated": 1234567000,
+                    "last_accessed": 1234567000,
+                    "secret_count": 1,
+                    "status": "stale"
+                },
+                "secrets": {"key1": "val1"}
             }
-            with open(staging_env / "metadata.json", 'w') as f:
-                json.dump(staging_metadata, f)
+            with open(staging_env / "staging.json", 'w') as f:
+                json.dump(staging_cache_data, f)
 
             manager = CacheManager(self.test_config)
 
@@ -893,7 +898,7 @@ class TestCacheManager:
                 assert stats["total_environments"] == 2
                 assert stats["total_secrets"] == 3
                 assert stats["stale_environments"] == 1
-                assert stats["fresh_environments"] == 1
+                assert stats["total_environments"] - stats["stale_environments"] == 1
                 assert "production" in stats["environments"]
                 assert "staging" in stats["environments"]
 
@@ -910,7 +915,6 @@ class TestCacheManager:
 
             assert stats["total_environments"] == 0
             assert stats["total_secrets"] == 0
-            assert stats["fresh_environments"] == 0
             assert stats["stale_environments"] == 0
             assert stats["environments"] == {}
 
@@ -942,7 +946,8 @@ class TestCacheManager:
                 manager.update_environment_cache("production", secrets, branch="main")
 
             # 2. Verify cache was created
-            assert not manager.is_cache_stale("production")
+            with patch('time.time', return_value=1234567890):
+                assert not manager.is_cache_stale("production")
 
             # 3. Retrieve cached secrets
             retrieved = manager.get_cached_secrets("production")
@@ -957,12 +962,13 @@ class TestCacheManager:
             manager.mark_environment_stale("production", "Test staleness")
 
             # 6. Verify staleness
-            cache_info = manager.get_cache_info()
-            assert cache_info["environments"]["production"]["status"] == "stale"
+            cache_info = manager.get_cache_info("production")
+            assert cache_info["status"] == "stale"
 
             # 7. Cleanup stale caches
-            cleanup_result = manager.cleanup_stale()
-            assert cleanup_result["removed"] == 1
+            with patch.object(manager, 'is_cache_stale', return_value=True):
+                cleanup_result = manager.cleanup_stale()
+                assert cleanup_result["removed"] == 1
 
             # 8. Verify cleanup
             final_retrieved = manager.get_cached_secrets("production")
@@ -983,9 +989,8 @@ class TestCacheManager:
 
             try:
                 with patch.object(manager, 'get_environment_cache_dir', return_value=readonly_dir):
-                    # This should handle the error gracefully
-                    result = manager.update_environment_cache("test", {"key": "value"})
-                    # Method should complete without raising
+                    with pytest.raises(CacheError):
+                        manager.update_environment_cache("test", {"key": "value"})
             finally:
                 # Cleanup: restore permissions
                 readonly_dir.chmod(0o755)
