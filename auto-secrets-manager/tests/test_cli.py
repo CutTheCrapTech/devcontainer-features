@@ -9,8 +9,9 @@ import os
 from io import StringIO
 from unittest.mock import Mock, patch
 import pytest
+from typing import Dict, Any
 
-from auto_secrets.cli import (
+from auto_secrets.cli import (  # type: ignore
     main,
     handle_branch_change,
     handle_refresh_secrets,
@@ -22,25 +23,24 @@ from auto_secrets.cli import (
     handle_cleanup,
     _background_refresh_secrets,
 )
-from auto_secrets.core.config import ConfigError
-from auto_secrets.secret_managers.base import (
+from auto_secrets.core.config import ConfigError  # type: ignore
+from auto_secrets.secret_managers.base import (  # type: ignore
     SecretManagerError,
-    AuthenticationError,
     ConnectionTestResult,
 )
-from auto_secrets.core.environment import EnvironmentState
+from auto_secrets.core.environment import EnvironmentState  # type: ignore
 
 
 class TestHandleBranchChange:
     """Test handle_branch_change function."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.mock_args = Mock()
         self.mock_args.branch = "main"
         self.mock_args.repo_path = "/path/to/repo"
 
-        self.mock_config = {
+        self.mock_config: Dict[str, Any] = {
             "branch_mappings": {
                 "main": "production",
                 "develop": "staging",
@@ -52,8 +52,10 @@ class TestHandleBranchChange:
     @patch('auto_secrets.cli.BranchManager')
     @patch('auto_secrets.cli.CacheManager')
     @patch('auto_secrets.cli.get_current_environment')
-    def test_handle_branch_change_new_environment(self, mock_get_env, mock_cache_manager,
-                                                 mock_branch_manager, mock_load_config):
+    def test_handle_branch_change_new_environment(
+      self, mock_get_env, mock_cache_manager,
+      mock_branch_manager, mock_load_config
+    ):
         """Test handling branch change to new environment."""
         mock_load_config.return_value = self.mock_config
 
@@ -78,8 +80,10 @@ class TestHandleBranchChange:
     @patch('auto_secrets.cli.BranchManager')
     @patch('auto_secrets.cli.CacheManager')
     @patch('auto_secrets.cli.get_current_environment')
-    def test_handle_branch_change_same_environment(self, mock_get_env, mock_cache_manager,
-                                                  mock_branch_manager, mock_load_config):
+    def test_handle_branch_change_same_environment(
+      self, mock_get_env, mock_cache_manager,
+      mock_branch_manager, mock_load_config
+    ):
         """Test handling branch change to same environment."""
         mock_load_config.return_value = self.mock_config
 
@@ -621,11 +625,11 @@ class TestMainFunction:
         mock_parse_args.return_value = mock_args
 
         with patch('auto_secrets.cli.handle_exec_command') as mock_handle, \
-             patch.dict(os.environ, {
+          patch.dict(os.environ, {
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",
                 "AUTO_SECRETS_SHELLS": "bash",
                 "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}'
-            }):
+          }):
             mock_args.func = mock_handle
             main()
 

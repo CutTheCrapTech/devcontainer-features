@@ -8,7 +8,7 @@ import os
 import pytest
 from unittest.mock import patch
 
-from auto_secrets.secret_managers.base import (
+from auto_secrets.secret_managers.base import (  # type: ignore
     SecretManagerError,
     AuthenticationError,
     NetworkError,
@@ -643,7 +643,7 @@ class TestSecretManagerBaseIntegration:
             }
 
             with patch.object(manager, '_matches_path_pattern',
-                            side_effect=lambda k, p: k.startswith("/api/")):
+                              side_effect=lambda k, p: k.startswith("/api/")):
                 filtered = manager.filter_secrets_by_paths(all_secrets, ["/api/*"])
                 expected = {"/api/key1": "value1", "/api/key2": "value2"}
                 assert filtered == expected
@@ -669,7 +669,7 @@ class TestSecretManagerBaseIntegration:
             }
 
             with patch.object(manager, '_matches_path_pattern',
-                            side_effect=lambda k, p: k.startswith("/api/")):
+                              side_effect=lambda k, p: k.startswith("/api/")):
                 filtered = manager.filter_secrets_by_paths(all_secrets, ["/api/*"])
                 expected = {"/api/key1": "value1", "/api/key2": "value2"}
                 assert filtered == expected

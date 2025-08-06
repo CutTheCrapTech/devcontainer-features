@@ -10,8 +10,9 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 import pytest
+from typing import Dict, Any
 
-from auto_secrets.core.cache_manager import (
+from auto_secrets.core.cache_manager import (  # type: ignore
     CacheError,
     CacheMetadata,
     CacheManager,
@@ -204,9 +205,9 @@ class TestCacheMetadata:
 class TestCacheManager:
     """Test CacheManager class."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
-        self.test_config = {
+        self.test_config: Dict[str, Any] = {
             "cache_config": {
                 "max_age_seconds": 900,
                 "cache_dir": "/tmp/test_cache"
@@ -271,8 +272,6 @@ class TestCacheManager:
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir) / "cache"
             mock_get_cache_dir.return_value = cache_dir
-
-            manager = CacheManager(self.test_config)
 
             assert cache_dir.exists()
             assert (cache_dir / "environments").exists()
@@ -343,7 +342,6 @@ class TestCacheManager:
             secrets = {"API_KEY": "secret123"}
 
             with patch.object(manager, '_write_file_atomically') as mock_write_file, \
-                 patch.object(manager, '_write_env_file_atomically') as mock_write_env, \
                  patch('time.time', return_value=1234567890):
 
                 manager.update_environment_cache(
@@ -620,7 +618,14 @@ class TestCacheManager:
             stale_env = envs_dir / "stale_env"
             stale_env.mkdir()
             stale_cache_data = {
-                "metadata": {"environment": "stale_env", "created_at": 1234567890, "last_updated": 1234567890, "last_accessed": 1234567890, "secret_count": 1, "status": "ok"},
+                "metadata": {
+                  "environment": "stale_env",
+                  "created_at": 1234567890,
+                  "last_updated": 1234567890,
+                  "last_accessed": 1234567890,
+                  "secret_count": 1,
+                  "status": "ok",
+                },
                 "secrets": {"key": "value"}
             }
             with open(stale_env / "stale_env.json", 'w') as f:
@@ -771,7 +776,6 @@ class TestCacheManager:
     def test_update_access_time_success(self):
         """Test updating access time successfully."""
         config = self._get_temp_config()
-        manager = CacheManager(config)
 
         def test_update_access_time_success(self, mock_get_cache_dir):
             """Test successful access time update."""
@@ -799,7 +803,13 @@ class TestCacheManager:
                     json.dump(cache_data, f)
 
                 manager = CacheManager(self.test_config)
-                metadata = CacheMetadata(environment="production", created_at=1234567890, last_updated=1234567890, last_accessed=1234567890, secret_count=1)
+                metadata = CacheMetadata(
+                  environment="production",
+                  created_at=1234567890,
+                  last_updated=1234567890,
+                  last_accessed=1234567890,
+                  secret_count=1
+                )
 
                 with patch('time.time', return_value=1234567950):
                     manager._update_access_time("production", metadata)

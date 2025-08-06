@@ -8,10 +8,9 @@ formatters, handlers, and system information logging.
 import logging
 import os
 import tempfile
-from io import StringIO
 from unittest.mock import Mock, patch
 
-from auto_secrets.logging_config import (
+from auto_secrets.logging_config import (  # type: ignore
     setup_logging,
     get_logger,
     log_system_info,
@@ -340,7 +339,6 @@ class TestLoggingIntegration:
         setup_logging(log_level="DEBUG")
 
         # Create parent and child loggers
-        parent_logger = get_logger("parent")
         child_logger = get_logger("parent.child")
         grandchild_logger = get_logger("parent.child.grandchild")
 
@@ -382,7 +380,7 @@ class TestLoggingIntegration:
         # Create and log an exception
         try:
             raise ValueError("Test exception for logging")
-        except ValueError as e:
+        except ValueError:
             logger.exception("An error occurred")
 
         # The test here is that no exception is raised during logging

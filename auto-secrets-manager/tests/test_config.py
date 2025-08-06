@@ -156,7 +156,7 @@ class TestLoadConfig:
         test_cases = [
             ('AUTO_SECRETS_SECRET_MANAGER_CONFIG', 'invalid-json'),
             ('AUTO_SECRETS_AUTO_COMMANDS', 'not-json'),
-            ('AUTO_SECRETS_CACHE_CONFIG', '{invalid}')
+            ('AUTO_SECRETS_CACHE_CONFIG', '{invalid}'),
         ]
 
         for env_var, invalid_json in test_cases:

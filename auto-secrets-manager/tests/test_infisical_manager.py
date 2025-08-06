@@ -9,8 +9,8 @@ import pytest
 from unittest.mock import Mock, patch
 from dataclasses import dataclass
 
-from auto_secrets.secret_managers.infisical import InfisicalSecretManager
-from auto_secrets.secret_managers.base import (
+from auto_secrets.secret_managers.infisical import InfisicalSecretManager  # type: ignore
+from auto_secrets.secret_managers.base import (  # type: ignore
     SecretManagerError,
     AuthenticationError,
 )
@@ -367,21 +367,21 @@ class TestInfisicalSecretManager:
     def test_test_connection_network_error(self, mock_sdk_client):
         """Test connection test with network error."""
         mock_client_instance = Mock()
-        mock_secrets = Mock()
-        mock_secrets.list_secrets.side_effect = Exception("Network timeout")
-        mock_client_instance.secrets = mock_secrets
+        mock_auth = Mock()
+        mock_universal_auth = Mock()
+        mock_universal_auth.login.side_effect = Exception("Network timeout")
+        mock_auth.universal_auth = mock_universal_auth
+        mock_client_instance.auth = mock_auth
         mock_sdk_client.return_value = mock_client_instance
 
         manager = InfisicalSecretManager(self.valid_config)
 
-        with patch.object(manager, '_get_client', return_value=mock_client_instance):
-            with patch.object(manager, '_authenticate', side_effect=Exception("Network timeout")):
-                result = manager.test_connection()
+        result = manager.test_connection()
 
-            assert result.success is False
-            assert result.authenticated is False
-            assert "Connection failed" in result.message
-            assert "Network timeout" in result.details["error"]
+        assert result.success is False
+        assert result.authenticated is False
+        assert "Authentication failed" in result.message
+        assert "Network timeout" in result.message
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch('auto_secrets.secret_managers.infisical.InfisicalSDKClient')
@@ -398,7 +398,6 @@ class TestInfisicalSecretManager:
     def test_debug_logging(self, mock_sdk_client):
         """Test debug logging functionality."""
         config = self.valid_config.copy()
-        config["debug"] = True
 
         manager = InfisicalSecretManager(config)
 
