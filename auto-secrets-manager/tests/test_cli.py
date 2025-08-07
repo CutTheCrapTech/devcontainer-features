@@ -47,7 +47,7 @@ class TestHandleBranchChange:
             }
         }
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.BranchManager')
     @patch('auto_secrets.cli.CacheManager')
     @patch('auto_secrets.cli.create_secret_manager')
@@ -73,7 +73,7 @@ class TestHandleBranchChange:
 
         mock_cache_instance.update_environment_cache.assert_called_once_with("production", {'key': 'value'})
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.BranchManager')
     def test_handle_branch_change_no_mapping(self, mock_branch_manager, mock_load_config):
         """Test handling branch change with no mapping found."""
@@ -87,7 +87,7 @@ class TestHandleBranchChange:
         with pytest.raises(SystemExit):
             handle_branch_change(self.mock_args)
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     def test_handle_branch_change_error(self, mock_load_config):
         """Test handling branch change with error."""
         mock_load_config.side_effect = Exception("Config error")
@@ -104,7 +104,7 @@ class TestHandleRefreshSecrets:
         self.mock_args = Mock()
         self.mock_args.environment = "production"
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.CacheManager')
     @patch('auto_secrets.cli.create_secret_manager')
     def test_handle_refresh_secrets_specified_env(self, mock_create_manager, mock_cache_manager, mock_load_config):
@@ -134,7 +134,7 @@ class TestHandleInspectSecrets:
         self.mock_args.environment = "production"
         self.mock_args.format = "table"
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.CacheManager')
     def test_handle_inspect_secrets_with_cache(self, mock_cache_manager, mock_load_config):
         """Test inspecting cached secrets."""
@@ -155,7 +155,7 @@ class TestHandleInspectSecrets:
             assert "API_KEY" in output
             assert "DB_PASSWORD" in output
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.CacheManager')
     def test_handle_inspect_secrets_no_cache(self, mock_cache_manager, mock_load_config):
         """Test inspecting secrets with no cache."""
@@ -182,7 +182,7 @@ class TestHandleExecCommand:
         self.mock_args.environment = "production"
         self.mock_args.command = ["echo", "test"]
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.CacheManager')
     @patch('subprocess.run')
     def test_handle_exec_command_success(self, mock_subprocess, mock_cache_manager, mock_load_config):
@@ -213,7 +213,7 @@ class TestHandleExecCommand:
         assert 'API_KEY' in env_arg
         assert 'DB_PASSWORD' in env_arg
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.CacheManager')
     def test_handle_exec_command_no_secrets(self, mock_cache_manager, mock_load_config):
         """Test executing command with no secrets available."""
@@ -237,7 +237,7 @@ class TestHandleExecForShell:
         self.mock_args.environment = "production"
         self.mock_args.shell = "bash"
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.CacheManager')
     def test_handle_exec_for_shell_bash(self, mock_cache_manager, mock_load_config):
         """Test generating bash script."""
@@ -260,7 +260,7 @@ class TestHandleExecForShell:
             assert "export API_KEY='secret123'" in output
             assert "export DB_PASSWORD='dbpass456'" in output
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.CacheManager')
     def test_handle_exec_for_shell_zsh(self, mock_cache_manager, mock_load_config):
         """Test generating zsh script."""
@@ -302,7 +302,7 @@ class TestHandleCurrentEnv:
             }
         }
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.BranchManager')
     def test_handle_current_env_normal(self, mock_branch_manager, mock_load_config):
         """Test displaying current environment normally."""
@@ -320,7 +320,7 @@ class TestHandleCurrentEnv:
             assert '"environment": "production"' in output
             assert '"branch": "main"' in output
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.BranchManager')
     def test_handle_current_env_prompt_format(self, mock_branch_manager, mock_load_config):
         """Test displaying current environment for prompt."""
@@ -343,7 +343,7 @@ class TestHandleCurrentEnv:
 class TestHandleDebugEnv:
     """Test handle_debug_env function."""
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     def test_handle_debug_env(self, mock_load_config):
         """Test debug environment information."""
         mock_config = {
@@ -387,7 +387,7 @@ class TestHandleCleanup:
         self.mock_args.all = False
         self.mock_args.stale = False
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.CacheManager')
     def test_handle_cleanup_all(self, mock_cache_manager, mock_load_config):
         """Test cleanup all caches."""
@@ -404,7 +404,7 @@ class TestHandleCleanup:
 
         mock_cache_instance.cleanup_all.assert_called_once()
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.CacheManager')
     def test_handle_cleanup_stale(self, mock_cache_manager, mock_load_config):
         """Test cleanup stale caches."""
@@ -462,7 +462,7 @@ class TestBackgroundRefreshSecrets:
 class TestMainFunction:
     """Test main CLI function."""
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_branch_change_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
@@ -488,7 +488,7 @@ class TestMainFunction:
             mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_refresh_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
@@ -514,7 +514,7 @@ class TestMainFunction:
             mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_inspect_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
@@ -541,7 +541,7 @@ class TestMainFunction:
             mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_exec_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
@@ -567,7 +567,7 @@ class TestMainFunction:
             mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_shell_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
@@ -593,7 +593,7 @@ class TestMainFunction:
             mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_current_env_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
@@ -619,7 +619,7 @@ class TestMainFunction:
             mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_debug_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
@@ -643,7 +643,7 @@ class TestMainFunction:
             mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once()
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_cleanup_command(self, mock_parse_args, mock_setup_logging, mock_load_config):
@@ -668,7 +668,7 @@ class TestMainFunction:
             mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
     def test_main_unknown_command(self, mock_setup_logging, mock_load_config):
         """Test main function with unknown command."""
@@ -696,7 +696,7 @@ class TestMainFunction:
                 mock_parser_instance.print_help.assert_called_once()
                 mock_exit.assert_called_once_with(1)
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_debug_logging(self, mock_parse_args, mock_setup_logging, mock_load_config):
@@ -724,7 +724,7 @@ class TestMainFunction:
 
             mock_setup_logging.assert_called_once_with(log_level='DEBUG', log_dir='/tmp', log_file='daemon.log')
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
     @patch('argparse.ArgumentParser.parse_args')
     def test_main_quiet_logging(self, mock_parse_args, mock_setup_logging, mock_load_config):
@@ -750,7 +750,7 @@ class TestMainFunction:
 class TestCLIIntegration:
     """Integration tests for CLI functionality."""
 
-    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.CacheManager')
     @patch('auto_secrets.cli.BranchManager')
     @patch('auto_secrets.cli.create_secret_manager')
@@ -797,7 +797,7 @@ class TestCLIIntegration:
     def test_error_handling_workflow(self):
         """Test error handling across CLI functions."""
         # Test config loading error
-        with patch('auto_secrets.cli.load_config', side_effect=ConfigError("Config error")):
+        with patch('auto_secrets.cli.ConfigManager.load_config', side_effect=ConfigError("Config error")):
             args = Mock()
             args.environment = "production"
 
@@ -805,7 +805,7 @@ class TestCLIIntegration:
                 handle_refresh_secrets(args)
 
         # Test secret manager error
-        with patch('auto_secrets.cli.load_config', return_value={}), \
+        with patch('auto_secrets.cli.ConfigManager.load_config', return_value={}), \
              patch('auto_secrets.cli.create_secret_manager', side_effect=SecretManagerError("Manager error")):
 
             args = Mock()

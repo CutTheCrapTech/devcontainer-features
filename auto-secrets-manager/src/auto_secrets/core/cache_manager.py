@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..logging_config import get_logger
-from .config import get_cache_dir
+from .config import ConfigManager
 from .utils import CommonUtils
 
 
@@ -65,10 +65,10 @@ class CacheManager:
     race conditions and corruption. No file locking is needed.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
         self.logger = get_logger("cache_manager")
-        self.cache_dir = get_cache_dir(config)
+        self.cache_dir = ConfigManager.get_cache_dir(config)
 
         refresh_interval = config.get("cache_config", {}).get("refresh_interval", "15m")
         self.max_age_seconds = CommonUtils.parse_duration(refresh_interval)

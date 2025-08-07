@@ -20,373 +20,382 @@ class ConfigError(Exception):
     pass
 
 
-def load_config() -> Dict[str, Any]:
+class ConfigManager:
     """
-    Load configuration from environment variables.
+    Configuration manager for Auto Secrets Manager.
 
-    Returns a dictionary with configuration values, using sensible defaults
-    where appropriate and validating required settings.
-
-    Returns:
-        Dict[str, Any]: Configuration dictionary
-
-    Raises:
-        ConfigError: If required configuration is missing or invalid
+    Handles loading, validation, and management of configuration from
+    environment variables and files.
     """
-    logger = get_logger("config")
-    config: Dict[str, Any] = {}
 
-    # === Core Settings ===
+    _VALID_SECRET_MANAGERS = ["infisical", "vault", "aws", "azure", "gcp"]
+    _VALID_SHELLS = ["bash", "zsh", "both"]
 
-    # Secret manager type (required)
-    secret_manager = os.getenv("AUTO_SECRETS_SECRET_MANAGER")
-    if not secret_manager:
-        raise ConfigError(
-            "AUTO_SECRETS_SECRET_MANAGER environment variable is required. "
-            "Valid values: infisical, vault, aws, azure, gcp"
-        )
-    config["secret_manager"] = secret_manager
+    @classmethod
+    def load_config(cls) -> Dict[str, Any]:
+        """
+        Load configuration from environment variables.
 
-    # Shell integration (required)
-    shells = os.getenv("AUTO_SECRETS_SHELLS")
-    if not shells:
-        raise ConfigError(
-            "AUTO_SECRETS_SHELLS environment variable is required. "
-            "Valid values: bash, zsh, both"
-        )
-    config["shells"] = shells
+        Returns a dictionary with configuration values, using sensible defaults
+        where appropriate and validating required settings.
 
-    # Debug mode
-    config["debug"] = os.getenv("AUTO_SECRETS_DEBUG", "false").lower() == "true"
+        Returns:
+            Dict[str, Any]: Configuration dictionary
 
-    # === Branch Mapping (Security Critical - No Defaults) ===
+        Raises:
+            ConfigError: If required configuration is missing or invalid
+        """
+        logger = get_logger("config")
+        config: Dict[str, Any] = {}
 
-    branch_mapping_json = os.getenv("AUTO_SECRETS_BRANCH_MAPPINGS")
-    if not branch_mapping_json:
-        raise ConfigError(
-            "AUTO_SECRETS_BRANCH_MAPPINGS environment variable is required. "
-            "No default branch mappings are provided for security reasons. "
-            "Example: '{\"main\": \"production\", \"develop\": \"staging\", \"default\": \"development\"}'"
-        )
+        # === Core Settings ===
 
-    try:
-        branch_mappings = json.loads(branch_mapping_json)
-        if not isinstance(branch_mappings, dict):
-            raise ConfigError("Branch mappings must be a JSON object")
-
-        # Validate that default mapping exists
-        if "default" not in branch_mappings:
+        # Secret manager type (required)
+        secret_manager = os.getenv("AUTO_SECRETS_SECRET_MANAGER")
+        if not secret_manager:
             raise ConfigError(
-                "Branch mappings must include a 'default' entry for unmapped branches"
+                "AUTO_SECRETS_SECRET_MANAGER environment variable is required. "
+                f"Valid values: {', '.join(cls._VALID_SECRET_MANAGERS)}"
+            )
+        config["secret_manager"] = secret_manager
+
+        # Shell integration (required)
+        shells = os.getenv("AUTO_SECRETS_SHELLS")
+        if not shells:
+            raise ConfigError(
+                "AUTO_SECRETS_SHELLS environment variable is required. "
+                f"Valid values: {', '.join(cls._VALID_SHELLS)}"
+            )
+        config["shells"] = shells
+
+        # Debug mode
+        config["debug"] = os.getenv("AUTO_SECRETS_DEBUG", "false").lower() == "true"
+
+        # === Branch Mapping (Security Critical - No Defaults) ===
+
+        branch_mapping_json = os.getenv("AUTO_SECRETS_BRANCH_MAPPINGS")
+        if not branch_mapping_json:
+            raise ConfigError(
+                "AUTO_SECRETS_BRANCH_MAPPINGS environment variable is required. "
+                "No default branch mappings are provided for security reasons. "
+                "Example: '{\"main\": \"production\", \"develop\": \"staging\", \"default\": \"development\"}'"
             )
 
-        config["branch_mappings"] = branch_mappings
-        logger.info(f"Loaded branch mappings for {len(branch_mappings)} entries")
+        try:
+            branch_mappings = json.loads(branch_mapping_json)
+            if not isinstance(branch_mappings, dict):
+                raise ConfigError("Branch mappings must be a JSON object")
 
-    except json.JSONDecodeError as e:
-        raise ConfigError(f"Invalid AUTO_SECRETS_BRANCH_MAPPINGS JSON: {e}")
+            # Validate that default mapping exists
+            if "default" not in branch_mappings:
+                raise ConfigError(
+                    "Branch mappings must include a 'default' entry for unmapped branches"
+                )
 
-    # === Secret Manager Configuration ===
+            config["branch_mappings"] = branch_mappings
+            logger.info(f"Loaded branch mappings for {len(branch_mappings)} entries")
 
-    sm_config_json = os.getenv("AUTO_SECRETS_SECRET_MANAGER_CONFIG", "{}")
-    try:
-        secret_manager_config = json.loads(sm_config_json)
-        config["secret_manager_config"] = secret_manager_config
-    except json.JSONDecodeError as e:
-        raise ConfigError(f"Invalid AUTO_SECRETS_SECRET_MANAGER_CONFIG JSON: {e}")
+        except json.JSONDecodeError as e:
+            raise ConfigError(f"Invalid AUTO_SECRETS_BRANCH_MAPPINGS JSON: {e}")
 
-    # === Auto Commands Configuration ===
+        # === Secret Manager Configuration ===
 
-    auto_commands_json = os.getenv("AUTO_SECRETS_AUTO_COMMANDS", "{}")
-    try:
-        auto_commands = json.loads(auto_commands_json)
-        if not isinstance(auto_commands, dict):
-            raise ConfigError("Auto commands must be a JSON object")
-        config["auto_commands"] = auto_commands
-        logger.debug(f"Loaded auto commands for {len(auto_commands)} commands")
-    except json.JSONDecodeError as e:
-        raise ConfigError(f"Invalid AUTO_SECRETS_AUTO_COMMANDS JSON: {e}")
+        sm_config_json = os.getenv("AUTO_SECRETS_SECRET_MANAGER_CONFIG", "{}")
+        try:
+            secret_manager_config = json.loads(sm_config_json)
+            config["secret_manager_config"] = secret_manager_config
+        except json.JSONDecodeError as e:
+            raise ConfigError(f"Invalid AUTO_SECRETS_SECRET_MANAGER_CONFIG JSON: {e}")
 
-    # === Cache Configuration ===
+        # === Auto Commands Configuration ===
 
-    # Cache base directory
-    cache_base_dir = os.getenv("AUTO_SECRETS_CACHE_DIR", "/dev/shm/auto-secrets")
-    config["cache_base_dir"] = cache_base_dir
+        auto_commands_json = os.getenv("AUTO_SECRETS_AUTO_COMMANDS", "{}")
+        try:
+            auto_commands = json.loads(auto_commands_json)
+            if not isinstance(auto_commands, dict):
+                raise ConfigError("Auto commands must be a JSON object")
+            config["auto_commands"] = auto_commands
+            logger.debug(f"Loaded auto commands for {len(auto_commands)} commands")
+        except json.JSONDecodeError as e:
+            raise ConfigError(f"Invalid AUTO_SECRETS_AUTO_COMMANDS JSON: {e}")
 
-    # Cache settings
-    cache_config_json = os.getenv("AUTO_SECRETS_CACHE_CONFIG", '{}')
-    try:
-        cache_config = json.loads(cache_config_json)
-        # Apply defaults
-        cache_config.setdefault("refresh_interval", "15m")  # 15 minutes
-        cache_config.setdefault("cleanup_interval", "7d")  # 15 minutes
-        config["cache_config"] = cache_config
-    except json.JSONDecodeError as e:
-        raise ConfigError(f"Invalid AUTO_SECRETS_CACHE_CONFIG JSON: {e}")
+        # === Cache Configuration ===
 
-    # === Feature Settings ===
+        # Cache base directory
+        cache_base_dir = os.getenv("AUTO_SECRETS_CACHE_DIR", "/dev/shm/auto-secrets")
+        config["cache_base_dir"] = cache_base_dir
 
-    # Show environment in prompt
-    config["show_env_in_prompt"] = os.getenv("AUTO_SECRETS_SHOW_ENV_IN_PROMPT", "false").lower() == "true"
+        # Cache settings
+        cache_config_json = os.getenv("AUTO_SECRETS_CACHE_CONFIG", '{}')
+        try:
+            cache_config = json.loads(cache_config_json)
+            # Apply defaults
+            cache_config.setdefault("refresh_interval", "15m")  # 15 minutes
+            cache_config.setdefault("cleanup_interval", "7d")   # 7 days
+            config["cache_config"] = cache_config
+        except json.JSONDecodeError as e:
+            raise ConfigError(f"Invalid AUTO_SECRETS_CACHE_CONFIG JSON: {e}")
 
-    # Mark secret commands in history
-    config["mark_history"] = os.getenv("AUTO_SECRETS_MARK_HISTORY", "false").lower() == "true"
+        # === Feature Settings ===
 
-    # Enable feature
-    config["enable"] = os.getenv("AUTO_SECRETS_ENABLE", "true").lower() == "true"
+        # Show environment in prompt
+        config["show_env_in_prompt"] = os.getenv("AUTO_SECRETS_SHOW_ENV_IN_PROMPT", "false").lower() == "true"
 
-    # Require secrets for exec command
-    config["require_secrets_for_exec"] = os.getenv("AUTO_SECRETS_REQUIRE_SECRETS_FOR_EXEC", "false").lower() == "true"
+        # Mark secret commands in history
+        config["mark_history"] = os.getenv("AUTO_SECRETS_MARK_HISTORY", "false").lower() == "true"
 
-    # === Paths and Directories ===
+        # Enable feature
+        config["enable"] = os.getenv("AUTO_SECRETS_ENABLE", "true").lower() == "true"
 
-    config["feature_dir"] = os.getenv("AUTO_SECRETS_FEATURE_DIR", "/usr/local/share/auto-secrets")
-    config["log_dir"] = os.getenv("AUTO_SECRETS_LOG_DIR", "/var/log/auto-secrets")
-    config["log_level"] = os.getenv("AUTO_SECRETS_LOG_LEVEL", "INFO").upper()
-
-    # === Validation ===
-
-    _validate_config(config)
-
-    logger.info("Configuration loaded successfully")
-    logger.debug(f"Secret manager: {config['secret_manager']}")
-    logger.debug(f"Shells: {config['shells']}")
-    logger.debug(f"Debug mode: {config['debug']}")
-    logger.debug(f"Cache directory: {config['cache_base_dir']}")
-
-    return config
-
-
-def _validate_config(config: Dict[str, Any]) -> None:
-    """
-    Validate the loaded configuration.
-
-    Args:
-        config: Configuration dictionary to validate
-
-    Raises:
-        ConfigError: If configuration is invalid
-    """
-    # Validate secret manager
-    valid_secret_managers = ["infisical", "vault", "aws", "azure", "gcp"]
-    if config["secret_manager"] not in valid_secret_managers:
-        raise ConfigError(
-            f"Invalid secret manager: {config['secret_manager']}. "
-            f"Valid options: {', '.join(valid_secret_managers)}"
+        # Require secrets for exec command
+        config["require_secrets_for_exec"] = (
+          os.getenv("AUTO_SECRETS_REQUIRE_SECRETS_FOR_EXEC", "false").lower() == "true"
         )
 
-    # Validate shells
-    valid_shells = ["bash", "zsh", "both"]
-    if config["shells"] not in valid_shells:
-        raise ConfigError(
-            f"Invalid shells configuration: {config['shells']}. "
-            f"Valid options: {', '.join(valid_shells)}"
-        )
+        # === Paths and Directories ===
 
-    # Validate branch mappings
-    branch_mappings = config["branch_mappings"]
-    if not isinstance(branch_mappings, dict) or not branch_mappings:
-        raise ConfigError("Branch mappings must be a non-empty dictionary")
+        config["feature_dir"] = os.getenv("AUTO_SECRETS_FEATURE_DIR", "/usr/local/share/auto-secrets")
+        config["log_dir"] = os.getenv("AUTO_SECRETS_LOG_DIR", "/var/log/auto-secrets")
+        config["log_level"] = os.getenv("AUTO_SECRETS_LOG_LEVEL", "INFO").upper()
 
-    if "default" not in branch_mappings:
-        raise ConfigError("Branch mappings must include a 'default' entry")
+        # === Validation ===
 
-    # Validate cache configuration
-    CommonUtils.parse_duration(config["cache_config"].get("refresh_interval", "15m"))
-    CommonUtils.parse_duration(config["cache_config"].get("cleanup_interval", "7d"))
+        cls._validate_config(config)
 
+        logger.info("Configuration loaded successfully")
+        logger.debug(f"Secret manager: {config['secret_manager']}")
+        logger.debug(f"Shells: {config['shells']}")
+        logger.debug(f"Debug mode: {config['debug']}")
+        logger.debug(f"Cache directory: {config['cache_base_dir']}")
 
-def get_cache_dir(config: Dict[str, Any], environment: Optional[str] = None) -> Path:
-    """
-    Get the cache directory path for the current user and optionally environment.
+        return config
 
-    Args:
-        config: Configuration dictionary
-        environment: Optional environment name for environment-specific cache
+    @classmethod
+    def _validate_config(cls, config: Dict[str, Any]) -> None:
+        """
+        Validate the loaded configuration.
 
-    Returns:
-        Path: Cache directory path
-    """
-    base_path = Path(config["cache_base_dir"])
+        Args:
+            config: Configuration dictionary to validate
 
-    if environment:
-        return base_path / "environments" / environment
-    else:
-        return base_path
+        Raises:
+            ConfigError: If configuration is invalid
+        """
+        # Validate secret manager
+        if config["secret_manager"] not in cls._VALID_SECRET_MANAGERS:
+            raise ConfigError(
+                f"Invalid secret manager: {config['secret_manager']}. "
+                f"Valid options: {', '.join(cls._VALID_SECRET_MANAGERS)}"
+            )
 
+        # Validate shells
+        if config["shells"] not in cls._VALID_SHELLS:
+            raise ConfigError(
+                f"Invalid shells configuration: {config['shells']}. "
+                f"Valid options: {', '.join(cls._VALID_SHELLS)}"
+            )
 
-def get_log_file_path(config: Dict[str, Any], log_name: str = "auto-secrets.log") -> Path:
-    """
-    Get the log file path.
+        # Validate branch mappings
+        branch_mappings = config["branch_mappings"]
+        if not isinstance(branch_mappings, dict) or not branch_mappings:
+            raise ConfigError("Branch mappings must be a non-empty dictionary")
 
-    Args:
-        config: Configuration dictionary
-        log_name: Log file name
+        if "default" not in branch_mappings:
+            raise ConfigError("Branch mappings must include a 'default' entry")
 
-    Returns:
-        Path: Log file path
-    """
-    log_dir = Path(config["log_dir"])
+        # Validate cache configuration
+        CommonUtils.parse_duration(config["cache_config"].get("refresh_interval", "15m"))
+        CommonUtils.parse_duration(config["cache_config"].get("cleanup_interval", "7d"))
 
-    # Create log directory if it doesn't exist
-    try:
-        log_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
-    except PermissionError:
-        # Fallback to user's cache directory
-        log_dir = Path.home() / ".cache" / "auto-secrets" / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
+    @classmethod
+    def get_cache_dir(cls, config: Dict[str, Any], environment: Optional[str] = None) -> Path:
+        """
+        Get the cache directory path for the current user and optionally environment.
+        Args:
+            config: Configuration dictionary
+            environment: Optional environment name for environment-specific cache
+        Returns:
+            Path: Cache directory path
+        """
+        base_path = Path(config["cache_base_dir"])
+        if environment:
+            return base_path / "environments" / environment
+        else:
+            return base_path
 
-    return log_dir / log_name
+    @classmethod
+    def get_log_file_path(cls, config: Dict[str, Any], log_name: str = "auto-secrets.log") -> Path:
+        """
+        Get the log file path.
 
+        Args:
+            config: Configuration dictionary
+            log_name: Log file name
 
-def get_effective_config_path() -> Optional[Path]:
-    """
-    Get the path where configuration can be saved/loaded from file.
+        Returns:
+            Path: Log file path
+        """
+        log_dir = Path(config["log_dir"])
 
-    Returns:
-        Optional[Path]: Configuration file path if available
-    """
-    config_path = os.getenv("AUTO_SECRETS_CONFIG_PATH")
-    if config_path:
-        return Path(config_path)
+        # Create log directory if it doesn't exist
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
+        except PermissionError:
+            # Fallback to user's cache directory
+            log_dir = Path.home() / ".cache" / "auto-secrets" / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
 
-    # Default locations to try
-    locations = [
-        Path.cwd() / ".auto-secrets.json",
-        Path.home() / ".config" / "auto-secrets" / "config.json",
-        Path("/etc/auto-secrets/config.json")
-    ]
+        return log_dir / log_name
 
-    for location in locations:
-        if location.exists() and location.is_file():
-            return location
+    @classmethod
+    def get_effective_config_path(cls) -> Optional[Path]:
+        """
+        Get the path where configuration can be saved/loaded from file.
 
-    return None
+        Returns:
+            Optional[Path]: Configuration file path if available
+        """
+        config_path = os.getenv("AUTO_SECRETS_CONFIG_PATH")
+        if config_path:
+            return Path(config_path)
 
+        # Default locations to try
+        locations = [
+            Path.cwd() / ".auto-secrets.json",
+            Path.home() / ".config" / "auto-secrets" / "config.json",
+            Path("/etc/auto-secrets/config.json")
+        ]
 
-def save_config_to_file(config: Dict[str, Any], file_path: Union[str, Path]) -> None:
-    """
-    Save configuration to a JSON file.
+        for location in locations:
+            if location.exists() and location.is_file():
+                return location
 
-    Args:
-        config: Configuration dictionary to save
-        file_path: Path to save the configuration
+        return None
 
-    Raises:
-        ConfigError: If file cannot be written
-    """
-    try:
-        file_path = Path(file_path)
-        file_path.parent.mkdir(parents=True, exist_ok=True)
+    @classmethod
+    def save_config_to_file(cls, config: Dict[str, Any], file_path: Union[str, Path]) -> None:
+        """
+        Save configuration to a JSON file.
 
-        # Remove sensitive information before saving
-        safe_config = config.copy()
+        Args:
+            config: Configuration dictionary to save
+            file_path: Path to save the configuration
 
-        # Redact sensitive keys in secret_manager_config
-        if "secret_manager_config" in safe_config:
-            sm_config = safe_config["secret_manager_config"].copy()
-            for key in sm_config:
-                if any(sensitive in key.lower() for sensitive in ["token", "secret", "key", "password"]):
-                    sm_config[key] = "***REDACTED***"
-            safe_config["secret_manager_config"] = sm_config
+        Raises:
+            ConfigError: If file cannot be written
+        """
+        try:
+            file_path = Path(file_path)
+            file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(file_path, 'w') as f:
-            json.dump(safe_config, f, indent=2, sort_keys=True)
+            # Remove sensitive information before saving
+            safe_config = config.copy()
 
-    except (OSError, IOError) as e:
-        raise ConfigError(f"Failed to save config to {file_path}: {e}")
+            # Redact sensitive keys in secret_manager_config
+            if "secret_manager_config" in safe_config:
+                sm_config = safe_config["secret_manager_config"].copy()
+                for key in sm_config:
+                    if any(sensitive in key.lower() for sensitive in ["token", "secret", "key", "password"]):
+                        sm_config[key] = "***REDACTED***"
+                safe_config["secret_manager_config"] = sm_config
 
+            with open(file_path, 'w') as f:
+                json.dump(safe_config, f, indent=2, sort_keys=True)
 
-def load_config_from_file(file_path: Union[str, Path]) -> Dict[str, Any]:
-    """
-    Load configuration from a JSON file and merge with environment variables.
+        except (OSError, IOError) as e:
+            raise ConfigError(f"Failed to save config to {file_path}: {e}")
 
-    Args:
-        file_path: Path to load the configuration from
+    @classmethod
+    def load_config_from_file(cls, file_path: Union[str, Path]) -> Dict[str, Any]:
+        """
+        Load configuration from a JSON file and merge with environment variables.
 
-    Returns:
-        Dict[str, Any]: Loaded configuration
+        Args:
+            file_path: Path to load the configuration from
 
-    Raises:
-        ConfigError: If file cannot be loaded or is invalid
-    """
-    try:
-        with open(file_path, 'r') as f:
-            file_config = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        raise ConfigError(f"Failed to load config from {file_path}: {e}")
+        Returns:
+            Dict[str, Any]: Loaded configuration
 
-    # Load environment config first (takes precedence)
-    env_config = load_config()
+        Raises:
+            ConfigError: If file cannot be loaded or is invalid
+        """
+        try:
+            with open(file_path, 'r') as f:
+                file_config = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            raise ConfigError(f"Failed to load config from {file_path}: {e}")
 
-    # Merge file config with environment config (env takes precedence)
-    merged_config = file_config.copy()
-    merged_config.update(env_config)
+        # Load environment config first (takes precedence)
+        env_config = cls.load_config()
 
-    # Re-validate merged config
-    _validate_config(merged_config)
+        # Merge file config with environment config (env takes precedence)
+        merged_config = file_config.copy()
+        merged_config.update(env_config)
 
-    return merged_config
+        # Re-validate merged config
+        cls._validate_config(merged_config)
 
+        return merged_config
 
-def create_minimal_config_template() -> Dict[str, Any]:
-    """
-    Create a minimal configuration template for documentation/setup purposes.
+    @classmethod
+    def create_minimal_config_template(cls) -> Dict[str, Any]:
+        """
+        Create a minimal configuration template for documentation/setup purposes.
 
-    Returns:
-        Dict[str, Any]: Template configuration
-    """
-    return {
-        "secret_manager": "infisical",
-        "shells": "both",
-        "debug": False,
-        "branch_mappings": {
-            "main": "production",
-            "develop": "staging",
-            "feature/*": "development",
-            "default": "development"
-        },
-        "secret_manager_config": {
-            "# Infisical configuration": "See documentation for setup",
-            "client_id": "your-client-id",
-            "client_secret": "your-client-secret",
-            "project_id": "your-project-id"
-        },
-        "auto_commands": {
-            "terraform": ["/infrastructure/**"],
-            "tofu": ["/infrastructure/**"],
-            "kubectl": ["/kubernetes/**"],
-            "docker": ["/docker/**"]
-        },
-        "cache_config": {
-            "refresh_interval": "15m",
-            "cleanup_interval": "7d",
-        },
-        "show_env_in_prompt": True,
-        "mark_history": True,
-    }
+        Returns:
+            Dict[str, Any]: Template configuration
+        """
+        return {
+            "secret_manager": "infisical",
+            "shells": "both",
+            "debug": False,
+            "branch_mappings": {
+                "main": "production",
+                "develop": "staging",
+                "feature/*": "development",
+                "default": "development"
+            },
+            "secret_manager_config": {
+                "# Infisical configuration": "See documentation for setup",
+                "client_id": "your-client-id",
+                "client_secret": "your-client-secret",
+                "project_id": "your-project-id"
+            },
+            "auto_commands": {
+                "terraform": ["/infrastructure/**"],
+                "tofu": ["/infrastructure/**"],
+                "kubectl": ["/kubernetes/**"],
+                "docker": ["/docker/**"]
+            },
+            "cache_config": {
+                "refresh_interval": "15m",
+                "cleanup_interval": "7d",
+            },
+            "show_env_in_prompt": True,
+            "mark_history": True,
+        }
 
+    @classmethod
+    def is_valid_environment_name(cls, environment: str) -> bool:
+        """
+        Validate environment name format.
 
-def is_valid_environment_name(environment: str) -> bool:
-    """
-    Validate environment name format.
+        Args:
+            environment: Environment name to validate
 
-    Args:
-        environment: Environment name to validate
+        Returns:
+            bool: True if environment name is valid
+        """
+        if not environment or not isinstance(environment, str):
+            return False
 
-    Returns:
-        bool: True if environment name is valid
-    """
-    if not environment or not isinstance(environment, str):
-        return False
+        # Length check
+        if len(environment) < 1 or len(environment) > 64:
+            return False
 
-    # Length check
-    if len(environment) < 1 or len(environment) > 64:
-        return False
-
-    # Must be alphanumeric with hyphens/underscores
-    # Can't start or end with special characters
-    if len(environment) == 1:
-        return re.match(r'^[a-zA-Z0-9]$', environment) is not None
-    else:
-        return re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$', environment) is not None
+        # Must be alphanumeric with hyphens/underscores
+        # Can't start or end with special characters
+        if len(environment) == 1:
+            return re.match(r'^[a-zA-Z0-9]$', environment) is not None
+        else:
+            return re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$', environment) is not None

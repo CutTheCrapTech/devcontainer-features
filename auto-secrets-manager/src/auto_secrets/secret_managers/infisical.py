@@ -25,7 +25,7 @@ class InfisicalSecretManager(SecretManagerBase):
     Supports universal authentication method for automated environments.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any]) -> None:
         super().__init__(config)
 
         self._client: Optional[InfisicalSDKClient] = None

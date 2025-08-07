@@ -24,7 +24,7 @@ class BranchManager:
     for performance optimization.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
         self.logger = get_logger("branch_manager")
 

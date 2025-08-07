@@ -64,7 +64,7 @@ class SecretManagerBase(ABC):
     All secret managers must inherit from this class and implement the required methods.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any]) -> None:
         """
         Initialize the secret manager with configuration.
 

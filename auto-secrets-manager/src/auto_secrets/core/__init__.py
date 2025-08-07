@@ -7,12 +7,12 @@ and configuration management.
 
 from .branch_manager import BranchManager
 from .cache_manager import CacheManager
-from .config import load_config
+from .config import ConfigManager
 from .utils import CommonUtils
 
 __all__ = [
     "BranchManager",
     "CacheManager",
-    "load_config",
+    "ConfigManager",
     "CommonUtils",
 ]

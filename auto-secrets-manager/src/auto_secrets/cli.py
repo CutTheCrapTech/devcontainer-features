@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from .logging_config import setup_logging, get_logger, log_system_info
-from .core.config import load_config
+from .core.config import ConfigManager
 from .core.cache_manager import CacheManager
 from .core.branch_manager import BranchManager
 from .secret_managers import create_secret_manager
@@ -27,7 +27,7 @@ def handle_branch_change(args) -> None:
     try:
         logger.debug(f"Branch change detected: {args.branch} in {args.repo_path}")
 
-        config = load_config()
+        config = ConfigManager.load_config()
         branch_manager = BranchManager(config)
 
         branch = args.branch
@@ -47,7 +47,7 @@ def handle_refresh_secrets(args) -> None:
     logger = get_logger("cli.refresh")
 
     try:
-        config = load_config()
+        config = ConfigManager.load_config()
         _background_refresh_secrets(args.environment, config)
 
         # Output success message
@@ -66,7 +66,7 @@ def handle_inspect_secrets(args) -> None:
     logger = get_logger("cli.inspect")
 
     try:
-        config = load_config()
+        config = ConfigManager.load_config()
         cache_manager = CacheManager(config)
 
         # Determine environment
@@ -123,7 +123,7 @@ def handle_exec_command(args) -> None:
     logger = get_logger("cli.exec")
 
     try:
-        config = load_config()
+        config = ConfigManager.load_config()
         cache_manager = CacheManager(config)
 
         # Determine environment
@@ -176,7 +176,7 @@ def handle_exec_for_shell(args) -> None:
     logger = get_logger("cli.exec_shell")
 
     try:
-        config = load_config()
+        config = ConfigManager.load_config()
         cache_manager = CacheManager(config)
 
         # Determine environment
@@ -218,7 +218,7 @@ def handle_current_env(args) -> None:
     logger = get_logger("cli.current_env")
 
     try:
-        config = load_config()
+        config = ConfigManager.load_config()
         branch_manager = BranchManager(config)
 
         branch = args.branch
@@ -274,7 +274,7 @@ def handle_debug_env() -> None:
         # Configuration
         print("\n--- Configuration ---")
         try:
-            config = load_config()
+            config = ConfigManager.load_config()
             config_dict = dict(config)
             # Redact sensitive information
             for key in config_dict:
@@ -287,7 +287,7 @@ def handle_debug_env() -> None:
         # Cache status
         print("\n--- Cache Status ---")
         try:
-            config = load_config()
+            config = ConfigManager.load_config()
             cache_manager = CacheManager(config)
             cache_dir = cache_manager.cache_dir
             print(f"Cache Directory: {cache_dir}")
@@ -307,7 +307,7 @@ def handle_debug_env() -> None:
         # Secret Manager status
         print("\n--- Secret Manager Status ---")
         try:
-            config = load_config()
+            config = ConfigManager.load_config()
             secret_manager = create_secret_manager(config)
             if secret_manager:
                 print(f"Type: {type(secret_manager).__name__}")
@@ -346,7 +346,7 @@ def handle_cleanup(args) -> None:
     logger = get_logger("cli.cleanup")
 
     try:
-        config = load_config()
+        config = ConfigManager.load_config()
         cache_manager = CacheManager(config)
 
         if args.all:
@@ -481,7 +481,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # Set up logging
-    config = load_config()
+    config = ConfigManager.load_config()
     log_level = "DEBUG" if config.get('debug', False) else "INFO"
     logs_dir = Path(config["log_dir"])
 

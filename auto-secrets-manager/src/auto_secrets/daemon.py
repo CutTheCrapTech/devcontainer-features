@@ -9,7 +9,7 @@ import os
 import sys
 import time
 import signal
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import logging
 from datetime import datetime
@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .logging_config import get_logger
-from .core.config import load_config
+from .core.config import ConfigManager
 from .core.cache_manager import CacheManager
 from .secret_managers import create_secret_manager, SecretManagerBase
 from .core.utils import CommonUtils
@@ -26,13 +26,13 @@ from .core.utils import CommonUtils
 class SecretsDaemon:
     """Background daemon for secret cache management."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.config: Dict[str, Any]
         self.cache_manager: CacheManager
         self.secret_manager: SecretManagerBase
         self.running = False
-        self.pid_file = None
-        self.log_file = None
+        self.pid_file: Optional[Path]
+        self.log_file: Path
         self.logger: logging.Logger
 
         self.initialize()
@@ -41,7 +41,7 @@ class SecretsDaemon:
         """Initialize daemon configuration and components."""
         try:
             # Load configuration
-            self.config = load_config()
+            self.config = ConfigManager.load_config()
 
             # Set up logging
             self._setup_logging()
@@ -144,7 +144,7 @@ class SecretsDaemon:
         def reload_handler(signum, frame):
             self.logger.info("Received SIGHUP, reloading configuration...")
             try:
-                self.config = load_config()
+                self.config = ConfigManager.load_config()
                 self.cache_manager = CacheManager(self.config)
                 secret_manager = create_secret_manager(self.config)
                 if not secret_manager:
