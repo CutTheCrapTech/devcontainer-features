@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from ..logging_config import get_logger
 from .config import get_cache_dir
+from .utils import CommonUtils
 
 
 class CacheError(Exception):
@@ -68,7 +69,9 @@ class CacheManager:
         self.config = config
         self.logger = get_logger("cache_manager")
         self.cache_dir = get_cache_dir(config)
-        self.max_age_seconds = config.get("cache_config", {}).get("max_age_seconds", 900)
+
+        refresh_interval = config.get("cache_config", {}).get("refresh_interval", "15m")
+        self.max_age_seconds = CommonUtils.parse_duration(refresh_interval)
 
         # Ensure cache directory exists
         self._ensure_cache_directory()

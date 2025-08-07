@@ -50,8 +50,8 @@ class TestLoadConfig:
             }),
             'AUTO_SECRETS_CACHE_DIR': '/tmp/auto-secrets-test',
             'AUTO_SECRETS_CACHE_CONFIG': json.dumps({
-                'max_age_seconds': 600,
-                'background_refresh': True
+                'refresh_interval': '10m',
+                'cleanup_interval': '7d',
             }),
             'AUTO_SECRETS_SHOW_ENV_IN_PROMPT': 'true',
             'AUTO_SECRETS_MARK_HISTORY': 'false',
@@ -143,8 +143,7 @@ class TestLoadConfig:
             config = load_config()
 
             # Test cache config defaults
-            assert config['cache_config']['max_age_seconds'] == 600  # from env
-            assert config['cache_config']['background_refresh'] is True
+            assert config['cache_config']['refresh_interval'] == "10m"  # from env
 
             # Test other defaults
             assert config['enable'] is True
@@ -177,8 +176,14 @@ class TestConfigValidation:
         config = {
             'secret_manager': 'infisical',
             'shells': 'both',
-            'branch_mappings': {'main': 'production', 'default': 'development'},
-            'cache_config': {'max_age_seconds': 900}
+            'branch_mappings': {
+              'main': 'production',
+              'default': 'development',
+            },
+            'cache_config': {
+                'refresh_interval': '15m',
+                'cleanup_interval': '7d',
+            }
         }
 
         # Should not raise any exception
@@ -189,8 +194,14 @@ class TestConfigValidation:
         config = {
             'secret_manager': 'invalid-manager',
             'shells': 'both',
-            'branch_mappings': {'main': 'production', 'default': 'development'},
-            'cache_config': {'max_age_seconds': 900}
+            'branch_mappings': {
+              'main': 'production',
+              'default': 'development',
+            },
+            'cache_config': {
+                'refresh_interval': '15m',
+                'cleanup_interval': '7d',
+            }
         }
 
         with pytest.raises(ConfigError) as exc_info:
@@ -202,8 +213,14 @@ class TestConfigValidation:
         config = {
             'secret_manager': 'infisical',
             'shells': 'invalid-shell',
-            'branch_mappings': {'main': 'production', 'default': 'development'},
-            'cache_config': {'max_age_seconds': 900}
+            'branch_mappings': {
+              'main': 'production',
+              'default': 'development',
+            },
+            'cache_config': {
+                'refresh_interval': '15m',
+                'cleanup_interval': '7d',
+            }
         }
 
         with pytest.raises(ConfigError) as exc_info:
@@ -216,25 +233,47 @@ class TestConfigValidation:
             'secret_manager': 'infisical',
             'shells': 'both',
             'branch_mappings': {},
-            'cache_config': {'max_age_seconds': 900}
+            'cache_config': {
+                'refresh_interval': '10m',
+                'cleanup_interval': '7d',
+            }
         }
 
         with pytest.raises(ConfigError) as exc_info:
             _validate_config(config)
         assert "non-empty dictionary" in str(exc_info.value)
 
-    def test_validate_negative_cache_age(self):
-        """Test validation with negative cache age."""
+    def test_validate_invalid_refresh_interval(self):
+        """TODO:Test validation with negative cache age."""
         config = {
             'secret_manager': 'infisical',
             'shells': 'both',
             'branch_mappings': {'main': 'production', 'default': 'development'},
-            'cache_config': {'max_age_seconds': -100}
+            'cache_config': {
+                'refresh_interval': 'm',
+                'cleanup_interval': '7d',
+            }
         }
 
-        with pytest.raises(ConfigError) as exc_info:
+        with pytest.raises(ValueError) as exc_info:
             _validate_config(config)
-        assert "max_age_seconds must be non-negative" in str(exc_info.value)
+        assert "refresh_interval must be valid" in str(exc_info.value)
+
+    def test_validate_invalid_cleanup_interval(self):
+        """TODO:Test validation with negative cache age."""
+        config = {
+            'secret_manager': 'infisical',
+            'shells': 'both',
+            'branch_mappings': {'main': 'production', 'default': 'development'},
+            'cache_config': {
+                'refresh_interval': '15m',
+                'cleanup_interval': 'd',
+            }
+        }
+
+        with pytest.raises(ValueError) as exc_info:
+            _validate_config(config)
+        assert "refresh_interval must be valid" in str(exc_info.value)
 
 
 class TestCacheDirectories:
@@ -282,10 +321,16 @@ class TestConfigFileOperations:
             'secret_manager': 'infisical',
             'shells': 'both',
             'debug': False,
-            'branch_mappings': {'main': 'production', 'default': 'development'},
+            'branch_mappings': {
+              'main': 'production',
+              'default': 'development',
+            },
             'secret_manager_config': {'client_id': 'test-id'},
             'auto_commands': {'terraform': ['/infra/**']},
-            'cache_config': {'max_age_seconds': 900}
+            'cache_config': {
+                'refresh_interval': '15m',
+                'cleanup_interval': '7d',
+            }
         }
 
         with tempfile.TemporaryDirectory() as temp_dir:

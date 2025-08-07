@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any, Union
 
 from ..logging_config import get_logger
+from .utils import CommonUtils
 
 
 class ConfigError(Exception):
@@ -118,8 +119,6 @@ def load_config() -> Dict[str, Any]:
         # Apply defaults
         cache_config.setdefault("refresh_interval", "15m")  # 15 minutes
         cache_config.setdefault("cleanup_interval", "7d")  # 15 minutes
-        cache_config.setdefault("background_refresh", True)
-        cache_config.setdefault("cleanup_on_exit", False)
         config["cache_config"] = cache_config
     except json.JSONDecodeError as e:
         raise ConfigError(f"Invalid AUTO_SECRETS_CACHE_CONFIG JSON: {e}")
@@ -134,9 +133,6 @@ def load_config() -> Dict[str, Any]:
 
     # Enable feature
     config["enable"] = os.getenv("AUTO_SECRETS_ENABLE", "true").lower() == "true"
-
-    # Cleanup on shell exit
-    config["cleanup_on_exit"] = os.getenv("AUTO_SECRETS_CLEANUP_ON_EXIT", "false").lower() == "true"
 
     # Prefetch secrets on branch change
     config["prefetch_on_branch_change"] = os.getenv("AUTO_SECRETS_PREFETCH_ON_BRANCH_CHANGE", "false").lower() == "true"
@@ -198,9 +194,8 @@ def _validate_config(config: Dict[str, Any]) -> None:
         raise ConfigError("Branch mappings must include a 'default' entry")
 
     # Validate cache configuration
-    cache_config = config["cache_config"]
-    if cache_config.get("max_age_seconds", 0) < 0:
-        raise ConfigError("Cache max_age_seconds must be non-negative")
+    CommonUtils.parse_duration(config["cache_config"].get("refresh_interval", "15m"))
+    CommonUtils.parse_duration(config["cache_config"].get("cleanup_interval", "7d"))
 
 
 def get_cache_dir(config: Dict[str, Any], environment: Optional[str] = None) -> Path:
@@ -379,9 +374,8 @@ def create_minimal_config_template() -> Dict[str, Any]:
             "docker": ["/docker/**"]
         },
         "cache_config": {
-            "max_age_seconds": 900,
-            "background_refresh": True,
-            "cleanup_on_exit": False
+            "refresh_interval": "15m",
+            "cleanup_interval": "7d",
         },
         "show_env_in_prompt": True,
         "mark_history": True,

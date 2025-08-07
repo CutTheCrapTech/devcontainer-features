@@ -108,9 +108,6 @@ _auto_secrets_bash_cleanup() {
     unset _auto_secrets_error_trap_installed
   fi
 
-  # Call core cleanup
-  _auto_secrets_cleanup_branch_detection
-
   # Clean up bash-specific variables
   unset _auto_secrets_original_histcontrol
 }

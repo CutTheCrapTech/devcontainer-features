@@ -74,9 +74,6 @@ _auto_secrets_zsh_cleanup() {
     if [[ "$AUTO_SECRETS_DEBUG" == "true" ]]; then
         unfunction TRAPZERR 2>/dev/null || true
     fi
-
-    # Call core cleanup
-    _auto_secrets_cleanup_branch_detection
 }
 
 # Add cleanup to zshexit_functions

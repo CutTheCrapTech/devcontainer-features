@@ -20,7 +20,7 @@ BIN_DIR="/usr/local/bin"
 SECRET_MANAGER="${SECRETMANAGER:-infisical}"
 SHELLS="${SHELLS:-both}"
 SECRET_MANAGER_CONFIG="${SECRETMANAGERCONFIG:-'{"host":"https://app.infisical.com"}'}"
-CACHE_CONFIG=${CACHECONFIG:-'{"max_age_seconds":900,"background_refresh":true,"cleanup_on_exit":false}'}
+CACHE_CONFIG=${CACHECONFIG:-'{"refresh_interval":"15m","cleanup_interval":"7d"}'}
 SHOW_ENV_IN_PROMPT="${SHOWENVINPROMPT:-false}"
 MARK_HISTORY="${MARKHISTORY:-false}"
 DEBUG="${DEBUG:-false}"
@@ -135,7 +135,6 @@ export AUTO_SECRETS_SHOW_ENV_IN_PROMPT="${SHOW_ENV_IN_PROMPT}"
 export AUTO_SECRETS_MARK_HISTORY="${MARK_HISTORY}"
 export AUTO_SECRETS_DEBUG="${DEBUG}"
 export AUTO_SECRETS_ENABLE="true"
-export AUTO_SECRETS_CLEANUP_ON_EXIT="false"
 export AUTO_SECRETS_PREFETCH_ON_BRANCH_CHANGE="false"
 
 # Paths and directories

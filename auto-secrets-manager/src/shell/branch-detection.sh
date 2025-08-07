@@ -132,14 +132,6 @@ _auto_secrets_get_current_env() {
   fi
 }
 
-# Cleanup function for shell exit
-_auto_secrets_cleanup_branch_detection() {
-  # Remove cache files on shell exit
-  if [[ "$AUTO_SECRETS_CLEANUP_ON_EXIT" == "true" ]]; then
-    rm -f "$AUTO_SECRETS_BRANCH_CACHE" "${AUTO_SECRETS_BRANCH_CACHE}.repo" 2>/dev/null
-  fi
-}
-
 # Health check function
 _auto_secrets_branch_detection_health() {
   echo "=== Auto Secrets Branch Detection Health Check ==="

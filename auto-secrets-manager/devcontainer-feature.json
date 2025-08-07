@@ -46,7 +46,7 @@
     },
     "cacheConfig": {
       "type": "string",
-      "default": "{\"refresh_interval\":\"15m\",\"cleanup_interval\":\"7d\",\"background_refresh\":true,\"cleanup_on_exit\":false}",
+      "default": "{\"refresh_interval\":\"15m\",\"cleanup_interval\":\"7d\"}",
       "description": "Cache behavior configuration"
     },
     "showEnvInPrompt": {

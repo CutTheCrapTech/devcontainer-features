@@ -21,6 +21,7 @@ from .core.config import load_config
 from .core.cache_manager import CacheManager
 from .core.environment import get_current_environment
 from .secret_managers import create_secret_manager, SecretManagerBase
+from .core.utils import CommonUtils
 
 
 class SecretsDaemon:
@@ -162,38 +163,10 @@ class SecretsDaemon:
 
         try:
             interval_str = self.config.get('cache_config', {}).get("refresh_interval", "15m")
-            return self._parse_duration(interval_str)
+            return CommonUtils.parse_duration(interval_str)
         except Exception as e:
             self.logger.warning(f"Invalid refresh interval, using default: {e}")
             return default_interval
-
-    def _parse_duration(self, duration_str: str) -> int:
-        """Parse duration string to seconds."""
-        if not duration_str:
-            return 0
-
-        duration_str = duration_str.strip().lower()
-
-        # Handle numeric-only values (assume seconds)
-        if duration_str.isdigit():
-            return int(duration_str)
-
-        import re
-        match = re.match(r'^(\d+)([smhd]?)$', duration_str)
-        if not match:
-            raise ValueError(f"Invalid duration format: {duration_str}")
-
-        number, unit = match.groups()
-        number = int(number)
-
-        multipliers = {
-            '': 1, 's': 1,
-            'm': 60,
-            'h': 3600,
-            'd': 86400
-        }
-
-        return number * multipliers.get(unit, 1)
 
     def _get_environments_to_refresh(self) -> list:
         """Get list of environments that need refreshing."""
@@ -255,7 +228,7 @@ class SecretsDaemon:
         try:
             cache_config = self.config.get('cache_config', {})
             cleanup_interval_str = cache_config.get("cleanup_interval", "7d")
-            cleanup_age = self._parse_duration(cleanup_interval_str)
+            cleanup_age = CommonUtils.parse_duration(cleanup_interval_str)
 
             if cleanup_age > 0:
                 # Simple cleanup based on file age

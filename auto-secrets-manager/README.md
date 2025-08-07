@@ -89,7 +89,7 @@ auto-secrets debug    # Comprehensive troubleshooting
 ### Default Cache Configuration
 
 The default `cacheConfig` string is:
-`"{\"max_age_seconds\":900,\"background_refresh\":true,\"cleanup_on_exit\":false}"`
+`"{\"refresh_interval\":"15m",\"cleanup_interval\":\"7d\"}"`
 
 ## 🌳 Branch Mapping
 
@@ -531,9 +531,8 @@ Please report security vulnerabilities privately to [security@your-org.com](mail
    ```json
    {
      "cacheConfig": {
-       "max_age_seconds": 1800, // 30 minutes for less frequent fetches
-       "background_refresh": true,
-       "cleanup_on_exit": true // Clean up branch cache on shell exit
+       "refresh_interval": "30m", // 30 minutes for less frequent fetches
+       "cleanup_interval": "7d"
      }
    }
    ```
