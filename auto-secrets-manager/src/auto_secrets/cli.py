@@ -10,14 +10,13 @@ import json
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
+from typing import Optional
 
 from .logging_config import setup_logging, get_logger, log_system_info
 from .core.config import load_config
 from .core.cache_manager import CacheManager
 from .core.branch_manager import BranchManager
-from .core.environment import get_current_environment, EnvironmentState
 from .secret_managers import create_secret_manager
 
 
@@ -30,45 +29,13 @@ def handle_branch_change(args) -> None:
 
         config = load_config()
         branch_manager = BranchManager(config)
-        cache_manager = CacheManager(config)
 
         branch = args.branch
         repo_path = args.repo_path
 
         # Map branch to environment
         environment = branch_manager.map_branch_to_environment(branch, repo_path)
-
-        if not environment:
-            logger.debug(f"No environment mapping found for branch: {branch}")
-            return
-
-        logger.info(f"Branch '{branch}' mapped to environment '{environment}'")
-
-        # Check if environment changed
-        current_state = get_current_environment()
-        if current_state.environment == environment and current_state.branch == branch:
-            logger.debug("Environment unchanged, skipping refresh")
-            return
-
-        # Update current state
-        new_state = EnvironmentState(
-            environment=environment,
-            branch=branch,
-            repo_path=repo_path,
-            timestamp=int(time.time())
-        )
-
-        # Save new state
-        cache_manager.save_current_state(new_state)
-        logger.info(f"Environment state updated: {environment}")
-
-        # Mark cache as potentially stale for background refresh
-        cache_manager.mark_environment_stale(environment)
-
-        # Optional: Prefetch secrets in background if configured
-        if config.get('prefetch_on_branch_change', False):
-            logger.debug("Starting background prefetch")
-            _background_refresh_secrets(environment, config)
+        _background_refresh_secrets(environment, config)
 
     except Exception as e:
         logger.error(f"Error handling branch change: {e}", exc_info=True)
@@ -81,47 +48,11 @@ def handle_refresh_secrets(args) -> None:
 
     try:
         config = load_config()
-        cache_manager = CacheManager(config)
-
-        # Determine environment
-        if args.environment:
-            environment = args.environment
-            logger.info(f"Refreshing secrets for specified environment: {environment}")
-        else:
-            current_state = get_current_environment()
-            environment = current_state.environment
-            if not environment:
-                logger.error("No current environment found. Use --environment to specify.")
-                sys.exit(1)
-            logger.info(f"Refreshing secrets for current environment: {environment}")
-
-        # Create secret manager
-        secret_manager = create_secret_manager(config)
-        if not secret_manager:
-            logger.error("No secret manager configured")
-            sys.exit(1)
-
-        # Test connection first
-        if not secret_manager.test_connection():
-            logger.error(f"Cannot connect to secret manager: {config['secret_manager']}")
-            sys.exit(1)
-
-        # Fetch secrets
-        logger.info("Fetching secrets...")
-        paths = args.paths if hasattr(args, 'paths') and args.paths else None
-        secrets = secret_manager.fetch_secrets(environment, paths)
-
-        if not secrets:
-            logger.warning(f"No secrets found for environment: {environment}")
-            return
-
-        # Update cache atomically
-        cache_manager.update_environment_cache(environment, secrets)
-        logger.info(f"Successfully refreshed {len(secrets)} secrets for environment: {environment}")
+        _background_refresh_secrets(args.environment, config)
 
         # Output success message
         if not args.quiet:
-            print(f"✅ Refreshed {len(secrets)} secrets for environment: {environment}")
+            print(f"✅ Refreshed secrets for environment: {args.environment}")
 
     except Exception as e:
         logger.error(f"Error refreshing secrets: {e}", exc_info=True)
@@ -142,11 +73,8 @@ def handle_inspect_secrets(args) -> None:
         if args.environment:
             environment = args.environment
         else:
-            current_state = get_current_environment()
-            environment = current_state.environment
-            if not environment:
-                logger.error("No current environment found. Use --environment to specify.")
-                sys.exit(1)
+            logger.error("No current environment found. Use --environment to specify.")
+            sys.exit(1)
 
         logger.debug(f"Inspecting secrets for environment: {environment}")
 
@@ -160,6 +88,7 @@ def handle_inspect_secrets(args) -> None:
             return
 
         # Format output
+        # TODO: Check this
         if args.format == 'json':
             output = json.dumps(secrets, indent=2)
         elif args.format == 'env':
@@ -171,6 +100,7 @@ def handle_inspect_secrets(args) -> None:
             output += f"Secrets Count: {len(secrets)}\n"
             output += f"Cache Status: {'Fresh' if not cache_manager.is_cache_stale(environment) else 'Stale'}\n"
             output += "-" * 50 + "\n"
+            # TODO - this needs to print half the secret - or something similar
             for key, value in secrets.items():
                 # Redact sensitive values unless --show-values is specified
                 if args.show_values:
@@ -200,11 +130,8 @@ def handle_exec_command(args) -> None:
         if args.environment:
             environment = args.environment
         else:
-            current_state = get_current_environment()
-            environment = current_state.environment
-            if not environment:
-                logger.error("No current environment found. Use --environment to specify.")
-                sys.exit(1)
+            logger.error("No current environment found. Use --environment to specify.")
+            sys.exit(1)
 
         logger.debug(f"Executing command with environment: {environment}")
 
@@ -256,11 +183,8 @@ def handle_exec_for_shell(args) -> None:
         if args.environment:
             environment = args.environment
         else:
-            current_state = get_current_environment()
-            environment = current_state.environment
-            if not environment:
-                logger.debug("No current environment found for shell exec")
-                return
+            logger.error("No current environment found. Use --environment to specify.")
+            sys.exit(1)
 
         logger.debug(f"Generating shell environment for: {environment}")
 
@@ -273,6 +197,7 @@ def handle_exec_for_shell(args) -> None:
 
         # Generate shell export statements
         for key, value in secrets.items():
+            # TODO: check this
             # Escape single quotes in values
             escaped_value = value.replace("'", "'\"'\"'")
             print(f"export {key}='{escaped_value}'")
@@ -293,34 +218,37 @@ def handle_current_env(args) -> None:
     logger = get_logger("cli.current_env")
 
     try:
-        current_state = get_current_environment()
+        config = load_config()
+        branch_manager = BranchManager(config)
+
+        branch = args.branch
+        repo_path = args.repo_path
+
+        # Map branch to environment
+        environment = branch_manager.map_branch_to_environment(branch, repo_path)
 
         if args.prompt_format:
             # Format for shell prompt
-            if current_state.environment:
-                print(f"[{current_state.environment}]")
+            if environment:
+                print(f"[{environment}]")
             else:
                 print("")
         elif args.json:
             # JSON format
             output = {
-                "environment": current_state.environment,
-                "branch": current_state.branch,
-                "repo_path": current_state.repo_path,
-                "timestamp": current_state.timestamp
+                "environment": environment,
+                "branch": branch,
             }
             print(json.dumps(output, indent=2))
         else:
             # Human readable format
-            if current_state.environment:
-                print(f"Current Environment: {current_state.environment}")
-                print(f"Branch: {current_state.branch}")
-                print(f"Repository: {current_state.repo_path}")
-                print(f"Last Updated: {time.ctime(current_state.timestamp) if current_state.timestamp else 'Unknown'}")
+            if environment:
+                print(f"Current Environment: {environment}")
+                print(f"Branch: {branch}")
             else:
                 print("No current environment set")
 
-        logger.debug(f"Current environment: {current_state.environment}")
+        logger.debug(f"Current environment: {environment}")
 
     except Exception as e:
         logger.error(f"Error getting current environment: {e}", exc_info=True)
@@ -355,17 +283,6 @@ def handle_debug_env() -> None:
             print(json.dumps(config_dict, indent=2))
         except Exception as e:
             print(f"Error loading config: {e}")
-
-        # Current state
-        print("\n--- Current State ---")
-        try:
-            current_state = get_current_environment()
-            print(f"Environment: {current_state.environment}")
-            print(f"Branch: {current_state.branch}")
-            print(f"Repository: {current_state.repo_path}")
-            print(f"Timestamp: {time.ctime(current_state.timestamp) if current_state.timestamp else 'None'}")
-        except Exception as e:
-            print(f"Error getting current state: {e}")
 
         # Cache status
         print("\n--- Cache Status ---")
@@ -447,18 +364,22 @@ def handle_cleanup(args) -> None:
         sys.exit(1)
 
 
-def _background_refresh_secrets(environment: str, config: dict) -> None:
+def _background_refresh_secrets(environment: Optional[str], config: dict) -> None:
     """Background refresh of secrets (non-blocking)."""
     logger = get_logger("cli.background_refresh")
 
     try:
         logger.debug(f"Starting background refresh for environment: {environment}")
 
+        if not environment:
+            logger.error("No environment specified for background refresh")
+            sys.exit(1)
+
         # Create secret manager
         secret_manager = create_secret_manager(config)
         if not secret_manager or not secret_manager.test_connection():
             logger.warning("Secret manager not available for background refresh")
-            return
+            sys.exit(1)
 
         # Fetch and cache secrets
         cache_manager = CacheManager(config)
@@ -472,6 +393,7 @@ def _background_refresh_secrets(environment: str, config: dict) -> None:
 
     except Exception as e:
         logger.error(f"Error in background refresh: {e}", exc_info=True)
+        sys.exit(1)
 
 
 def main() -> None:
@@ -496,8 +418,8 @@ def main() -> None:
 
     # Branch change command (called from shell)
     branch_parser = subparsers.add_parser('branch-changed', help='Handle branch change notification')
-    branch_parser.add_argument('branch', help='New branch name')
-    branch_parser.add_argument('repo_path', help='Repository path')
+    branch_parser.add_argument('--branch', help='New branch name')
+    branch_parser.add_argument('--repopath', help='Repository path')
     branch_parser.set_defaults(func=handle_branch_change)
 
     # Refresh secrets command
@@ -537,6 +459,7 @@ def main() -> None:
 
     # Current environment command
     current_parser = subparsers.add_parser('current-env', help='Show current environment')
+    current_parser.add_argument('--branch', help='Branch name')
     current_parser.add_argument(
       '--prompt-format',
       action='store_true',

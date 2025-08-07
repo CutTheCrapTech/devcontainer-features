@@ -11,13 +11,11 @@ __description__ = "Automatic environment secrets management based on git branche
 
 # Core imports for external use
 from .cli import main as cli_main
-from .core.environment import get_current_environment
 from .core.cache_manager import CacheManager
 from .core.branch_manager import BranchManager
 
 __all__ = [
     "cli_main",
-    "get_current_environment",
     "CacheManager",
     "BranchManager",
     "__version__",

@@ -120,14 +120,10 @@ class CacheManager:
         if not environment:
             raise CacheError("Environment name cannot be empty")
 
-        if not isinstance(secrets, dict):
-            raise CacheError("Secrets must be a dictionary")
-
         self.logger.info(f"Updating cache for environment: {environment} ({len(secrets)} secrets)")
 
         try:
             env_cache_dir = self.get_environment_cache_dir(environment)
-            env_cache_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
             # Create metadata
             current_time = int(time.time())
@@ -408,22 +404,6 @@ class CacheManager:
         except Exception as e:
             self.logger.error(f"Failed to get cache info for {environment}: {e}")
             return None
-
-    def save_current_state(self, state) -> None:
-        """
-        Save current environment state.
-
-        Args:
-            state: EnvironmentState object to save
-        """
-        try:
-            state_file = self.cache_dir / "state" / "current.json"
-            self._write_file_atomically(state_file, state.to_dict())
-            self.logger.debug("Current state saved to cache")
-
-        except Exception as e:
-            self.logger.error(f"Failed to save current state: {e}")
-            raise CacheError(f"State save failed: {e}")
 
     def _write_file_atomically(self, target_path: Path, data: Any) -> None:
         """

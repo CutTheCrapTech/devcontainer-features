@@ -6,7 +6,7 @@
 # Designed to be fast (~2-5ms with caching) and reliable.
 
 # Cache directory for branch state
-AUTO_SECRETS_CACHE_DIR="${AUTO_SECRETS_CACHE_DIR:-/dev/shm/auto-secrets-${USER}}"
+AUTO_SECRETS_CACHE_DIR="${AUTO_SECRETS_CACHE_DIR:-/dev/shm/auto-secrets}"
 AUTO_SECRETS_BRANCH_CACHE="${AUTO_SECRETS_CACHE_DIR}/state/current_branch"
 
 # Initialize branch cache directory
@@ -94,7 +94,7 @@ _auto_secrets_check_branch_change() {
       # Notify Python daemon in background (non-blocking)
       if command -v auto-secrets >/dev/null 2>&1; then
         {
-          auto-secrets branch-changed "$current_branch" "$current_repo" 2>/dev/null || true
+          auto-secrets branch-changed --branch "$current_branch" --repopath "$current_repo" 2>/dev/null || true
         } &
         # Don't wait for the background process
         disown 2>/dev/null || true
@@ -126,7 +126,7 @@ _auto_secrets_get_current_env() {
   branch=$(_auto_secrets_get_current_branch)
 
   if [[ -n "$branch" ]] && command -v auto-secrets >/dev/null 2>&1; then
-    auto-secrets current-env --prompt-format 2>/dev/null || echo ""
+    auto-secrets current-env --branch "$branch" --prompt-format 2>/dev/null || echo ""
   else
     echo ""
   fi

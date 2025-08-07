@@ -842,30 +842,6 @@ class TestCacheManager:
         manager._update_access_time(invalid_file, metadata)
 
     @patch('auto_secrets.core.cache_manager.get_cache_dir')
-    def test_save_current_state(self, mock_get_cache_dir):
-        """Test saving current state."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            cache_dir = Path(temp_dir)
-            mock_get_cache_dir.return_value = cache_dir
-
-            manager = CacheManager(self.test_config)
-
-            state_data = CacheMetadata(
-                environment="production",
-                created_at=1234567890,
-                last_updated=1234567890,
-                last_accessed=1234567890,
-                secret_count=0
-            )
-
-            with patch.object(manager, '_write_file_atomically') as mock_write:
-                manager.save_current_state(state_data)
-
-                mock_write.assert_called_once()
-                call_args = mock_write.call_args[0]
-                assert "current.json" in str(call_args[0])
-
-    @patch('auto_secrets.core.cache_manager.get_cache_dir')
     def test_get_cache_stats(self, mock_get_cache_dir):
         """Test getting comprehensive cache statistics."""
         with tempfile.TemporaryDirectory() as temp_dir:

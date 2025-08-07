@@ -5,10 +5,7 @@ Handles git branch detection and branch-to-environment mapping.
 Provides pattern matching for branch names and proper logging.
 """
 
-import os
 import re
-import subprocess
-import time
 from typing import Dict, Any, Optional, List
 
 from ..logging_config import get_logger
@@ -30,8 +27,6 @@ class BranchManager:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.logger = get_logger("branch_manager")
-        self._branch_cache: Optional[tuple] = None
-        self._cache_ttl = 5.0  # Cache branch detection for 5 seconds
 
     def map_branch_to_environment(self, branch: str, repo_path: Optional[str] = None) -> Optional[str]:
         """
@@ -137,155 +132,6 @@ class BranchManager:
             self.logger.warning(f"Invalid regex pattern '{pattern}': {e}")
             return False
 
-    def get_current_branch(self, repo_path: Optional[str] = None, use_cache: bool = True) -> Optional[str]:
-        """
-        Get the current git branch name.
-
-        Args:
-            repo_path: Optional repository path to check (defaults to current directory)
-            use_cache: Whether to use cached result if available
-
-        Returns:
-            str: Current branch name or None if not in a git repository
-        """
-        current_time = time.time()
-        current_dir = repo_path or os.getcwd()
-
-        # Check cache if enabled
-        if use_cache and self._branch_cache:
-            cached_dir, cached_time, cached_branch = self._branch_cache
-            if (
-              cached_dir == current_dir
-              and current_time - cached_time < self._cache_ttl
-            ):
-                self.logger.debug(f"Using cached branch: {cached_branch}")
-                return cached_branch
-
-        # Get fresh branch information
-        branch = self._detect_current_branch(repo_path)
-
-        # Update cache
-        self._branch_cache = (current_dir, current_time, branch)
-
-        return branch
-
-    def _detect_current_branch(self, repo_path: Optional[str] = None) -> Optional[str]:
-        """
-        Detect the current git branch name.
-
-        Args:
-            repo_path: Optional repository path to check
-
-        Returns:
-            str: Branch name or None if not in a git repository
-        """
-        original_cwd = None
-
-        try:
-            # Change to target directory if specified
-            if repo_path and repo_path != os.getcwd():
-                original_cwd = os.getcwd()
-                os.chdir(repo_path)
-
-            # Check if we're in a git repository
-            if not self._is_git_repository():
-                self.logger.debug("Not in a git repository")
-                return None
-
-            # Try to get current branch name
-            result = subprocess.run(
-                ["git", "branch", "--show-current"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-
-            if result.returncode == 0 and result.stdout.strip():
-                branch_name = result.stdout.strip()
-                self.logger.debug(f"Detected branch: {branch_name}")
-                return branch_name
-
-            # Handle detached HEAD or other cases
-            return self._handle_detached_head()
-
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
-            self.logger.warning(f"Git command failed: {e}")
-            return None
-
-        finally:
-            # Restore original directory
-            if original_cwd:
-                try:
-                    os.chdir(original_cwd)
-                except OSError as e:
-                    self.logger.warning(f"Failed to restore directory: {e}")
-
-    def _handle_detached_head(self) -> Optional[str]:
-        """
-        Handle detached HEAD state and try to get meaningful reference.
-
-        Returns:
-            str: Branch name, tag name, or 'detached' if no meaningful reference found
-        """
-        try:
-            # Try to get a symbolic reference
-            result = subprocess.run(
-                ["git", "symbolic-ref", "HEAD"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-
-            if result.returncode == 0:
-                ref = result.stdout.strip()
-                branch_name = ref.replace("refs/heads/", "")
-                self.logger.debug(f"Found symbolic ref: {branch_name}")
-                return branch_name
-
-            # Try to get tag name
-            result = subprocess.run(
-                ["git", "describe", "--tags", "--exact-match"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-
-            if result.returncode == 0:
-                tag_name = result.stdout.strip()
-                self.logger.debug(f"Found tag: {tag_name}")
-                return tag_name
-
-            # Default to detached
-            self.logger.debug("In detached HEAD state")
-            return "detached"
-
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
-            self.logger.debug(f"Failed to resolve detached HEAD: {e}")
-            return "detached"
-
-    def _is_git_repository(self) -> bool:
-        """
-        Check if current directory is in a git repository.
-
-        Returns:
-            bool: True if in a git repository
-        """
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--is-inside-work-tree"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            return result.returncode == 0
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
-            return False
-
-    def clear_cache(self) -> None:
-        """Clear the branch detection cache."""
-        self._branch_cache = None
-        self.logger.debug("Branch cache cleared")
-
     def get_available_environments(self) -> List[str]:
         """
         Get list of all configured environments.
@@ -345,32 +191,6 @@ class BranchManager:
         self.logger.info(f"Branch mapping test: {results['passed']}/{results['total']} passed")
         return results
 
-    def get_mapping_status(self) -> Dict[str, Any]:
-        """
-        Get current branch mapping status for debugging.
-
-        Returns:
-            Dict[str, Any]: Status information
-        """
-        current_branch = self.get_current_branch()
-        current_env = None
-
-        if current_branch:
-            try:
-                current_env = self.map_branch_to_environment(current_branch)
-            except Exception as e:
-                current_env = f"ERROR: {e}"
-
-        return {
-            "current_branch": current_branch,
-            "current_environment": current_env,
-            "working_directory": os.getcwd(),
-            "is_git_repo": self._is_git_repository(),
-            "branch_mappings": self.config.get("branch_mappings", {}),
-            "available_environments": self.get_available_environments(),
-            "cache_status": "active" if self._branch_cache else "empty"
-        }
-
     def validate_configuration(self) -> List[str]:
         """
         Validate branch mapping configuration.
@@ -410,5 +230,4 @@ class BranchManager:
 
     def __repr__(self) -> str:
         """String representation of BranchManager."""
-        current_branch = self.get_current_branch() if self._branch_cache else "unknown"
-        return f"BranchManager(branch={current_branch}, mappings={len(self.config.get('branch_mappings', {}))})"
+        return f"BranchManager(mappings={len(self.config.get('branch_mappings', {}))})"

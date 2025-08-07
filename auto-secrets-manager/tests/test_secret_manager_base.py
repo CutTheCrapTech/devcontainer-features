@@ -573,10 +573,6 @@ class TestSecretManagerBaseIntegration:
                 expected = {"/api/key1": "value1", "/api/key2": "value2"}
                 assert filtered == expected
 
-            # Test duration parsing
-            assert manager.parse_duration("5m") == 300
-            assert manager.parse_duration("1h") == 3600
-
             # Test key sanitization
             sanitized = manager.sanitize_secret_key("/api/v1/secret-key")
             assert sanitized == "API_V1_SECRET_KEY"
@@ -599,10 +595,6 @@ class TestSecretManagerBaseIntegration:
                 expected = {"/api/key1": "value1", "/api/key2": "value2"}
                 assert filtered == expected
 
-            # Test duration parsing
-            assert manager.parse_duration("5m") == 300
-            assert manager.parse_duration("1h") == 3600
-
             # Test key sanitization
             sanitized = manager.sanitize_secret_key("/api/v1/secret-key")
             assert sanitized == "API_V1_SECRET_KEY"
@@ -614,10 +606,6 @@ class TestSecretManagerBaseIntegration:
         # Test required config missing
         with pytest.raises(ConfigurationError):
             manager.get_config_value("required_key", required=True)
-
-        # Test invalid duration
-        with pytest.raises(ValueError):
-            manager.parse_duration("invalid_duration")
 
         # Test invalid environment names
         assert not manager.validate_environment("")

@@ -5,8 +5,7 @@ Comprehensive tests for git branch detection and branch-to-environment mapping.
 """
 
 import pytest
-import subprocess
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from auto_secrets.core.branch_manager import BranchManager, BranchManagerError  # type: ignore
 
@@ -36,8 +35,6 @@ class TestBranchManager:
         """Test BranchManager initialization."""
         manager = BranchManager(self.config)
         assert manager.config == self.config
-        assert manager._branch_cache is None
-        assert manager._cache_ttl == 5.0
 
     def test_map_branch_to_environment_exact_match(self):
         """Test exact branch name matching."""
@@ -154,173 +151,6 @@ class TestBranchManager:
         result = self.branch_manager._branch_matches_pattern("test", "[invalid")
         assert result is False
 
-    @patch('subprocess.run')
-    @patch.object(BranchManager, '_is_git_repository')
-    def test_get_current_branch_success(self, mock_is_git, mock_run):
-        """Test successful branch detection."""
-        mock_is_git.return_value = True
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="feature/auth\n"
-        )
-
-        branch = self.branch_manager.get_current_branch(use_cache=False)
-        assert branch == "feature/auth"
-
-        mock_run.assert_called_once_with(
-            ["git", "branch", "--show-current"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-
-    @patch('subprocess.run')
-    @patch.object(BranchManager, '_is_git_repository')
-    def test_get_current_branch_not_git_repo(self, mock_is_git, mock_run):
-        """Test branch detection when not in git repository."""
-        mock_is_git.return_value = False
-
-        branch = self.branch_manager.get_current_branch(use_cache=False)
-        assert branch is None
-
-        # subprocess.run should not be called
-        mock_run.assert_not_called()
-
-    @patch('subprocess.run')
-    @patch.object(BranchManager, '_is_git_repository')
-    @patch.object(BranchManager, '_handle_detached_head')
-    def test_get_current_branch_detached_head(self, mock_detached, mock_is_git, mock_run):
-        """Test branch detection in detached HEAD state."""
-        mock_is_git.return_value = True
-        mock_run.return_value = MagicMock(returncode=1, stdout="")
-        mock_detached.return_value = "detached"
-
-        branch = self.branch_manager.get_current_branch(use_cache=False)
-        assert branch == "detached"
-
-        mock_detached.assert_called_once()
-
-    @patch('subprocess.run')
-    def test_get_current_branch_timeout(self, mock_run):
-        """Test branch detection with timeout."""
-        mock_run.side_effect = subprocess.TimeoutExpired(["git"], 5)
-
-        branch = self.branch_manager.get_current_branch(use_cache=False)
-        assert branch is None
-
-    @patch('subprocess.run')
-    def test_get_current_branch_git_not_found(self, mock_run):
-        """Test branch detection when git command is not found."""
-        mock_run.side_effect = FileNotFoundError("git not found")
-
-        branch = self.branch_manager.get_current_branch(use_cache=False)
-        assert branch is None
-
-    def test_get_current_branch_caching(self):
-        """Test branch detection caching behavior."""
-        with patch.object(self.branch_manager, '_detect_current_branch') as mock_detect:
-            mock_detect.return_value = "main"
-
-            # First call should detect
-            branch1 = self.branch_manager.get_current_branch()
-            assert branch1 == "main"
-            assert mock_detect.call_count == 1
-
-            # Second call should use cache
-            branch2 = self.branch_manager.get_current_branch()
-            assert branch2 == "main"
-            assert mock_detect.call_count == 1  # Should not be called again
-
-            # Third call with use_cache=False should detect again
-            branch3 = self.branch_manager.get_current_branch(use_cache=False)
-            assert branch3 == "main"
-            assert mock_detect.call_count == 2
-
-    @patch('os.chdir')
-    @patch.object(BranchManager, '_is_git_repository')
-    def test_get_current_branch_different_repo_path(self, mock_is_git, mock_chdir):
-        """Test branch detection with different repository path."""
-        mock_is_git.return_value = True
-        with patch.object(self.branch_manager, '_detect_current_branch') as mock_detect:
-            mock_detect.return_value = "feature/test"
-
-            branch = self.branch_manager.get_current_branch(repo_path="/other/repo")
-            assert branch == "feature/test"
-
-    @patch('subprocess.run')
-    def test_handle_detached_head_symbolic_ref(self, mock_run):
-        """Test detached HEAD handling with symbolic reference."""
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="refs/heads/main\n"
-        )
-
-        result = self.branch_manager._handle_detached_head()
-        assert result == "main"
-
-    @patch('subprocess.run')
-    def test_handle_detached_head_tag(self, mock_run):
-        """Test detached HEAD handling with tag."""
-        # First call (symbolic-ref) fails
-        # Second call (describe --tags) succeeds
-        mock_run.side_effect = [
-            MagicMock(returncode=1, stdout=""),
-            MagicMock(returncode=0, stdout="v1.0.0\n")
-        ]
-
-        result = self.branch_manager._handle_detached_head()
-        assert result == "v1.0.0"
-
-    @patch('subprocess.run')
-    def test_handle_detached_head_fallback(self, mock_run):
-        """Test detached HEAD handling fallback."""
-        # All git commands fail
-        mock_run.return_value = MagicMock(returncode=1, stdout="")
-
-        result = self.branch_manager._handle_detached_head()
-        assert result == "detached"
-
-    @patch('subprocess.run')
-    def test_is_git_repository_true(self, mock_run):
-        """Test git repository detection when in git repo."""
-        mock_run.return_value = MagicMock(returncode=0)
-
-        result = self.branch_manager._is_git_repository()
-        assert result is True
-
-        mock_run.assert_called_once_with(
-            ["git", "rev-parse", "--is-inside-work-tree"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-
-    @patch('subprocess.run')
-    def test_is_git_repository_false(self, mock_run):
-        """Test git repository detection when not in git repo."""
-        mock_run.return_value = MagicMock(returncode=1)
-
-        result = self.branch_manager._is_git_repository()
-        assert result is False
-
-    @patch('subprocess.run')
-    def test_is_git_repository_git_not_found(self, mock_run):
-        """Test git repository detection when git is not found."""
-        mock_run.side_effect = FileNotFoundError("git not found")
-
-        result = self.branch_manager._is_git_repository()
-        assert result is False
-
-    def test_clear_cache(self):
-        """Test cache clearing."""
-        # Set up cache
-        self.branch_manager._branch_cache = ("test", 123.0, "main")
-
-        # Clear cache
-        self.branch_manager.clear_cache()
-
-        assert self.branch_manager._branch_cache is None
-
     def test_get_available_environments(self):
         """Test getting list of available environments."""
         environments = self.branch_manager.get_available_environments()
@@ -368,21 +198,6 @@ class TestBranchManager:
         assert results["total"] == 3
         assert results["passed"] == 1
         assert results["failed"] == 2
-
-    def test_get_mapping_status(self):
-        """Test getting mapping status."""
-        with patch.object(self.branch_manager, 'get_current_branch') as mock_branch:
-            with patch.object(self.branch_manager, '_is_git_repository') as mock_git:
-                mock_branch.return_value = "main"
-                mock_git.return_value = True
-
-                status = self.branch_manager.get_mapping_status()
-
-                assert status["current_branch"] == "main"
-                assert status["current_environment"] == "production"
-                assert status["is_git_repo"] is True
-                assert "branch_mappings" in status
-                assert "available_environments" in status
 
     def test_validate_configuration_valid(self):
         """Test configuration validation with valid config."""
@@ -432,24 +247,6 @@ class TestBranchManager:
 
 class TestBranchManagerIntegration:
     """Integration tests for BranchManager with real git operations."""
-
-    def test_real_git_repository_detection(self):
-        """Test with a real git repository."""
-        config = {
-            "branch_mappings": {
-                "main": "production",
-                "default": "development"
-            }
-        }
-        manager = BranchManager(config)
-
-        # This will depend on whether the test is run in a git repository
-        # Just test that it doesn't crash
-        try:
-            is_git = manager._is_git_repository()
-            assert isinstance(is_git, bool)
-        except Exception as e:
-            pytest.fail(f"Git repository detection failed: {e}")
 
     def test_pattern_matching_edge_cases(self):
         """Test pattern matching with edge cases."""

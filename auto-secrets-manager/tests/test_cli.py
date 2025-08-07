@@ -28,7 +28,6 @@ from auto_secrets.secret_managers.base import (  # type: ignore
     SecretManagerError,
     ConnectionTestResult,
 )
-from auto_secrets.core.environment import EnvironmentState  # type: ignore
 
 
 class TestHandleBranchChange:
@@ -51,10 +50,9 @@ class TestHandleBranchChange:
     @patch('auto_secrets.cli.load_config')
     @patch('auto_secrets.cli.BranchManager')
     @patch('auto_secrets.cli.CacheManager')
-    @patch('auto_secrets.cli.get_current_environment')
+    @patch('auto_secrets.cli.create_secret_manager')
     def test_handle_branch_change_new_environment(
-      self, mock_get_env, mock_cache_manager,
-      mock_branch_manager, mock_load_config
+      self, mock_create_manager, mock_cache_manager, mock_branch_manager, mock_load_config
     ):
         """Test handling branch change to new environment."""
         mock_load_config.return_value = self.mock_config
@@ -63,46 +61,17 @@ class TestHandleBranchChange:
         mock_branch_instance.map_branch_to_environment.return_value = "production"
         mock_branch_manager.return_value = mock_branch_instance
 
+        mock_manager = Mock()
+        mock_manager.fetch_secrets.return_value = {"key": "value"}
+        mock_create_manager.return_value = mock_manager
+
         mock_cache_instance = Mock()
         mock_cache_manager.return_value = mock_cache_instance
-
-        # Current environment is different
-        mock_current_state = EnvironmentState(environment="staging", branch="develop")
-        mock_get_env.return_value = mock_current_state
 
         with patch('time.time', return_value=1234567890):
             handle_branch_change(self.mock_args)
 
-        mock_cache_instance.save_current_state.assert_called_once()
-        mock_cache_instance.mark_environment_stale.assert_called_once_with("production")
-
-    @patch('auto_secrets.cli.load_config')
-    @patch('auto_secrets.cli.BranchManager')
-    @patch('auto_secrets.cli.CacheManager')
-    @patch('auto_secrets.cli.get_current_environment')
-    def test_handle_branch_change_same_environment(
-      self, mock_get_env, mock_cache_manager,
-      mock_branch_manager, mock_load_config
-    ):
-        """Test handling branch change to same environment."""
-        mock_load_config.return_value = self.mock_config
-
-        mock_branch_instance = Mock()
-        mock_branch_instance.map_branch_to_environment.return_value = "production"
-        mock_branch_manager.return_value = mock_branch_instance
-
-        mock_cache_instance = Mock()
-        mock_cache_manager.return_value = mock_cache_instance
-
-        # Current environment is the same
-        mock_current_state = EnvironmentState(environment="production", branch="main")
-        mock_get_env.return_value = mock_current_state
-
-        handle_branch_change(self.mock_args)
-
-        # Should not update state or mark stale
-        mock_cache_instance.save_current_state.assert_not_called()
-        mock_cache_instance.mark_environment_stale.assert_not_called()
+        mock_cache_instance.update_environment_cache.assert_called_once_with("production", {'key': 'value'})
 
     @patch('auto_secrets.cli.load_config')
     @patch('auto_secrets.cli.BranchManager')
@@ -115,8 +84,8 @@ class TestHandleBranchChange:
         mock_branch_instance.map_branch_to_environment.return_value = None
         mock_branch_manager.return_value = mock_branch_instance
 
-        # Should not raise exception, just return early
-        handle_branch_change(self.mock_args)
+        with pytest.raises(SystemExit):
+            handle_branch_change(self.mock_args)
 
     @patch('auto_secrets.cli.load_config')
     def test_handle_branch_change_error(self, mock_load_config):
@@ -152,48 +121,8 @@ class TestHandleRefreshSecrets:
 
         handle_refresh_secrets(self.mock_args)
 
-        mock_manager.fetch_secrets.assert_called_once_with("production", self.mock_args.paths)
+        mock_manager.fetch_secrets.assert_called_once_with("production")
         mock_cache_instance.update_environment_cache.assert_called_once()
-
-    @patch('auto_secrets.cli.load_config')
-    @patch('auto_secrets.cli.CacheManager')
-    @patch('auto_secrets.cli.get_current_environment')
-    def test_handle_refresh_secrets_current_env(self, mock_get_env, mock_cache_manager, mock_load_config):
-        """Test refreshing secrets for current environment."""
-        self.mock_args.environment = None
-
-        mock_config = {"secret_manager": {"type": "infisical"}}
-        mock_load_config.return_value = mock_config
-
-        mock_current_state = EnvironmentState(environment="staging")
-        mock_get_env.return_value = mock_current_state
-
-        mock_cache_instance = Mock()
-        mock_cache_manager.return_value = mock_cache_instance
-
-        with patch('auto_secrets.cli.create_secret_manager') as mock_create_manager:
-            mock_manager = Mock()
-            mock_manager.fetch_secrets.return_value = {"key": "value"}
-            mock_create_manager.return_value = mock_manager
-
-            handle_refresh_secrets(self.mock_args)
-
-            mock_manager.fetch_secrets.assert_called_once_with("staging", self.mock_args.paths)
-
-    @patch('auto_secrets.cli.load_config')
-    @patch('auto_secrets.cli.get_current_environment')
-    def test_handle_refresh_secrets_no_current_env(self, mock_get_env, mock_load_config):
-        """Test refreshing secrets with no current environment."""
-        self.mock_args.environment = None
-
-        mock_config = {}
-        mock_load_config.return_value = mock_config
-
-        mock_current_state = EnvironmentState()  # No environment
-        mock_get_env.return_value = mock_current_state
-
-        with pytest.raises(SystemExit):
-            handle_refresh_secrets(self.mock_args)
 
 
 class TestHandleInspectSecrets:
@@ -358,20 +287,31 @@ class TestHandleExecForShell:
 class TestHandleCurrentEnv:
     """Test handle_current_env function."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.mock_args = Mock()
+        self.mock_args.branch = "main"
+        self.mock_args.repo_path = "/path/to/repo"
         self.mock_args.prompt_format = False
 
-    @patch('auto_secrets.cli.get_current_environment')
-    def test_handle_current_env_normal(self, mock_get_env):
+        self.mock_config: Dict[str, Any] = {
+            "branch_mappings": {
+                "main": "production",
+                "develop": "staging",
+                "default": "development"
+            }
+        }
+
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.BranchManager')
+    def test_handle_current_env_normal(self, mock_branch_manager, mock_load_config):
         """Test displaying current environment normally."""
-        mock_current_state = EnvironmentState(
-            environment="production",
-            branch="main",
-            repo_path="/path/to/repo"
-        )
-        mock_get_env.return_value = mock_current_state
+        self.mock_config['cache_base_dir'] = '/tmp'
+        mock_load_config.return_value = self.mock_config
+
+        mock_branch_instance = Mock()
+        mock_branch_instance.map_branch_to_environment.return_value = "production"
+        mock_branch_manager.return_value = mock_branch_instance
 
         with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
             handle_current_env(self.mock_args)
@@ -380,13 +320,18 @@ class TestHandleCurrentEnv:
             assert '"environment": "production"' in output
             assert '"branch": "main"' in output
 
-    @patch('auto_secrets.cli.get_current_environment')
-    def test_handle_current_env_prompt_format(self, mock_get_env):
+    @patch('auto_secrets.cli.load_config')
+    @patch('auto_secrets.cli.BranchManager')
+    def test_handle_current_env_prompt_format(self, mock_branch_manager, mock_load_config):
         """Test displaying current environment for prompt."""
         self.mock_args.prompt_format = True
 
-        mock_current_state = EnvironmentState(environment="production")
-        mock_get_env.return_value = mock_current_state
+        self.mock_config['cache_base_dir'] = '/tmp'
+        mock_load_config.return_value = self.mock_config
+
+        mock_branch_instance = Mock()
+        mock_branch_instance.map_branch_to_environment.return_value = "production"
+        mock_branch_manager.return_value = mock_branch_instance
 
         with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
             handle_current_env(self.mock_args)
@@ -394,34 +339,18 @@ class TestHandleCurrentEnv:
             output = mock_stdout.getvalue()
             assert "[production]" in output
 
-    @patch('auto_secrets.cli.get_current_environment')
-    def test_handle_current_env_no_environment(self, mock_get_env):
-        """Test displaying current environment when none set."""
-        mock_current_state = EnvironmentState()  # No environment
-        mock_get_env.return_value = mock_current_state
-
-        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
-            handle_current_env(self.mock_args)
-
-            output = mock_stdout.getvalue()
-            assert '"environment": null' in output
-
 
 class TestHandleDebugEnv:
     """Test handle_debug_env function."""
 
-    @patch('auto_secrets.cli.get_current_environment')
     @patch('auto_secrets.cli.load_config')
-    def test_handle_debug_env(self, mock_load_config, mock_get_env):
+    def test_handle_debug_env(self, mock_load_config):
         """Test debug environment information."""
         mock_config = {
             "secret_manager": {"type": "infisical"},
             "branch_mappings": {"main": "production"}
         }
         mock_load_config.return_value = mock_config
-
-        mock_current_state = EnvironmentState(environment="production", branch="main")
-        mock_get_env.return_value = mock_current_state
 
         with patch('sys.stdout', new_callable=StringIO) as mock_stdout, \
              patch('auto_secrets.cli.BranchManager') as mock_branch_manager, \
@@ -526,8 +455,8 @@ class TestBackgroundRefreshSecrets:
 
         mock_create_manager.return_value = None
 
-        # Should not raise exception, just log warning
-        _background_refresh_secrets(environment, config)
+        with pytest.raises(SystemExit):
+            _background_refresh_secrets(environment, config)
 
 
 class TestMainFunction:
@@ -582,6 +511,7 @@ class TestMainFunction:
             mock_args.func = mock_handle
             main()
 
+            mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
     @patch('auto_secrets.cli.load_config')
@@ -608,6 +538,7 @@ class TestMainFunction:
             mock_args.func = mock_handle
             main()
 
+            mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
     @patch('auto_secrets.cli.load_config')
@@ -633,6 +564,7 @@ class TestMainFunction:
             mock_args.func = mock_handle
             main()
 
+            mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
     @patch('auto_secrets.cli.load_config')
@@ -658,6 +590,7 @@ class TestMainFunction:
             mock_args.func = mock_handle
             main()
 
+            mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
     @patch('auto_secrets.cli.load_config')
@@ -683,6 +616,7 @@ class TestMainFunction:
             mock_args.func = mock_handle
             main()
 
+            mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
     @patch('auto_secrets.cli.load_config')
@@ -706,6 +640,7 @@ class TestMainFunction:
             mock_args.func = mock_handle
             main()
 
+            mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once()
 
     @patch('auto_secrets.cli.load_config')
@@ -730,6 +665,7 @@ class TestMainFunction:
             mock_args.func = mock_handle
             main()
 
+            mock_setup_logging.assert_called_once()
             mock_handle.assert_called_once_with(mock_args)
 
     @patch('auto_secrets.cli.load_config')
@@ -847,15 +783,6 @@ class TestCLIIntegration:
         branch_args.branch = "main"
         branch_args.repo_path = "/repo"
 
-        with patch('auto_secrets.cli.get_current_environment') as mock_get_env, \
-             patch('time.time', return_value=1234567890):
-
-            mock_get_env.return_value = EnvironmentState()  # No current env
-            handle_branch_change(branch_args)
-
-            # Should save new state
-            mock_cache_instance.save_current_state.assert_called()
-
         # Test refresh secrets
         refresh_args = Mock()
         refresh_args.environment = "production"
@@ -864,7 +791,7 @@ class TestCLIIntegration:
         handle_refresh_secrets(refresh_args)
 
         # Should fetch and cache secrets
-        mock_manager.fetch_secrets.assert_called_with("production", None)
+        mock_manager.fetch_secrets.assert_called_with("production")
         mock_cache_instance.update_environment_cache.assert_called()
 
     def test_error_handling_workflow(self):

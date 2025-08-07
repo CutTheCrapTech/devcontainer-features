@@ -16,14 +16,13 @@ from auto_secrets.core.config import (  # type: ignore
     ConfigError,
     _validate_config,
     get_cache_dir,
-    get_state_dir,
     get_log_file_path,
     get_effective_config_path,
     save_config_to_file,
     load_config_from_file,
     create_minimal_config_template
 )
-from auto_secrets.core.environment import is_valid_environment_name  # type: ignore
+from auto_secrets.core.config import is_valid_environment_name  # type: ignore
 
 
 class TestLoadConfig:
@@ -147,8 +146,6 @@ class TestLoadConfig:
 
             # Test other defaults
             assert config['enable'] is True
-            assert config['cleanup_on_exit'] is False
-            assert config['prefetch_on_branch_change'] is False
 
     def test_invalid_json_configs(self):
         """Test handling of invalid JSON in various config fields."""
@@ -244,7 +241,7 @@ class TestConfigValidation:
         assert "non-empty dictionary" in str(exc_info.value)
 
     def test_validate_invalid_refresh_interval(self):
-        """TODO:Test validation with negative cache age."""
+        """Test validation with negative cache age."""
         config = {
             'secret_manager': 'infisical',
             'shells': 'both',
@@ -257,10 +254,10 @@ class TestConfigValidation:
 
         with pytest.raises(ValueError) as exc_info:
             _validate_config(config)
-        assert "refresh_interval must be valid" in str(exc_info.value)
+        assert "Invalid duration format" in str(exc_info.value)
 
     def test_validate_invalid_cleanup_interval(self):
-        """TODO:Test validation with negative cache age."""
+        """Test validation with negative cache age."""
         config = {
             'secret_manager': 'infisical',
             'shells': 'both',
@@ -273,7 +270,7 @@ class TestConfigValidation:
 
         with pytest.raises(ValueError) as exc_info:
             _validate_config(config)
-        assert "refresh_interval must be valid" in str(exc_info.value)
+        assert "Invalid duration format" in str(exc_info.value)
 
 
 class TestCacheDirectories:
@@ -294,14 +291,6 @@ class TestCacheDirectories:
         cache_dir = get_cache_dir(config, 'production')
         expected = Path('/tmp/test-cache/environments/production')
         assert cache_dir == expected
-
-    def test_get_state_dir(self):
-        """Test getting state directory."""
-        config = {'cache_base_dir': '/tmp/test-cache'}
-
-        state_dir = get_state_dir(config)
-        expected = Path('/tmp/test-cache/state')
-        assert state_dir == expected
 
     @patch('pathlib.Path.mkdir')
     def test_get_log_file_path_creates_directory(self, mock_mkdir):
@@ -520,11 +509,9 @@ class TestConfigIntegration:
             # Test cache directory functions
             with patch('os.getuid', return_value=1000):
                 cache_dir = get_cache_dir(config)
-                state_dir = get_state_dir(config)
                 env_cache_dir = get_cache_dir(config, 'production')
 
                 assert cache_dir == Path('/tmp/test-cache')
-                assert state_dir == Path('/tmp/test-cache/state')
                 assert env_cache_dir == Path('/tmp/test-cache/environments/production')
 
             # Test file operations

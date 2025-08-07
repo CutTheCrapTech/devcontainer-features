@@ -19,7 +19,6 @@ from pathlib import Path
 from .logging_config import get_logger
 from .core.config import load_config
 from .core.cache_manager import CacheManager
-from .core.environment import get_current_environment
 from .secret_managers import create_secret_manager, SecretManagerBase
 from .core.utils import CommonUtils
 
@@ -168,28 +167,30 @@ class SecretsDaemon:
             self.logger.warning(f"Invalid refresh interval, using default: {e}")
             return default_interval
 
+    def _get_cleanup_interval(self) -> int:
+        """Get cleanup interval in seconds from configuration."""
+        default_interval = 900  # 15 minutes
+
+        try:
+            interval_str = self.config.get('cache_config', {}).get("cleanup_interval", "7d")
+            return CommonUtils.parse_duration(interval_str)
+        except Exception as e:
+            self.logger.warning(f"Invalid cleanup interval, using default: {e}")
+            return default_interval
+
     def _get_environments_to_refresh(self) -> list:
         """Get list of environments that need refreshing."""
         environments_to_refresh = []
 
         try:
-            # Get current environment (highest priority)
-            current_env = get_current_environment()
-            if current_env and current_env.environment:
-                env_name = current_env.environment
-                if self.cache_manager.is_cache_stale(env_name):
-                    environments_to_refresh.append(env_name)
-                    self.logger.debug(f"Current environment {env_name} cache is stale")
-
-            # Check other environments that have stale caches
+            # Check all environments that have stale caches
             try:
                 cache_dir = self.cache_manager.cache_dir / "environments"
 
                 if cache_dir.exists():
                     for cache_file in cache_dir.glob("*.env"):
                         env_name = cache_file.stem
-                        current_env_name = current_env.environment if current_env else None
-                        if env_name != current_env_name and self.cache_manager.is_cache_stale(env_name):
+                        if self.cache_manager.is_cache_stale(env_name):
                             environments_to_refresh.append(env_name)
 
             except Exception as e:

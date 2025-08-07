@@ -7,6 +7,7 @@ Uses proper UPPER_SNAKE_CASE naming convention with AUTO_SECRETS_ prefix.
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Dict, Optional, Any, Union
 
@@ -134,9 +135,6 @@ def load_config() -> Dict[str, Any]:
     # Enable feature
     config["enable"] = os.getenv("AUTO_SECRETS_ENABLE", "true").lower() == "true"
 
-    # Prefetch secrets on branch change
-    config["prefetch_on_branch_change"] = os.getenv("AUTO_SECRETS_PREFETCH_ON_BRANCH_CHANGE", "false").lower() == "true"
-
     # Require secrets for exec command
     config["require_secrets_for_exec"] = os.getenv("AUTO_SECRETS_REQUIRE_SECRETS_FOR_EXEC", "false").lower() == "true"
 
@@ -215,19 +213,6 @@ def get_cache_dir(config: Dict[str, Any], environment: Optional[str] = None) -> 
         return base_path / "environments" / environment
     else:
         return base_path
-
-
-def get_state_dir(config: Dict[str, Any]) -> Path:
-    """
-    Get the state directory path for storing current environment state.
-
-    Args:
-        config: Configuration dictionary
-
-    Returns:
-        Path: State directory path
-    """
-    return get_cache_dir(config) / "state"
 
 
 def get_log_file_path(config: Dict[str, Any], log_name: str = "auto-secrets.log") -> Path:
@@ -379,5 +364,29 @@ def create_minimal_config_template() -> Dict[str, Any]:
         },
         "show_env_in_prompt": True,
         "mark_history": True,
-        "prefetch_on_branch_change": False
     }
+
+
+def is_valid_environment_name(environment: str) -> bool:
+    """
+    Validate environment name format.
+
+    Args:
+        environment: Environment name to validate
+
+    Returns:
+        bool: True if environment name is valid
+    """
+    if not environment or not isinstance(environment, str):
+        return False
+
+    # Length check
+    if len(environment) < 1 or len(environment) > 64:
+        return False
+
+    # Must be alphanumeric with hyphens/underscores
+    # Can't start or end with special characters
+    if len(environment) == 1:
+        return re.match(r'^[a-zA-Z0-9]$', environment) is not None
+    else:
+        return re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$', environment) is not None
