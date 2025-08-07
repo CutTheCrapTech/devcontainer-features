@@ -23,7 +23,7 @@ class CommonUtils:
             ValueError: If duration format is invalid
         """
         if not duration_str:
-            return 0
+            raise ValueError(f"Invalid duration format: {duration_str}")
 
         duration_str = duration_str.strip().lower()
         match = re.match(r'^(\d+)([smhd]?)$', duration_str)

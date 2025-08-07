@@ -63,19 +63,12 @@
       "type": "boolean",
       "default": false,
       "description": "Enable debug logging and verbose output"
+    },
+    "branchDetection": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable branch detection - Disable if you setup git postcheckout hook"
     }
-  },
-  "customizations": {
-    "vscode": {
-      "settings": {
-        "terminal.integrated.env.linux": {
-          "AUTO_SECRETS_ENABLED": "true"
-        }
-      }
-    }
-  },
-  "containerEnv": {
-    "AUTO_SECRETS_FEATURE": "true"
   },
   "postStartCommand": "nohup sh -c 'while true; do auto-secrets-daemon 2>&1 | tee -a /tmp/auto-secrets-daemon.log; sleep 60; done' &",
   "init": true,

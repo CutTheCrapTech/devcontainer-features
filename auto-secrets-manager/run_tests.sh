@@ -141,10 +141,12 @@ initialize_environment() {
   if [[ "$CI_MODE" == "true" ]]; then
     pip3 install --quiet --upgrade pip
     pip3 install --quiet -r requirements.txt
-    pip3 install --quiet -e .
+    # CI: Test the actual installation users will get
+    pip3 install .
   else
     pip3 install --upgrade pip
     pip3 install -r requirements.txt
+    # Development: Use editable for convenience
     pip3 install -e .
   fi
 

@@ -41,6 +41,7 @@ class TestInfisicalSecretManager:
             "host": "https://app.infisical.com",
             "project_id": "test_project_123",
             "client_id": "test_client_456",
+            "cache_base_dir": "/dev/shm/auto-secrets/"
         }
 
         # Mock environment variables
@@ -111,7 +112,7 @@ class TestInfisicalSecretManager:
     @patch('auto_secrets.secret_managers.infisical.InfisicalSDKClient')
     def test_init_missing_client_secret(self, mock_sdk_client):
         """Test initialization with missing client_secret."""
-        with pytest.raises(SecretManagerError, match="Infisical client_secret is required"):
+        with pytest.raises(SecretManagerError, match="not found in environment variables or config file"):
             InfisicalSecretManager(self.valid_config)
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})

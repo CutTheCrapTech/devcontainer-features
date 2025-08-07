@@ -57,8 +57,9 @@ class TestCommonUtils:
 
     def test_parse_duration_empty(self):
         """Test parsing empty duration string."""
-        assert CommonUtils.parse_duration("") == 0
-        assert CommonUtils.parse_duration(None) == 0
+        with pytest.raises(ValueError, match="Invalid duration format"):
+            CommonUtils.parse_duration("")
+            CommonUtils.parse_duration(None)
 
     def test_parse_duration_invalid_format(self):
         """Test parsing invalid duration format."""

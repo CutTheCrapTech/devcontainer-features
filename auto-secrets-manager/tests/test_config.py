@@ -7,7 +7,6 @@ Comprehensive tests for configuration loading, validation, and management.
 import json
 import os
 import pytest
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -37,13 +36,13 @@ class TestLoadConfig:
                 'kubectl': ['/kubernetes/**']
             }),
             'AUTO_SECRETS_CACHE_DIR': '/tmp/auto-secrets-test',
+            'AUTO_SECRETS_FEATURE_DIR': '/tmp/auto-secrets',
+            'AUTO_SECRETS_LOG_DIR': '/tmp/auto-secrets',
+            'AUTO_SECRETS_LOG_LEVEL': 'INFO',
             'AUTO_SECRETS_CACHE_CONFIG': json.dumps({
                 'refresh_interval': '10m',
                 'cleanup_interval': '7d',
             }),
-            'AUTO_SECRETS_SHOW_ENV_IN_PROMPT': 'true',
-            'AUTO_SECRETS_MARK_HISTORY': 'false',
-            'AUTO_SECRETS_ENABLE': 'true'
         }
 
     def test_load_valid_config(self):
@@ -59,9 +58,6 @@ class TestLoadConfig:
             assert config['secret_manager_config']['client_id'] == 'test-client-id'
             assert config['auto_commands']['terraform'] == ['/infrastructure/**']
             assert config['cache_base_dir'] == '/tmp/auto-secrets-test'
-            assert config['show_env_in_prompt'] is True
-            assert config['mark_history'] is False
-            assert config['enable'] is True
 
     def test_missing_required_secret_manager(self):
         """Test error when secret manager is missing."""
@@ -132,9 +128,6 @@ class TestLoadConfig:
 
             # Test cache config defaults
             assert config['cache_config']['refresh_interval'] == "10m"  # from env
-
-            # Test other defaults
-            assert config['enable'] is True
 
     def test_invalid_json_configs(self):
         """Test handling of invalid JSON in various config fields."""
@@ -241,7 +234,7 @@ class TestConfigValidation:
             }
         }
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ConfigError) as exc_info:
             ConfigManager._validate_config(config)
         assert "Invalid duration format" in str(exc_info.value)
 
@@ -257,7 +250,7 @@ class TestConfigValidation:
             }
         }
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ConfigError) as exc_info:
             ConfigManager._validate_config(config)
         assert "Invalid duration format" in str(exc_info.value)
 
@@ -288,112 +281,6 @@ class TestCacheDirectories:
 
         ConfigManager.get_log_file_path(config)
         mock_mkdir.assert_called_once_with(parents=True, exist_ok=True, mode=0o755)
-
-
-class TestConfigFileOperations:
-    """Test configuration file save/load operations."""
-
-    def test_save_and_load_config(self):
-        """Test saving and loading configuration to/from file."""
-        config = {
-            'secret_manager': 'infisical',
-            'shells': 'both',
-            'debug': False,
-            'branch_mappings': {
-              'main': 'production',
-              'default': 'development',
-            },
-            'secret_manager_config': {'client_id': 'test-id'},
-            'auto_commands': {'terraform': ['/infra/**']},
-            'cache_config': {
-                'refresh_interval': '15m',
-                'cleanup_interval': '7d',
-            }
-        }
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_file = Path(temp_dir) / 'config.json'
-
-            # Save config
-            ConfigManager.save_config_to_file(config, config_file)
-            assert config_file.exists()
-
-            # Load config
-            with patch.dict(os.environ, {
-                'AUTO_SECRETS_SECRET_MANAGER': 'infisical',
-                'AUTO_SECRETS_SHELLS': 'both',
-                'AUTO_SECRETS_BRANCH_MAPPINGS': json.dumps({'main': 'production', 'default': 'development'})
-            }, clear=True):
-                loaded_config = ConfigManager.load_config_from_file(config_file)
-
-            # Verify main fields are preserved
-            assert loaded_config['secret_manager'] == 'infisical'
-            assert loaded_config['shells'] == 'both'
-            assert loaded_config['branch_mappings']['main'] == 'production'
-
-    def test_save_config_redacts_sensitive_data(self):
-        """Test that sensitive data is redacted when saving to file."""
-        config = {
-            'secret_manager': 'infisical',
-            'shells': 'both',
-            'branch_mappings': {'default': 'development'},
-            'secret_manager_config': {
-                'client_id': 'test-id',
-                'client_secret': 'super-secret',
-                'token': 'secret-token'
-            }
-        }
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_file = Path(temp_dir) / 'config.json'
-
-            ConfigManager.save_config_to_file(config, config_file)
-
-            # Read raw file content
-            with open(config_file, 'r') as f:
-                saved_data = json.load(f)
-
-            # Check that sensitive values are redacted
-            sm_config = saved_data['secret_manager_config']
-            assert sm_config['client_id'] == 'test-id'  # Not sensitive
-            assert sm_config['client_secret'] == '***REDACTED***'
-            assert sm_config['token'] == '***REDACTED***'
-
-    def test_load_config_from_nonexistent_file(self):
-        """Test loading config from non-existent file."""
-        with pytest.raises(ConfigError) as exc_info:
-            ConfigManager.load_config_from_file('/nonexistent/config.json')
-        assert "Failed to load config from" in str(exc_info.value)
-
-    def test_load_config_from_invalid_json(self):
-        """Test loading config from file with invalid JSON."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            f.write('invalid json content')
-            f.flush()
-
-            try:
-                with pytest.raises(ConfigError) as exc_info:
-                    ConfigManager.load_config_from_file(f.name)
-                assert "Failed to load config from" in str(exc_info.value)
-            finally:
-                os.unlink(f.name)
-
-    def test_get_effective_config_path_env_var(self):
-        """Test getting config path from environment variable."""
-        with patch.dict(os.environ, {'AUTO_SECRETS_CONFIG_PATH': '/custom/config.json'}):
-            path = ConfigManager.get_effective_config_path()
-            assert path == Path('/custom/config.json')
-
-    def test_get_effective_config_path_search(self):
-        """Test searching for config file in standard locations."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_file = Path(temp_dir) / '.auto-secrets.json'
-            config_file.touch()
-
-            with patch('pathlib.Path.cwd', return_value=Path(temp_dir)):
-                with patch.dict(os.environ, {}, clear=True):
-                    path = ConfigManager.get_effective_config_path()
-                    assert path == config_file
 
 
 class TestConfigTemplate:
@@ -481,8 +368,14 @@ class TestConfigIntegration:
                 'project_id': 'test-project',
                 'client_id': 'test-client'
             }),
+            'AUTO_SECRETS_CACHE_CONFIG': json.dumps({
+                'refresh_interval': '10m',
+                'cleanup_interval': '7d',
+            }),
             'AUTO_SECRETS_CACHE_DIR': '/tmp/test-cache',
-            'AUTO_SECRETS_ENABLE': 'true'
+            'AUTO_SECRETS_FEATURE_DIR': '/tmp/auto-secrets',
+            'AUTO_SECRETS_LOG_DIR': '/tmp/auto-secrets',
+            'AUTO_SECRETS_LOG_LEVEL': 'INFO',
         }
 
         with patch.dict(os.environ, env_vars, clear=True):
@@ -493,7 +386,6 @@ class TestConfigIntegration:
             assert config['secret_manager'] == 'infisical'
             assert config['shells'] == 'zsh'
             assert config['debug'] is True
-            assert config['enable'] is True
 
             # Test cache directory functions
             with patch('os.getuid', return_value=1000):
@@ -502,19 +394,6 @@ class TestConfigIntegration:
 
                 assert cache_dir == Path('/tmp/test-cache')
                 assert env_cache_dir == Path('/tmp/test-cache/environments/production')
-
-            # Test file operations
-            with tempfile.TemporaryDirectory() as temp_dir:
-                config_file = Path(temp_dir) / 'test-config.json'
-
-                # Save and reload
-                ConfigManager.save_config_to_file(config, config_file)
-                loaded_config = ConfigManager.load_config_from_file(config_file)
-
-                # Verify critical fields are preserved
-                assert loaded_config['secret_manager'] == config['secret_manager']
-                assert loaded_config['shells'] == config['shells']
-                assert loaded_config['branch_mappings'] == config['branch_mappings']
 
 
 if __name__ == '__main__':

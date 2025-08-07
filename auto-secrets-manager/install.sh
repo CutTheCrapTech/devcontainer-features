@@ -24,6 +24,7 @@ CACHE_CONFIG=${CACHECONFIG:-'{"refresh_interval":"15m","cleanup_interval":"7d"}'
 SHOW_ENV_IN_PROMPT="${SHOWENVINPROMPT:-false}"
 MARK_HISTORY="${MARKHISTORY:-false}"
 DEBUG="${DEBUG:-false}"
+BRANCH_DETECTION="${BRANCHDETECTION:-true}"
 # No Defaults here
 BRANCH_MAPPING="${BRANCHMAPPING:-'{}'}"
 AUTO_COMMANDS="${AUTOCOMMANDS:-'{}'}"
@@ -134,12 +135,13 @@ export AUTO_SECRETS_CACHE_CONFIG="${CACHE_CONFIG}"
 export AUTO_SECRETS_SHOW_ENV_IN_PROMPT="${SHOW_ENV_IN_PROMPT}"
 export AUTO_SECRETS_MARK_HISTORY="${MARK_HISTORY}"
 export AUTO_SECRETS_DEBUG="${DEBUG}"
-export AUTO_SECRETS_ENABLE="true"
+export AUTO_SECRETS_BRANCH_DETECTION="${BRANCH_DETECTION}"
 
 # Paths and directories
 export AUTO_SECRETS_FEATURE_DIR="$INSTALL_DIR"
 export AUTO_SECRETS_CACHE_DIR="/dev/shm/auto-secrets"
 export AUTO_SECRETS_LOG_DIR="/var/log/auto-secrets"
+export AUTO_SECRETS_LOG_LEVEL="INFO"
 
 # Create log directory with proper permissions
 if [[ -w /var/log ]]; then
@@ -264,6 +266,7 @@ echo "  Shell integration: $SHELLS"
 echo "  Environment in prompt: ${SHOW_ENV_IN_PROMPT:-false}"
 echo "  History marking: ${MARK_HISTORY:-false}"
 echo "  Debug mode: ${DEBUG:-false}"
+echo "  BRANCH_DETECTION: ${BRANCH_DETECTION:-true}"
 echo ""
 echo "💡 Next steps:"
 echo "  1. Restart your shell or run: source /etc/profile.d/auto-secrets.sh"

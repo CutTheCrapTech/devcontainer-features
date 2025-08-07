@@ -85,10 +85,6 @@ class CacheManager:
             env_dir = self.cache_dir / "environments"
             env_dir.mkdir(exist_ok=True, mode=0o700)
 
-            # Create state subdirectory
-            state_dir = self.cache_dir / "state"
-            state_dir.mkdir(exist_ok=True, mode=0o700)
-
             self.logger.debug(f"Cache directory initialized: {self.cache_dir}")
 
         except OSError as e:

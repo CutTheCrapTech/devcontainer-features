@@ -56,6 +56,7 @@ def create_secret_manager(config: Dict[str, Any]) -> Optional[SecretManagerBase]
         raise ValueError(f"Unknown secret manager: {manager_type}. Available: {available}")
 
     manager_config = config.get("secret_manager_config", {})
+    manager_config["cache_base_dir"] = config.get("cache_base_dir", None)
     manager_class = SECRET_MANAGERS[manager_type]
 
     try:

@@ -277,7 +277,6 @@ class TestCacheManager:
 
             assert cache_dir.exists()
             assert (cache_dir / "environments").exists()
-            assert (cache_dir / "state").exists()
 
     @patch('auto_secrets.core.cache_manager.ConfigManager.get_cache_dir')
     @patch('pathlib.Path.mkdir')

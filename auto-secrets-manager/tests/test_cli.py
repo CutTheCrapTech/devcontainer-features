@@ -257,8 +257,8 @@ class TestHandleExecForShell:
             handle_exec_for_shell(self.mock_args)
 
             output = mock_stdout.getvalue()
-            assert "export API_KEY='secret123'" in output
-            assert "export DB_PASSWORD='dbpass456'" in output
+            assert 'export API_KEY="secret123"' in output
+            assert 'export DB_PASSWORD="dbpass456"' in output
 
     @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.CacheManager')
@@ -280,8 +280,8 @@ class TestHandleExecForShell:
             handle_exec_for_shell(self.mock_args)
 
             output = mock_stdout.getvalue()
-            assert "export API_KEY='secret123'" in output
-            assert "export DB_PASSWORD='dbpass456'" in output
+            assert 'export API_KEY="secret123"' in output
+            assert 'export DB_PASSWORD="dbpass456"' in output
 
 
 class TestHandleCurrentEnv:
@@ -722,7 +722,7 @@ class TestMainFunction:
             mock_args.func = mock_handle
             main()
 
-            mock_setup_logging.assert_called_once_with(log_level='DEBUG', log_dir='/tmp', log_file='daemon.log')
+            mock_setup_logging.assert_called_once_with(log_level='DEBUG', log_dir='/tmp', log_file='cli.log')
 
     @patch('auto_secrets.cli.ConfigManager.load_config')
     @patch('auto_secrets.cli.setup_logging')
@@ -744,7 +744,7 @@ class TestMainFunction:
              }):
             main()
 
-            mock_setup_logging.assert_called_once_with(log_level='INFO', log_dir='/tmp', log_file='daemon.log')
+            mock_setup_logging.assert_called_once_with(log_level='INFO', log_dir='/tmp', log_file='cli.log')
 
 
 class TestCLIIntegration:

@@ -7,9 +7,12 @@ Provides common functionality and error handling patterns.
 
 import os
 import re
+import json
+from pathlib import Path
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+from ..core.config import ConfigManager
 
 
 class SecretManagerError(Exception):
@@ -73,6 +76,7 @@ class SecretManagerBase(ABC):
         """
         self.config = config
         self.debug = config.get("debug", False)
+        self._config_file_cache: Optional[Dict[str, Any]] = None
         self._validate_config()
 
     def _validate_config(self) -> None:
@@ -318,6 +322,89 @@ class SecretManagerBase(ABC):
             clean_key = '_' + clean_key
 
         return clean_key.upper()
+
+    def _find_config_file(self) -> Optional[Path]:
+        """
+        Find the configuration file in secure locations only.
+
+        Returns:
+            Path to config file if found, None otherwise
+        """
+        cache_dir = ConfigManager.get_cache_dir(self.config)
+        locations = [
+            cache_dir / "config.json",
+            Path.home() / ".config" / "auto-secrets" / "config.json",
+            Path("/etc/auto-secrets/config.json"),
+        ]
+
+        for location in locations:
+            if location.exists() and location.is_file():
+                self.log_debug(f"Found config file: {location}")
+                return location
+
+        return None
+
+    def _load_config_file(self) -> Dict[str, Any]:
+        """
+        Load and cache the configuration file.
+        Returns:
+            Configuration dictionary from file, empty dict if no file found
+        """
+        if self._config_file_cache is not None:
+            return self._config_file_cache
+        config_path = self._find_config_file()
+        if config_path is None:
+            self._config_file_cache = {}
+            return self._config_file_cache
+
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+
+            if not isinstance(config_data, dict):
+                raise ConfigurationError(f"Config file must contain a JSON object: {config_path}")
+
+            self._config_file_cache = config_data
+            self.log_debug(f"Loaded config file with {len(config_data)} keys")
+            return self._config_file_cache
+
+        except json.JSONDecodeError as e:
+            raise ConfigurationError(f"Invalid JSON in config file {config_path}: {e}")
+        except Exception as e:
+            raise ConfigurationError(f"Failed to read config file {config_path}: {e}")
+
+    def get_secret_value(self, key: str, required: bool = False) -> Optional[str]:
+        """
+        Get a secret value from secure sources in order of precedence:
+        1. Environment variable
+        2. Configuration file
+        Args:
+            key: Environment variable name (e.g., "INFISICAL_CLIENT_SECRET")
+            required: Whether the value is required
+        Returns:
+            Secret value or None if not found
+        Raises:
+            ConfigurationError: If required value is missing
+        """
+        # 1. Check environment variable first
+        env_value = os.getenv(key)
+        if env_value:
+            self.log_debug(f"Found {key} in environment variables")
+            return env_value
+        # 2. Check configuration file
+        try:
+            config_file = self._load_config_file()
+            if key in config_file:
+                self.log_debug(f"Found {key} in config file")
+                return str(config_file[key])
+        except ConfigurationError:
+            # Log but don't fail - config file is optional
+            self.log_debug(f"Could not load config file for {key}")
+        if required:
+            raise ConfigurationError(
+                f"Required secret '{key}' not found in environment variables or config file"
+            )
+        return None
 
     def __repr__(self) -> str:
         """String representation of the secret manager."""

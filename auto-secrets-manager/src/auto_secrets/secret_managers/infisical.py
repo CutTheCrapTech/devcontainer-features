@@ -52,7 +52,7 @@ class InfisicalSecretManager(SecretManagerBase):
             raise SecretManagerError("Infisical client_id is required")
         self.client_id = client_id
 
-        client_secret = os.getenv("INFISICAL_CLIENT_SECRET")
+        client_secret = self.get_secret_value("INFISICAL_CLIENT_SECRET", required=True)
         if not client_secret:
             raise SecretManagerError("Infisical client_secret is required")
         self.client_secret = client_secret

@@ -33,8 +33,7 @@ The Auto Secrets Manager eliminates the need to manually manage environment vari
       },
       "secretManagerConfig": {
         "project_id": "your-project-id",
-        "client_id": "your-client-id",
-        "client_secret": "your-client-secret"
+        "client_id": "your-client-id"
       }
     }
   }
@@ -43,13 +42,35 @@ The Auto Secrets Manager eliminates the need to manually manage environment vari
 
 > **Note:** Due to a limitation in the DevContainer feature specification, JSON objects must be provided as escaped strings.
 
-### 2. Set Environment Variables
+### 2.1 Set Environment Variables
 
 ```bash
-# In your CI/CD or local environment
-export INFISICAL_CLIENT_ID="your-client-id"
+# In your local environment or .bashrc or zshrc
 export INFISICAL_CLIENT_SECRET="your-client-secret"
-export INFISICAL_PROJECT_ID="your-project-id"
+```
+
+### 2.2 Set Config files (Alternative to environment variables - persisted across sessions)
+
+The system searches for configuration files in these locations:
+
+1. Looks for environment variables first (this is ephemeral) or
+2. /dev/shm/auto-secrets/config.json (ram filesystem - Note: this is ephemeral and will be cleared on reboot, like environment variables, but this is more secure than environment variables) or
+3. ~/.config/auto-secrets/config.json (User config directory - persistent across sessions)
+4. /etc/auto-secrets/config.json (System-wide config - persistent across sessions)
+
+Sample config file content for infisical:
+
+`````json
+{
+    "INFISICAL_CLIENT_SECRET": "infisical-secret"
+}
+```
+
+or for Vault:
+````json
+{
+    "VAULT_TOKEN": "infisical-secret"
+}
 ```
 
 ### 3. Use in Your Project
@@ -260,18 +281,19 @@ eval "$(auto-secrets output-env --paths /infra/**)" # Load specific paths
 
 ```
 /dev/shm/auto-secrets-$USER/           # Runtime cache (RAM)
-├── environments/
+└── environments/
 │   ├── production.json                # Full cache with metadata
 │   ├── production.env                 # Shell-friendly format
 │   ├── staging.json
 │   └── staging.env
-└── state/
-    └── current.json                   # Current environment state
 
-/var/log/auto-secrets/                 # Logs
-└── auto-secrets.log                   # Main log file
+/var/log/auto-secrets/          # Logs
+├── daemon.log                # Python daemon log file
+├── shell.log                 # shell log file
+└── cli.log                   # Python cli log file
 
-/usr/local/share/auto-secrets/         # Installation
+/usr/local/share/auto-secrets/           # Installation
+├── auto-commands.sh                   # Auto commands detection
 ├── branch-detection.sh                # Core branch detection
 ├── bash-integration.sh                # Bash integration
 └── zsh-integration.sh                 # Zsh integration
@@ -396,17 +418,14 @@ pip3 install -e src/
 
 ```
 auto-secrets-manager/
-├── devcontainer-feature/              # DevContainer feature
-│   ├── devcontainer-feature.json     # Feature definition
-│   └── install.sh                    # Installation script
 ├── src/                              # Python source
 │   ├── auto_secrets/                 # Main package
 │   │   ├── cli.py                   # CLI interface
 │   │   ├── core/                    # Core modules
 │   │   │   ├── config.py           # Configuration
-│   │   │   ├── environment.py      # Environment state
 │   │   │   ├── branch_manager.py   # Branch mapping
-│   │   │   └── cache_manager.py    # Cache operations
+│   │   │   ├── cache_manager.py    # Cache operations
+│   │   │   └── utils.py            # Core Utils
 │   │   └── secret_managers/         # Secret manager plugins
 │   │       ├── base.py             # Abstract base
 │   │       └── infisical.py        # Infisical implementation
@@ -415,13 +434,15 @@ auto-secrets-manager/
 │   │   ├── branch-detection.sh     # Core branch detection logic
 │   │   ├── bash-integration.sh     # Bash integration
 │   │   └── zsh-integration.sh      # Zsh integration
+│   ├── setup.py                     # Python setup script
 │   └── requirements.txt             # Python dependencies
 ├── tests/                           # Test suite
-│   ├── test_config.py              # Configuration tests
-│   ├── test_branch_manager.py      # Branch manager tests
-│   └── test_environment.py         # Environment tests
-├── run_tests.sh                    # Test runner
-└── README.md                       # This file
+│   └── *                           # Tests for various components
+├── devcontainer-feature.json        # Feature definition
+├── install.sh                       # Installation script
+├── pytest.ini                       # Pytest configuration
+├── run_tests.sh                     # Test runner
+└── README.md                        # This file
 ```
 
 ### Contributing
@@ -586,3 +607,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 Made with ❤️ for developers who value security and productivity.
+`````

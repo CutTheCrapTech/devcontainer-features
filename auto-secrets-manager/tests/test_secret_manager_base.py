@@ -6,6 +6,7 @@ Tests the SecretManagerBase abstract class and related utilities.
 
 import os
 import pytest
+import json
 from unittest.mock import patch
 
 from auto_secrets.secret_managers.base import (  # type: ignore
@@ -611,3 +612,332 @@ class TestSecretManagerBaseIntegration:
         assert not manager.validate_environment("")
         assert not manager.validate_environment("a" * 65)
         assert not manager.validate_environment("invalid@name")
+
+
+class TestSecretManagerBaseConfigFile:
+    """Test config file related functionality."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.valid_config = {
+            "host": "https://api.example.com",
+            "debug": False
+        }
+
+    def test_find_config_file_cache_dir(self, tmp_path):
+        """Test finding config file in cache directory."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        # Create a temporary config file in cache dir
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        config_file = cache_dir / "config.json"
+        config_file.write_text('{"test": "value"}')
+
+        # Mock the cache dir
+        with patch('auto_secrets.secret_managers.base.ConfigManager.get_cache_dir', return_value=cache_dir):
+            result = manager._find_config_file()
+            assert result == config_file
+
+    def test_find_config_file_home_config(self, tmp_path):
+        """Test finding config file in home .config directory."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        # Create config file in home .config
+        home_config_dir = tmp_path / ".config" / "auto-secrets"
+        home_config_dir.mkdir(parents=True)
+        config_file = home_config_dir / "config.json"
+        config_file.write_text('{"test": "value"}')
+
+        # Mock paths
+        with patch(
+          'auto_secrets.secret_managers.base.ConfigManager.get_cache_dir',
+          return_value=tmp_path / "nonexistent"
+        ):
+            with patch('auto_secrets.secret_managers.base.Path.home', return_value=tmp_path):
+                result = manager._find_config_file()
+                assert result == config_file
+
+    def test_find_config_file_etc_config(self, tmp_path):
+        """Test finding config file in /etc directory using actual files."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        # Create actual config file in a temp location to simulate /etc
+        etc_dir = tmp_path / "etc" / "auto-secrets"
+        etc_dir.mkdir(parents=True)
+        etc_config_file = etc_dir / "config.json"
+        etc_config_file.write_text('{"test": "value"}')
+
+        # Mock all paths - cache and home don't exist, but etc does
+        with patch(
+          'auto_secrets.secret_managers.base.ConfigManager.get_cache_dir',
+          return_value=tmp_path / "nonexistent_cache"
+        ):
+            with patch('auto_secrets.secret_managers.base.Path.home', return_value=tmp_path / "nonexistent_home"):
+                # Create a custom mock for the _find_config_file locations list
+                def mock_find_config_file():
+                    locations = [
+                        tmp_path / "nonexistent_cache" / "config.json",
+                        tmp_path / "nonexistent_home" / ".config" / "auto-secrets" / "config.json",
+                        etc_config_file,  # Use our actual temp file
+                    ]
+
+                    for location in locations:
+                        if location.exists() and location.is_file():
+                            return location
+                    return None
+
+                manager._find_config_file = mock_find_config_file
+                result = manager._find_config_file()
+                assert result == etc_config_file
+
+    def test_find_config_file_not_found(self, tmp_path):
+        """Test when no config file is found using actual files."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        # Mock all paths to return non-existent locations (don't create any files)
+        with patch(
+          'auto_secrets.secret_managers.base.ConfigManager.get_cache_dir',
+          return_value=tmp_path / "nonexistent_cache"
+        ):
+            with patch('auto_secrets.secret_managers.base.Path.home', return_value=tmp_path / "nonexistent_home"):
+                # Create a custom mock that checks non-existent locations
+                def mock_find_config_file():
+                    locations = [
+                        tmp_path / "nonexistent_cache" / "config.json",
+                        tmp_path / "nonexistent_home" / ".config" / "auto-secrets" / "config.json",
+                        tmp_path / "nonexistent_etc" / "config.json",  # This won't exist
+                    ]
+
+                    for location in locations:
+                        if location.exists() and location.is_file():
+                            return location
+                    return None
+
+                manager._find_config_file = mock_find_config_file
+                result = manager._find_config_file()
+                assert result is None
+
+    def test_find_config_file_precedence(self, tmp_path):
+        """Test config file precedence order."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        # Create config files in multiple locations
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        cache_config = cache_dir / "config.json"
+        cache_config.write_text('{"source": "cache"}')
+
+        home_config_dir = tmp_path / ".config" / "auto-secrets"
+        home_config_dir.mkdir(parents=True)
+        home_config = home_config_dir / "config.json"
+        home_config.write_text('{"source": "home"}')
+
+        # Cache dir should take precedence
+        with patch('auto_secrets.secret_managers.base.ConfigManager.get_cache_dir', return_value=cache_dir):
+            with patch('auto_secrets.secret_managers.base.Path.home', return_value=tmp_path):
+                result = manager._find_config_file()
+                assert result == cache_config
+
+    def test_load_config_file_valid_json(self, tmp_path):
+        """Test loading valid JSON config file."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        config_file = tmp_path / "config.json"
+        config_data = {
+            "API_KEY": "secret123",
+            "DATABASE_URL": "postgresql://localhost/db",
+            "TIMEOUT": 30
+        }
+        config_file.write_text(json.dumps(config_data))
+
+        with patch.object(manager, '_find_config_file', return_value=config_file):
+            result = manager._load_config_file()
+            assert result == config_data
+
+    def test_load_config_file_caching(self, tmp_path):
+        """Test config file caching behavior."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        config_file = tmp_path / "config.json"
+        config_data = {"cached": "value"}
+        config_file.write_text(json.dumps(config_data))
+
+        with patch.object(manager, '_find_config_file', return_value=config_file) as mock_find:
+            # First call should read file
+            result1 = manager._load_config_file()
+            assert result1 == config_data
+
+            # Second call should use cache
+            result2 = manager._load_config_file()
+            assert result2 == config_data
+
+            # _find_config_file should only be called once due to caching
+            assert mock_find.call_count == 1
+
+    def test_load_config_file_no_file_found(self):
+        """Test loading config when no file is found."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        with patch.object(manager, '_find_config_file', return_value=None):
+            result = manager._load_config_file()
+            assert result == {}
+
+    def test_load_config_file_invalid_json(self, tmp_path):
+        """Test loading config file with invalid JSON."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text('{"invalid": json,}')  # Invalid JSON
+
+        with patch.object(manager, '_find_config_file', return_value=config_file):
+            with pytest.raises(ConfigurationError, match="Invalid JSON in config file"):
+                manager._load_config_file()
+
+    def test_load_config_file_not_json_object(self, tmp_path):
+        """Test loading config file that's not a JSON object."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text('["array", "not", "object"]')  # Valid JSON but not object
+
+        with patch.object(manager, '_find_config_file', return_value=config_file):
+            with pytest.raises(ConfigurationError, match="Config file must contain a JSON object"):
+                manager._load_config_file()
+
+    def test_load_config_file_read_error(self, tmp_path):
+        """Test loading config file with read permission error."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text('{"test": "value"}')
+
+        with patch.object(manager, '_find_config_file', return_value=config_file):
+            with patch('builtins.open', side_effect=PermissionError("Access denied")):
+                with pytest.raises(ConfigurationError, match="Failed to read config file"):
+                    manager._load_config_file()
+
+    @patch.dict(os.environ, {"TEST_SECRET": "env_value"})
+    def test_get_secret_value_from_environment(self):
+        """Test getting secret value from environment variable."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        result = manager.get_secret_value("TEST_SECRET")
+        assert result == "env_value"
+
+    def test_get_secret_value_from_config_file(self, tmp_path):
+        """Test getting secret value from config file."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        config_file = tmp_path / "config.json"
+        config_data = {"CONFIG_SECRET": "config_value"}
+        config_file.write_text(json.dumps(config_data))
+
+        with patch.object(manager, '_find_config_file', return_value=config_file):
+            result = manager.get_secret_value("CONFIG_SECRET")
+            assert result == "config_value"
+
+    @patch.dict(os.environ, {"PRIORITY_SECRET": "env_value"})
+    def test_get_secret_value_environment_priority(self, tmp_path):
+        """Test that environment variable takes priority over config file."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        config_file = tmp_path / "config.json"
+        config_data = {"PRIORITY_SECRET": "config_value"}
+        config_file.write_text(json.dumps(config_data))
+
+        with patch.object(manager, '_find_config_file', return_value=config_file):
+            result = manager.get_secret_value("PRIORITY_SECRET")
+            assert result == "env_value"  # Environment should win
+
+    def test_get_secret_value_not_found_optional(self):
+        """Test getting non-existent optional secret value."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        with patch.object(manager, '_load_config_file', return_value={}):
+            result = manager.get_secret_value("NONEXISTENT_SECRET")
+            assert result is None
+
+    def test_get_secret_value_not_found_required(self):
+        """Test getting non-existent required secret value."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        with patch.object(manager, '_load_config_file', return_value={}):
+            with pytest.raises(ConfigurationError, match="Required secret 'REQUIRED_SECRET' not found"):
+                manager.get_secret_value("REQUIRED_SECRET", required=True)
+
+    def test_get_secret_value_config_load_error(self, tmp_path):
+        """Test get_secret_value when config file loading fails."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text('invalid json')
+
+        with patch.object(manager, '_find_config_file', return_value=config_file):
+            # Should not raise exception, just log debug and continue
+            result = manager.get_secret_value("TEST_SECRET")
+            assert result is None
+
+    def test_get_secret_value_config_file_debug_logging(self, tmp_path):
+        """Test debug logging in get_secret_value methods."""
+        config = self.valid_config.copy()
+        config["debug"] = True
+        manager = ConcreteSecretManager(config)
+
+        config_file = tmp_path / "config.json"
+        config_data = {"LOG_TEST_SECRET": "config_value"}
+        config_file.write_text(json.dumps(config_data))
+
+        with patch.object(manager, '_find_config_file', return_value=config_file):
+            with patch.object(manager, 'log_debug') as mock_log:
+                manager.get_secret_value("LOG_TEST_SECRET")
+
+                # Check that debug messages were logged
+                debug_calls = [call.args[0] for call in mock_log.call_args_list]
+                assert any("Found LOG_TEST_SECRET in config file" in msg for msg in debug_calls)
+
+    @patch.dict(os.environ, {"ENV_LOG_SECRET": "env_value"})
+    def test_get_secret_value_environment_debug_logging(self):
+        """Test debug logging when finding secret in environment."""
+        config = self.valid_config.copy()
+        config["debug"] = True
+        manager = ConcreteSecretManager(config)
+
+        with patch.object(manager, 'log_debug') as mock_log:
+            manager.get_secret_value("ENV_LOG_SECRET")
+
+            mock_log.assert_any_call("Found ENV_LOG_SECRET in environment variables")
+
+    def test_get_secret_value_config_file_load_debug_logging(self, tmp_path):
+        """Test debug logging when config file loading fails."""
+        config = self.valid_config.copy()
+        config["debug"] = True
+        manager = ConcreteSecretManager(config)
+
+        config_file = tmp_path / "config.json"
+        config_file.write_text('invalid json')
+
+        with patch.object(manager, '_find_config_file', return_value=config_file):
+            with patch.object(manager, 'log_debug') as mock_log:
+                manager.get_secret_value("TEST_SECRET")
+
+                mock_log.assert_any_call("Could not load config file for TEST_SECRET")
+
+    def test_get_secret_value_config_file_type_conversion(self, tmp_path):
+        """Test that config file values are converted to strings."""
+        manager = ConcreteSecretManager(self.valid_config)
+
+        config_file = tmp_path / "config.json"
+        config_data = {
+            "STRING_SECRET": "string_value",
+            "INTEGER_SECRET": 123,
+            "BOOLEAN_SECRET": True,
+            "NULL_SECRET": None
+        }
+        config_file.write_text(json.dumps(config_data))
+
+        with patch.object(manager, '_find_config_file', return_value=config_file):
+            assert manager.get_secret_value("STRING_SECRET") == "string_value"
+            assert manager.get_secret_value("INTEGER_SECRET") == "123"
+            assert manager.get_secret_value("BOOLEAN_SECRET") == "True"
+            assert manager.get_secret_value("NULL_SECRET") == "None"

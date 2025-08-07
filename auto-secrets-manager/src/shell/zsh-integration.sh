@@ -14,7 +14,7 @@ fi
 source "${AUTO_SECRETS_FEATURE_DIR:-/usr/local/share/auto-secrets}/branch-detection.sh"
 
 # Set up precmd hook for branch change detection
-if [[ "$AUTO_SECRETS_ENABLE" != "false" ]]; then
+if [[ "$AUTO_SECRETS_BRANCH_DETECTION" != "false" ]]; then
     # Add our function to precmd_functions array
     if [[ -z "${precmd_functions[(r)_auto_secrets_check_branch_change]}" ]]; then
         precmd_functions+=(_auto_secrets_check_branch_change)

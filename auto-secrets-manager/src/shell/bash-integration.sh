@@ -14,7 +14,7 @@ fi
 source "${AUTO_SECRETS_FEATURE_DIR:-/usr/local/share/auto-secrets}/branch-detection.sh"
 
 # Set up PROMPT_COMMAND for branch change detection
-if [[ "$AUTO_SECRETS_ENABLE" != "false" ]]; then
+if [[ "$AUTO_SECRETS_BRANCH_DETECTION" != "false" ]]; then
   # Add our function to PROMPT_COMMAND
   if [[ "$PROMPT_COMMAND" != *"_auto_secrets_check_branch_change"* ]]; then
     if [[ -n "$PROMPT_COMMAND" ]]; then

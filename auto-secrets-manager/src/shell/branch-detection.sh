@@ -66,7 +66,7 @@ _auto_secrets_update_cached_branch() {
 # This is called from precmd hooks in both bash and zsh
 _auto_secrets_check_branch_change() {
   # Skip if disabled
-  if [[ "$AUTO_SECRETS_ENABLE" == "false" ]]; then
+  if [[ "$AUTO_SECRETS_BRANCH_DETECTION" == "false" ]]; then
     return 0
   fi
 

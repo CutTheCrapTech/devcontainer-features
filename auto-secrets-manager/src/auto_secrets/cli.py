@@ -88,11 +88,10 @@ def handle_inspect_secrets(args) -> None:
             return
 
         # Format output
-        # TODO: Check this
         if args.format == 'json':
             output = json.dumps(secrets, indent=2)
         elif args.format == 'env':
-            output = '\n'.join([f"{k}={v}" for k, v in secrets.items()])
+            output = '\n'.join([f'{k}="{v}"' for k, v in secrets.items()])
         elif args.format == 'keys':
             output = '\n'.join(secrets.keys())
         else:  # table format (default)
@@ -100,11 +99,17 @@ def handle_inspect_secrets(args) -> None:
             output += f"Secrets Count: {len(secrets)}\n"
             output += f"Cache Status: {'Fresh' if not cache_manager.is_cache_stale(environment) else 'Stale'}\n"
             output += "-" * 50 + "\n"
-            # TODO - this needs to print half the secret - or something similar
             for key, value in secrets.items():
                 # Redact sensitive values unless --show-values is specified
                 if args.show_values:
-                    output += f"{key}={value}\n"
+                    # Show half the value, but max 10 chars
+                    half_length = len(value) // 2
+                    chars_to_show = min(half_length, 10)
+                    if chars_to_show > 0:
+                        partial_value = value[:chars_to_show] + "***"
+                        output += f"{key}={partial_value}\n"
+                    else:
+                        output += f"{key}=***\n"
                 else:
                     output += f"{key}=***REDACTED***\n"
 
@@ -143,10 +148,10 @@ def handle_exec_command(args) -> None:
         secrets = cache_manager.get_cached_secrets(environment, args.paths)
 
         if not secrets:
-            logger.warning(f"No cached secrets found for environment: {environment}")
-            if config.get('require_secrets_for_exec', False):
-                logger.error("No secrets available and require_secrets_for_exec is enabled")
-                sys.exit(1)
+            logger.warning(
+              f"No cached secrets found for environment: {environment}"
+              "Continuing execution without secrets."
+            )
 
         # Prepare environment
         env = os.environ.copy()
@@ -197,10 +202,7 @@ def handle_exec_for_shell(args) -> None:
 
         # Generate shell export statements
         for key, value in secrets.items():
-            # TODO: check this
-            # Escape single quotes in values
-            escaped_value = value.replace("'", "'\"'\"'")
-            print(f"export {key}='{escaped_value}'")
+            print(f'export {key}="{value}"')
 
         # Add environment indicator
         print(f"export AUTO_SECRETS_CURRENT_ENV='{environment}'")
@@ -488,7 +490,7 @@ def main() -> None:
     logger = setup_logging(
         log_level=log_level,
         log_dir=str(logs_dir),
-        log_file="daemon.log"
+        log_file="cli.log"
     )
 
     if log_level == "DEBUG":
