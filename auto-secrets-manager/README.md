@@ -14,18 +14,18 @@ A DevContainer feature that automatically manages environment secrets based on g
 
 ## Options
 
-| Options Id          | Description                 | Type    | Default Value                                              |
-| ------------------- | --------------------------- | ------- | ---------------------------------------------------------- |
-| secretManager       | Your secret manager.        | string  | infisical                                                  |
-| shells              | Your shells in devContainer | string  | both                                                       |
-| branchMapping       | Your shells in devContainer | string  | {}                                                         |
-| secretManagerConfig | Your shells in devContainer | string  | {\"host\":\"https://app.infisical.com\"}                   |
-| autoCommands        | Your shells in devContainer | string  | {}                                                         |
-| cacheConfig         | Your shells in devContainer | string  | {\"refresh_interval\":\"15m\",\"cleanup_interval\":\"7d\"} |
-| showEnvInPrompt     | Your shells in devContainer | boolean | false                                                      |
-| markHistory         | Your shells in devContainer | boolean | false                                                      |
-| debug               | Your shells in devContainer | boolean | false                                                      |
-| branchDetection     | Your shells in devContainer | boolean | true                                                       |
+| Options Id                                                                | Description                 | Type    | Default Value                                              |
+| ------------------------------------------------------------------------- | --------------------------- | ------- | ---------------------------------------------------------- |
+| [secretManager](docs/configuration.md#secret-managers)                    | Your secret manager.        | string  | infisical                                                  |
+| [shells](docs/configuration.md#shell-integration)                         | Your shells in devContainer | string  | both                                                       |
+| [branchMapping](docs/configuration.md#branch-mapping)                     | Your shells in devContainer | string  | {}                                                         |
+| [secretManagerConfig](docs/configuration.md#secret-manager-configuration) | Your shells in devContainer | string  | {\"host\":\"https://app.infisical.com\"}                   |
+| [autoCommands](docs/configuration.md#auto-commands)                       | Your shells in devContainer | string  | {}                                                         |
+| [cacheConfig](docs/configuration.md#cache-configuration)                  | Your shells in devContainer | string  | {\"refresh_interval\":\"15m\",\"cleanup_interval\":\"7d\"} |
+| [showEnvInPrompt](docs/configuration.md#show-environment-in-prompt)       | Your shells in devContainer | boolean | false                                                      |
+| [markHistory](docs/configuration.md#mark-history)                         | Your shells in devContainer | boolean | false                                                      |
+| [debug](docs/configuration.md#debug-mode)                                 | Your shells in devContainer | boolean | false                                                      |
+| [branchDetection](docs/configuration.md#branch-detection)                 | Your shells in devContainer | boolean | true                                                       |
 
 ## 🎯 Overview
 
@@ -108,7 +108,3 @@ This project is licensed under the MIT License - see the [LICENSE](../LICENSE) f
 ---
 
 Made with ❤️ for developers who value security and productivity.
-
-```
-
-```
