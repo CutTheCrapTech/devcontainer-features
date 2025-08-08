@@ -8,7 +8,7 @@ For a detailed explanation of Dev Container Features, please check [the specific
 
 ## Contents
 
-### [`auto-secrets`](auto-secrets-manager/README.md)
+### [`auto-secrets-manager`](auto-secrets-manager/README.md)
 
 Auto-loads environment secrets into DevContainers based on your current git branch with zero configuration.
 

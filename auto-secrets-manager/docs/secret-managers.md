@@ -4,9 +4,76 @@ This document provides detailed setup and configuration instructions for all sup
 
 ## Table of Contents
 
-- [Infisical](#infisical)
+- [Configuration](#configuration)
 - [Credential Management](#credential-management)
+- [Infisical](#infisical)
 - [Troubleshooting](#troubleshooting)
+
+## Configuration
+
+### General Configuration Pattern
+
+All secret managers follow a consistent configuration pattern:
+
+```json
+{
+  "secretManager": "service-name",
+  "secretManagerConfig": "{\"option1\":\"value1\",\"option2\":\"value2\"}"
+}
+```
+
+### Configuration File Locations
+
+Credentials are loaded from these locations (in order of preference):
+
+1. **Environment variables** (ephemeral, highest priority)
+2. **RAM filesystem** (ephemeral, secure): `/dev/shm/auto-secrets/config.json`
+3. **User config** (persistent): `~/.config/auto-secrets/config.json`
+4. **System config** (persistent): `/etc/auto-secrets/config.json`
+
+## Credential Management
+
+### How Secrets Are Read
+
+The Auto Secrets Manager distinguishes between **secrets** (sensitive) and **configuration** (non-sensitive):
+
+**Secrets (sensitive - never commit):**
+
+- `INFISICAL_CLIENT_SECRET` - The only actual secret credential
+
+**Configuration (non-sensitive - can be committed):**
+
+- `client_id` - Service token identifier
+- `project_id` - Project identifier
+- `host` - Service URL
+- All other configuration options
+
+### Configuration File Locations
+
+The system searches for configuration files in these locations (in priority order):
+
+1. **Environment variables** (ephemeral, highest priority)
+2. `/dev/shm/auto-secrets/config.json` (RAM filesystem - ephemeral and cleared on reboot, more secure than environment variables)
+3. `~/.config/auto-secrets/config.json` (User config directory - persistent across sessions)
+4. `/etc/auto-secrets/config.json` (System-wide config - persistent across sessions)
+
+### Sample Configuration Files
+
+**For Infisical:**
+
+```json
+{
+  "INFISICAL_CLIENT_SECRET": "your-secret-here"
+}
+```
+
+**For Vault (planned):**
+
+```json
+{
+  "VAULT_TOKEN": "your-vault-token"
+}
+```
 
 ## Infisical
 
@@ -103,72 +170,6 @@ auto-secrets current-env
 auto-secrets debug | grep -A5 "Branch mapping"
 
 # List available environments in Infisical dashboard
-```
-
-## Configuration
-
-### General Configuration Pattern
-
-All secret managers follow a consistent configuration pattern:
-
-```json
-{
-  "secretManager": "service-name",
-  "secretManagerConfig": "{\"option1\":\"value1\",\"option2\":\"value2\"}"
-}
-```
-
-### Configuration File Locations
-
-Credentials are loaded from these locations (in order of preference):
-
-1. **Environment variables** (ephemeral, highest priority)
-2. **RAM filesystem** (ephemeral, secure): `/dev/shm/auto-secrets/config.json`
-3. **User config** (persistent): `~/.config/auto-secrets/config.json`
-4. **System config** (persistent): `/etc/auto-secrets/config.json`
-
-## Credential Management
-
-### How Secrets Are Read
-
-The Auto Secrets Manager distinguishes between **secrets** (sensitive) and **configuration** (non-sensitive):
-
-**Secrets (sensitive - never commit):**
-
-- `INFISICAL_CLIENT_SECRET` - The only actual secret credential
-
-**Configuration (non-sensitive - can be committed):**
-
-- `client_id` - Service token identifier
-- `project_id` - Project identifier
-- `host` - Service URL
-- All other configuration options
-
-### Configuration File Locations
-
-The system searches for configuration files in these locations (in priority order):
-
-1. **Environment variables** (ephemeral, highest priority)
-2. `/dev/shm/auto-secrets/config.json` (RAM filesystem - ephemeral and cleared on reboot, more secure than environment variables)
-3. `~/.config/auto-secrets/config.json` (User config directory - persistent across sessions)
-4. `/etc/auto-secrets/config.json` (System-wide config - persistent across sessions)
-
-### Sample Configuration Files
-
-**For Infisical:**
-
-```json
-{
-  "INFISICAL_CLIENT_SECRET": "your-secret-here"
-}
-```
-
-**For Vault (planned):**
-
-```json
-{
-  "VAULT_TOKEN": "your-vault-token"
-}
 ```
 
 ## Troubleshooting
