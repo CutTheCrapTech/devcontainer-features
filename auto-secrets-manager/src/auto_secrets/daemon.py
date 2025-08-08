@@ -5,20 +5,23 @@ Background daemon for proactive secret cache refresh and maintenance.
 Runs as a simple background process managed by DevContainer lifecycle.
 """
 
-import logging
 import os
-import signal
 import sys
 import time
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, Optional
+import signal
+from types import FrameType
+from typing import Dict, Any, Optional
 
-from .core.cache_manager import CacheManager
-from .core.config import ConfigManager
-from .core.utils import CommonUtils
+import logging
+from datetime import datetime
+
+from pathlib import Path
+
 from .logging_config import get_logger
-from .secret_managers import SecretManagerBase, create_secret_manager
+from .core.config import ConfigManager
+from .core.cache_manager import CacheManager
+from .secret_managers import create_secret_manager, SecretManagerBase
+from .core.utils import CommonUtils
 
 
 class SecretsDaemon:
@@ -31,7 +34,9 @@ class SecretsDaemon:
         self.running = False
         self.pid_file: Optional[Path]
         self.log_file: Path
-        self.logger: logging.Logger
+
+        logging.basicConfig(level=logging.INFO)
+        self.logger = get_logger("daemon")
 
         self.initialize()
 
@@ -62,11 +67,6 @@ class SecretsDaemon:
             self.logger.info("Daemon initialized successfully")
 
         except Exception as e:
-            # Set up basic logging if not already done
-            if self.logger is None:
-                logging.basicConfig(level=logging.INFO)
-                self.logger = get_logger("daemon")
-
             self.logger.error(f"Failed to initialize daemon: {e}")
             raise
 
@@ -137,7 +137,7 @@ class SecretsDaemon:
     def _setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown."""
 
-        def signal_handler(signum, frame):
+        def signal_handler(signum: int, frame: Optional[FrameType]) -> None:
             self.logger.info(f"Received signal {signum}, shutting down gracefully...")
             self.running = False
 
@@ -145,7 +145,7 @@ class SecretsDaemon:
         signal.signal(signal.SIGINT, signal_handler)
 
         # Handle SIGHUP as a reload signal
-        def reload_handler(signum, frame):
+        def reload_handler(signum: int, frame: Optional[FrameType]) -> None:
             self.logger.info("Received SIGHUP, reloading configuration...")
             try:
                 self.config = ConfigManager.load_config()
@@ -266,7 +266,6 @@ class SecretsDaemon:
     def run(self) -> None:
         """Main daemon loop."""
         try:
-            self.initialize()
             self._setup_signal_handlers()
 
             self.running = True
@@ -296,7 +295,7 @@ class SecretsDaemon:
 
                         for env in environments:
                             if not self.running:  # Check if we should stop
-                                break
+                                break  # type: ignore[unreachable]
 
                             success = self._refresh_environment_secrets(env)
                             if not success:

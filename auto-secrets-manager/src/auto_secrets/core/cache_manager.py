@@ -229,40 +229,43 @@ class CacheManager:
     ) -> Dict[str, str]:
         """
         Get cached secrets for environment.
-
         Args:
             environment: Environment name
             paths: Optional list of secret paths to filter by
-
         Returns:
             Dict[str, str]: Cached secrets
-
         Raises:
             CacheError: If cache cannot be read
         """
         if not environment:
             raise CacheError("Environment name cannot be empty")
-
         self.logger.debug(f"Retrieving cached secrets for environment: {environment}")
-
         try:
             env_cache_dir = self.get_environment_cache_dir(environment)
             cache_file = env_cache_dir / f"{environment}.json"
-
             if not cache_file.exists():
                 self.logger.debug(f"No cache file found for environment: {environment}")
                 return {}
-
             # Read cache file
             with open(cache_file, "r") as f:
                 cache_data = json.load(f)
 
-            secrets = cache_data.get("secrets", {})
-            metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
+            raw_secrets = cache_data.get("secrets", {})
 
+            # Validate that secrets is a dict with string values
+            if not isinstance(raw_secrets, dict):
+                raise CacheError("Invalid cache format: secrets must be a dictionary")
+
+            secrets: Dict[str, str] = {}
+            for key, value in raw_secrets.items():
+                if not isinstance(key, str) or not isinstance(value, str):
+                    self.logger.warning(f"Skipping non-string secret: {key}")
+                    continue
+                secrets[key] = value
+
+            metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
             # Update last accessed time
             self._update_access_time(environment, metadata)
-
             # Filter by paths if specified
             if paths:
                 filtered_secrets = {}
@@ -274,12 +277,10 @@ class CacheManager:
                     for key in matching_keys:
                         filtered_secrets[key] = secrets[key]
                 secrets = filtered_secrets
-
             self.logger.debug(
                 f"Retrieved {len(secrets)} cached secrets for {environment}"
             )
             return secrets
-
         except (OSError, json.JSONDecodeError) as e:
             self.logger.error(f"Failed to read cache for {environment}: {e}")
             raise CacheError(f"Cannot read cache: {e}")

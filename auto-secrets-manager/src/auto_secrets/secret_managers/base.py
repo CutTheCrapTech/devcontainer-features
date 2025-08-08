@@ -248,7 +248,7 @@ class SecretManagerBase(ABC):
 
         return default
 
-    def expand_environment_variables(self, value: Union[str, int, float, bool]) -> str:
+    def expand_environment_variables(self, value: Union[str, int, float, bool, list, dict]) -> str:
         """
         Expand environment variables in configuration values.
 

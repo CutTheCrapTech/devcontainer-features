@@ -11,7 +11,7 @@ echo "=================================================="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$SCRIPT_DIR"
 SRC_DIR="$ROOT_DIR/src"
-REPORTS_DIR="$ROOT_DIR/reports"
+REPORTS_DIR="$ROOT_DIR/.test_reports"
 
 # Colors for output
 RED='\033[0;31m'

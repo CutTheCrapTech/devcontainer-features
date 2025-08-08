@@ -827,7 +827,7 @@ class TestCacheManager:
 
             result = manager.get_cache_info("production")
 
-            assert result["secret_count"] == 2
+            assert result and result.get("secret_count") == 2
 
     def test_write_file_atomically_success(self) -> None:
         """Test atomic file writing success."""
@@ -903,7 +903,7 @@ class TestCacheManager:
             env_dir.mkdir(parents=True)
 
             cache_file = env_dir / "production.json"
-            cache_data = {
+            cache_data: Dict[str, Any] = {
                 "metadata": {
                     "environment": "production",
                     "created_at": 1234567890,
@@ -1080,7 +1080,7 @@ class TestCacheManager:
 
             # 6. Verify staleness
             cache_info = manager.get_cache_info("production")
-            assert cache_info["status"] == "stale"
+            assert cache_info and cache_info.get("status") == "stale"
 
             # 7. Cleanup stale caches
             with patch.object(manager, "is_cache_stale", return_value=True):

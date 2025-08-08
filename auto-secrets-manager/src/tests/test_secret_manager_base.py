@@ -8,6 +8,7 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
+from pathlib import Path
 
 import pytest
 from auto_secrets.secret_managers.base import (
@@ -182,7 +183,7 @@ class TestSecretManagerBase:
     def test_init_invalid_config_type(self) -> None:
         """Test initialization with invalid config type."""
         with pytest.raises(AttributeError):
-            ConcreteSecretManager("not a dict")
+            ConcreteSecretManager("not a dict")  # type: ignore[arg-type]
 
     def test_init_empty_config(self) -> None:
         """Test initialization with empty config."""
@@ -673,7 +674,7 @@ class TestSecretManagerBaseConfigFile:
                 result = manager._find_config_file()
                 assert result == config_file
 
-    def test_find_config_file_etc_config(self, tmp_path: Any) -> None:
+    def test_find_config_file_etc_config(self, tmp_path: Path) -> None:
         """Test finding config file in /etc directory using actual files."""
         manager = ConcreteSecretManager(self.valid_config)
 
@@ -693,7 +694,7 @@ class TestSecretManagerBaseConfigFile:
                 return_value=tmp_path / "nonexistent_home",
             ):
                 # Create a custom mock for the _find_config_file locations list
-                def mock_find_config_file() -> Optional[str]:
+                def mock_find_config_file() -> Optional[Path]:
                     locations = [
                         tmp_path / "nonexistent_cache" / "config.json",
                         tmp_path
@@ -706,12 +707,12 @@ class TestSecretManagerBaseConfigFile:
 
                     for location in locations:
                         if location.exists() and location.is_file():
-                            return str(location)
+                            return location
                     return None
 
                 manager._find_config_file = mock_find_config_file  # type: ignore
                 result = manager._find_config_file()
-                assert result == str(etc_config_file)
+                assert result == etc_config_file
 
     def test_find_config_file_not_found(self, tmp_path: Any) -> None:
         """Test when no config file is found using actual files."""

@@ -92,7 +92,11 @@ class BranchManager:
 
     def _get_default_environment(self) -> Optional[str]:
         """Get the default environment from configuration."""
-        return self.config.get("branch_mappings", {}).get("default")
+        branch_mappings = self.config.get("branch_mappings", {})
+        if isinstance(branch_mappings, dict):
+            default_env = branch_mappings.get("default")
+            return default_env if isinstance(default_env, str) else None
+        return None
 
     def _branch_matches_pattern(self, branch_name: str, pattern: str) -> bool:
         """

@@ -20,7 +20,7 @@ from .logging_config import get_logger, log_system_info, setup_logging
 from .secret_managers import create_secret_manager
 
 
-def handle_branch_change(args) -> None:
+def handle_branch_change(args: argparse.Namespace) -> None:
     """Handle branch change notification from shell."""
     logger = get_logger("cli.branch_change")
 
@@ -42,7 +42,7 @@ def handle_branch_change(args) -> None:
         sys.exit(1)
 
 
-def handle_refresh_secrets(args) -> None:
+def handle_refresh_secrets(args: argparse.Namespace) -> None:
     """Refresh secrets for current or specified environment."""
     logger = get_logger("cli.refresh")
 
@@ -61,7 +61,7 @@ def handle_refresh_secrets(args) -> None:
         sys.exit(1)
 
 
-def handle_inspect_secrets(args) -> None:
+def handle_inspect_secrets(args: argparse.Namespace) -> None:
     """Inspect cached secrets for current or specified environment."""
     logger = get_logger("cli.inspect")
 
@@ -123,7 +123,7 @@ def handle_inspect_secrets(args) -> None:
         sys.exit(1)
 
 
-def handle_exec_command(args) -> None:
+def handle_exec_command(args: argparse.Namespace) -> None:
     """Execute command with environment secrets loaded."""
     logger = get_logger("cli.exec")
 
@@ -176,7 +176,7 @@ def handle_exec_command(args) -> None:
         sys.exit(1)
 
 
-def handle_exec_for_shell(args) -> None:
+def handle_exec_for_shell(args: argparse.Namespace) -> None:
     """Generate shell script for sourcing environment variables."""
     logger = get_logger("cli.exec_shell")
 
@@ -305,7 +305,7 @@ def handle_debug_env() -> None:
         sys.exit(1)
 
 
-def handle_cleanup(args) -> None:
+def handle_cleanup(args: argparse.Namespace) -> None:
     """Clean up cache and temporary files."""
     logger = get_logger("cli.cleanup")
 
