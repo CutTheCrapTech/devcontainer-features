@@ -9,312 +9,289 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from ..logging_config import get_logger
 from .utils import CommonUtils
 
 
 class ConfigError(Exception):
-    """Configuration-related errors."""
+  """Configuration-related errors."""
 
-    pass
+  pass
 
 
 class ConfigManager:
+  """
+  Configuration manager for Auto Secrets Manager.
+
+  Handles loading, validation, and management of configuration from
+  environment variables and files.
+  """
+
+  _VALID_SECRET_MANAGERS = ["infisical", "vault", "aws", "azure", "gcp"]
+  _VALID_SHELLS = ["bash", "zsh", "both"]
+
+  @classmethod
+  def _parse_env(cls, env_variable: str, default: Optional[str] = None) -> str:
     """
-    Configuration manager for Auto Secrets Manager.
+    Parse environment variables for configuration.
 
-    Handles loading, validation, and management of configuration from
-    environment variables and files.
+    Args:
+        env_variable: Environment variable name to parse
+
+    Raises:
+        ConfigError: If configuration is invalid
+
+    Returns:
+        Any: Parsed configuration value
     """
+    val = os.getenv(env_variable, "").strip()
+    if default is None and not val:
+      raise ConfigError(f"{env_variable} environment variable is required. ")
+    elif default is not None and not val:
+      val = default
+    return val
 
-    _VALID_SECRET_MANAGERS = ["infisical", "vault", "aws", "azure", "gcp"]
-    _VALID_SHELLS = ["bash", "zsh", "both"]
+  @classmethod
+  def _parse_json(cls, env_variable: str, json_str: str, default: Optional[str] = None) -> Any:
+    """
+    Parse environment variables for configuration.
 
-    @classmethod
-    def _parse_env(cls, env_variable: str, default: Optional[str] = None) -> str:
-        """
-        Parse environment variables for configuration.
+    Args:
+        env_variable: env_variable to use in error messages
+        json_str: json string to parse
 
-        Args:
-            env_variable: Environment variable name to parse
+    Raises:
+        ConfigError: If invalid json
 
-        Raises:
-            ConfigError: If configuration is invalid
+    Returns:
+        Any: Parsed json
+    """
+    try:
+      val = json.loads(json_str)
+      return val
+    except json.JSONDecodeError as e:
+      raise ConfigError(f"Invalid {env_variable} JSON: {e}") from None
 
-        Returns:
-            Any: Parsed configuration value
-        """
-        val = os.getenv(env_variable, "").strip()
-        if default is None and not val:
-            raise ConfigError(f"{env_variable} environment variable is required. ")
-        elif default is not None and not val:
-            val = default
-        return val
+  @classmethod
+  def load_config(cls) -> dict[str, Any]:
+    """
+    Load configuration from environment variables.
 
-    @classmethod
-    def _parse_json(
-        cls, env_variable: str, json_str: str, default: Optional[str] = None
-    ) -> Any:
-        """
-        Parse environment variables for configuration.
+    Returns a dictionary with configuration values, using sensible defaults
+    where appropriate and validating required settings.
 
-        Args:
-            env_variable: env_variable to use in error messages
-            json_str: json string to parse
+    Returns:
+        Dict[str, Any]: Configuration dictionary
 
-        Raises:
-            ConfigError: If invalid json
+    Raises:
+        ConfigError: If required configuration is missing or invalid
+    """
+    logger = get_logger("config")
+    config: dict[str, Any] = {}
 
-        Returns:
-            Any: Parsed json
-        """
-        try:
-            val = json.loads(json_str)
-            return val
-        except json.JSONDecodeError as e:
-            raise ConfigError(f"Invalid {env_variable} JSON: {e}")
+    # === Core Settings ===
 
-    @classmethod
-    def load_config(cls) -> Dict[str, Any]:
-        """
-        Load configuration from environment variables.
+    # Secret manager type (required)
+    config["secret_manager"] = cls._parse_env("AUTO_SECRETS_SECRET_MANAGER")
 
-        Returns a dictionary with configuration values, using sensible defaults
-        where appropriate and validating required settings.
+    # Shell integration (required)
+    config["shells"] = cls._parse_env("AUTO_SECRETS_SHELLS")
 
-        Returns:
-            Dict[str, Any]: Configuration dictionary
+    # Debug mode
+    config["debug"] = cls._parse_env("AUTO_SECRETS_DEBUG", "").lower() == "true"
 
-        Raises:
-            ConfigError: If required configuration is missing or invalid
-        """
-        logger = get_logger("config")
-        config: Dict[str, Any] = {}
+    # === Branch Mapping (Security Critical - No Defaults) - (required) ===
 
-        # === Core Settings ===
+    branch_mapping_json = cls._parse_env("AUTO_SECRETS_BRANCH_MAPPINGS")
+    config["branch_mappings"] = cls._parse_json("AUTO_SECRETS_BRANCH_MAPPINGS", branch_mapping_json)
+    logger.info(f"Loaded branch mappings for {len(config['branch_mappings'])} entries")
 
-        # Secret manager type (required)
-        config["secret_manager"] = cls._parse_env("AUTO_SECRETS_SECRET_MANAGER")
+    # === Secret Manager Configuration ===
 
-        # Shell integration (required)
-        config["shells"] = cls._parse_env("AUTO_SECRETS_SHELLS")
+    sm_config_json = cls._parse_env("AUTO_SECRETS_SECRET_MANAGER_CONFIG", "{}")
+    config["secret_manager_config"] = cls._parse_json("AUTO_SECRETS_SECRET_MANAGER_CONFIG", sm_config_json)
 
-        # Debug mode
-        config["debug"] = cls._parse_env("AUTO_SECRETS_DEBUG", "").lower() == "true"
+    # === Auto Commands Configuration ===
 
-        # === Branch Mapping (Security Critical - No Defaults) - (required) ===
+    auto_commands_json = cls._parse_env("AUTO_SECRETS_AUTO_COMMANDS", "{}")
+    config["auto_commands"] = cls._parse_json("AUTO_SECRETS_AUTO_COMMANDS", auto_commands_json)
+    logger.info(f"Loaded branch mappings for {len(config['auto_commands'])} entries")
 
-        branch_mapping_json = cls._parse_env("AUTO_SECRETS_BRANCH_MAPPINGS")
-        config["branch_mappings"] = cls._parse_json(
-            "AUTO_SECRETS_BRANCH_MAPPINGS", branch_mapping_json
-        )
-        logger.info(
-            f"Loaded branch mappings for {len(config['branch_mappings'])} entries"
-        )
+    # === Cache Configuration ===
 
-        # === Secret Manager Configuration ===
+    # Cache base directory (required)
+    config["cache_base_dir"] = cls._parse_env("AUTO_SECRETS_CACHE_DIR")
 
-        sm_config_json = cls._parse_env("AUTO_SECRETS_SECRET_MANAGER_CONFIG", "{}")
-        config["secret_manager_config"] = cls._parse_json(
-            "AUTO_SECRETS_SECRET_MANAGER_CONFIG", sm_config_json
-        )
+    # Cache settings (required)
+    cache_config_json = cls._parse_env("AUTO_SECRETS_CACHE_CONFIG")
+    config["cache_config"] = cls._parse_json("AUTO_SECRETS_CACHE_CONFIG", cache_config_json)
 
-        # === Auto Commands Configuration ===
+    # === Paths and Directories ===
 
-        auto_commands_json = cls._parse_env("AUTO_SECRETS_AUTO_COMMANDS", "{}")
-        config["auto_commands"] = cls._parse_json(
-            "AUTO_SECRETS_AUTO_COMMANDS", auto_commands_json
-        )
-        logger.info(
-            f"Loaded branch mappings for {len(config['auto_commands'])} entries"
-        )
+    config["feature_dir"] = cls._parse_env("AUTO_SECRETS_FEATURE_DIR")
+    config["log_dir"] = cls._parse_env("AUTO_SECRETS_LOG_DIR")
+    config["log_level"] = cls._parse_env("AUTO_SECRETS_LOG_LEVEL")
 
-        # === Cache Configuration ===
+    # === Validation ===
 
-        # Cache base directory (required)
-        config["cache_base_dir"] = cls._parse_env("AUTO_SECRETS_CACHE_DIR")
+    cls._validate_config(config)
 
-        # Cache settings (required)
-        cache_config_json = cls._parse_env("AUTO_SECRETS_CACHE_CONFIG")
-        config["cache_config"] = cls._parse_json(
-            "AUTO_SECRETS_CACHE_CONFIG", cache_config_json
-        )
+    logger.info("Configuration loaded successfully")
+    logger.debug(f"Secret manager: {config['secret_manager']}")
+    logger.debug(f"Shells: {config['shells']}")
+    logger.debug(f"Debug mode: {config['debug']}")
+    logger.debug(f"Cache directory: {config['cache_base_dir']}")
 
-        # === Paths and Directories ===
+    return config
 
-        config["feature_dir"] = cls._parse_env("AUTO_SECRETS_FEATURE_DIR")
-        config["log_dir"] = cls._parse_env("AUTO_SECRETS_LOG_DIR")
-        config["log_level"] = cls._parse_env("AUTO_SECRETS_LOG_LEVEL")
+  @classmethod
+  def _validate_config(cls, config: dict[str, Any]) -> None:
+    """
+    Validate the loaded configuration.
 
-        # === Validation ===
+    Args:
+        config: Configuration dictionary to validate
 
-        cls._validate_config(config)
+    Raises:
+        ConfigError: If configuration is invalid
+    """
+    # Validate secret manager
+    if config["secret_manager"] not in cls._VALID_SECRET_MANAGERS:
+      raise ConfigError(
+        f"Invalid secret manager: {config['secret_manager']}. Valid options: {', '.join(cls._VALID_SECRET_MANAGERS)}"
+      )
 
-        logger.info("Configuration loaded successfully")
-        logger.debug(f"Secret manager: {config['secret_manager']}")
-        logger.debug(f"Shells: {config['shells']}")
-        logger.debug(f"Debug mode: {config['debug']}")
-        logger.debug(f"Cache directory: {config['cache_base_dir']}")
+    # Validate shells
+    if config["shells"] not in cls._VALID_SHELLS:
+      raise ConfigError(
+        f"Invalid shells configuration: {config['shells']}. Valid options: {', '.join(cls._VALID_SHELLS)}"
+      )
 
-        return config
+    # Validate branch mappings
+    branch_mappings = config["branch_mappings"]
+    if not isinstance(branch_mappings, dict) or not branch_mappings:
+      raise ConfigError("Branch mappings must be a non-empty dictionary")
 
-    @classmethod
-    def _validate_config(cls, config: Dict[str, Any]) -> None:
-        """
-        Validate the loaded configuration.
+    if "default" not in branch_mappings:
+      raise ConfigError("Branch mappings must include a 'default' entry")
 
-        Args:
-            config: Configuration dictionary to validate
+    # Validate cache configuration
+    try:
+      CommonUtils.parse_duration(config["cache_config"].get("refresh_interval"))
+      CommonUtils.parse_duration(config["cache_config"].get("cleanup_interval"))
+    except ValueError as e:
+      raise ConfigError(f"Invalid cache configuration: {e}") from None
 
-        Raises:
-            ConfigError: If configuration is invalid
-        """
-        # Validate secret manager
-        if config["secret_manager"] not in cls._VALID_SECRET_MANAGERS:
-            raise ConfigError(
-                f"Invalid secret manager: {config['secret_manager']}. "
-                f"Valid options: {', '.join(cls._VALID_SECRET_MANAGERS)}"
-            )
+  @classmethod
+  def get_cache_dir(cls, config: dict[str, Any], environment: Optional[str] = None) -> Path:
+    """
+    Get the cache directory path for the current user and optionally environment.
+    Args:
+        config: Configuration dictionary
+        environment: Optional environment name for environment-specific cache
+    Returns:
+        Path: Cache directory path
+    """
+    base_path = Path(config["cache_base_dir"])
+    if environment:
+      return base_path / "environments" / environment
+    else:
+      return base_path
 
-        # Validate shells
-        if config["shells"] not in cls._VALID_SHELLS:
-            raise ConfigError(
-                f"Invalid shells configuration: {config['shells']}. "
-                f"Valid options: {', '.join(cls._VALID_SHELLS)}"
-            )
+  @classmethod
+  def get_base_dir(cls, config: dict[str, Any]) -> Path:
+    """
+    Get the cache directory path for the current user and optionally environment.
+    Args:
+        config: Configuration dictionary
+    Returns:
+        Path: Cache directory path
+    """
+    return Path(config["cache_base_dir"])
 
-        # Validate branch mappings
-        branch_mappings = config["branch_mappings"]
-        if not isinstance(branch_mappings, dict) or not branch_mappings:
-            raise ConfigError("Branch mappings must be a non-empty dictionary")
+  @classmethod
+  def get_log_file_path(cls, config: dict[str, Any], log_name: str = "auto-secrets.log") -> Path:
+    """
+    Get the log file path.
 
-        if "default" not in branch_mappings:
-            raise ConfigError("Branch mappings must include a 'default' entry")
+    Args:
+        config: Configuration dictionary
+        log_name: Log file name
 
-        # Validate cache configuration
-        try:
-            CommonUtils.parse_duration(config["cache_config"].get("refresh_interval"))
-            CommonUtils.parse_duration(config["cache_config"].get("cleanup_interval"))
-        except ValueError as e:
-            raise ConfigError(f"Invalid cache configuration: {e}")
+    Returns:
+        Path: Log file path
+    """
+    log_dir = Path(config["log_dir"])
 
-    @classmethod
-    def get_cache_dir(
-        cls, config: Dict[str, Any], environment: Optional[str] = None
-    ) -> Path:
-        """
-        Get the cache directory path for the current user and optionally environment.
-        Args:
-            config: Configuration dictionary
-            environment: Optional environment name for environment-specific cache
-        Returns:
-            Path: Cache directory path
-        """
-        base_path = Path(config["cache_base_dir"])
-        if environment:
-            return base_path / "environments" / environment
-        else:
-            return base_path
+    # Create log directory if it doesn't exist
+    try:
+      log_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
+    except PermissionError:
+      # Fallback to user's cache directory
+      log_dir = Path.home() / ".cache" / "auto-secrets" / "logs"
+      log_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
 
-    @classmethod
-    def get_base_dir(cls, config: Dict[str, Any]) -> Path:
-        """
-        Get the cache directory path for the current user and optionally environment.
-        Args:
-            config: Configuration dictionary
-        Returns:
-            Path: Cache directory path
-        """
-        return Path(config["cache_base_dir"])
+    return log_dir / log_name
 
-    @classmethod
-    def get_log_file_path(
-        cls, config: Dict[str, Any], log_name: str = "auto-secrets.log"
-    ) -> Path:
-        """
-        Get the log file path.
+  @classmethod
+  def create_minimal_config_template(cls) -> dict[str, Any]:
+    """
+    Create a minimal configuration template for documentation/setup purposes.
 
-        Args:
-            config: Configuration dictionary
-            log_name: Log file name
+    Returns:
+        Dict[str, Any]: Template configuration
+    """
+    return {
+      "secret_manager": "infisical",
+      "shells": "both",
+      "debug": False,
+      "branch_mappings": {
+        "main": "production",
+        "develop": "staging",
+        "feature/*": "development",
+        "default": "development",
+      },
+      "secret_manager_config": {
+        "# Infisical configuration": "See documentation for setup",
+        "client_id": "your-client-id",
+        "client_secret": "your-client-secret",
+        "project_id": "your-project-id",
+      },
+      "auto_commands": {
+        "terraform": ["/infrastructure/**"],
+        "tofu": ["/infrastructure/**"],
+        "kubectl": ["/kubernetes/**"],
+        "docker": ["/docker/**"],
+      },
+      "cache_config": {
+        "refresh_interval": "15m",
+        "cleanup_interval": "7d",
+      },
+    }
 
-        Returns:
-            Path: Log file path
-        """
-        log_dir = Path(config["log_dir"])
+  @classmethod
+  def is_valid_environment_name(cls, environment: str) -> bool:
+    """
+    Validate environment name format.
 
-        # Create log directory if it doesn't exist
-        try:
-            log_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
-        except PermissionError:
-            # Fallback to user's cache directory
-            log_dir = Path.home() / ".cache" / "auto-secrets" / "logs"
-            log_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
+    Args:
+        environment: Environment name to validate
 
-        return log_dir / log_name
+    Returns:
+        bool: True if environment name is valid
+    """
+    if not environment or not isinstance(environment, str):
+      return False
 
-    @classmethod
-    def create_minimal_config_template(cls) -> Dict[str, Any]:
-        """
-        Create a minimal configuration template for documentation/setup purposes.
+    # Length check
+    if len(environment) < 1 or len(environment) > 64:
+      return False
 
-        Returns:
-            Dict[str, Any]: Template configuration
-        """
-        return {
-            "secret_manager": "infisical",
-            "shells": "both",
-            "debug": False,
-            "branch_mappings": {
-                "main": "production",
-                "develop": "staging",
-                "feature/*": "development",
-                "default": "development",
-            },
-            "secret_manager_config": {
-                "# Infisical configuration": "See documentation for setup",
-                "client_id": "your-client-id",
-                "client_secret": "your-client-secret",
-                "project_id": "your-project-id",
-            },
-            "auto_commands": {
-                "terraform": ["/infrastructure/**"],
-                "tofu": ["/infrastructure/**"],
-                "kubectl": ["/kubernetes/**"],
-                "docker": ["/docker/**"],
-            },
-            "cache_config": {
-                "refresh_interval": "15m",
-                "cleanup_interval": "7d",
-            },
-        }
-
-    @classmethod
-    def is_valid_environment_name(cls, environment: str) -> bool:
-        """
-        Validate environment name format.
-
-        Args:
-            environment: Environment name to validate
-
-        Returns:
-            bool: True if environment name is valid
-        """
-        if not environment or not isinstance(environment, str):
-            return False
-
-        # Length check
-        if len(environment) < 1 or len(environment) > 64:
-            return False
-
-        # Must be alphanumeric with hyphens/underscores
-        # Can't start or end with special characters
-        if len(environment) == 1:
-            return re.match(r"^[a-zA-Z0-9]$", environment) is not None
-        else:
-            return (
-                re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$", environment)
-                is not None
-            )
+    # Must be alphanumeric with hyphens/underscores
+    # Can't start or end with special characters
+    if len(environment) == 1:
+      return re.match(r"^[a-zA-Z0-9]$", environment) is not None
+    else:
+      return re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$", environment) is not None

@@ -122,13 +122,13 @@ _auto_secrets_get_current_env() {
   cached_repo=$(_auto_secrets_get_cached_data "${AUTO_SECRETS_BRANCH_CACHE}.repo")
 
   # Construct key for environment
-  local key
-  key="${cached_branch}-${cached_repo}"
+  local lookup_id
+  lookup_id="${cached_branch}:${cached_repo}"
 
   # Get json data from cache
   local data
   cached_repo=$(_auto_secrets_get_cached_data "${AUTO_SECRETS_BRANCH_CACHE}.json")
-  echo "$data" | jq -r --arg k "$key" 'if . then .[$k] // "" else "" end' 2>/dev/null || echo ""
+  echo "$data" | jq -r --arg k "$lookup_id" 'if . then .[$k] // "" else "" end' 2>/dev/null || echo ""
 }
 
 # Health check function

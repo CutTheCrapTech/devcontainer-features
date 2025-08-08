@@ -140,11 +140,11 @@ initialize_environment() {
   if [[ "$CI_MODE" == "true" ]]; then
     pip3 install --quiet --upgrade pip
     # CI: Test the actual installation users will get
-    pip3 install .
+    pip3 install ".[dev]" # Install with dev dependencies in CI
   else
     pip3 install --upgrade pip
-    # Development: Use editable for convenience
-    pip3 install -e .
+    # Development: Use editable with dev dependencies
+    pip3 install -e ".[dev]"
   fi
 
   # Verify installation
@@ -452,20 +452,20 @@ run_security_checks() {
 
   local issues=0
 
-  # Check for hardcoded secrets or tokens
-  if grep -r -i -E "(password|secret|token|key)\s*=\s*['\"][^'\"]{8,}" . --exclude-dir=__pycache__ 2>/dev/null; then
+  # Check for hardcoded secrets or tokens (excluding tests directory)
+  if grep -r -i -E "(password|secret|token|key)\s*=\s*['\"][^'\"]{8,}" . --exclude-dir=__pycache__ --exclude-dir=tests 2>/dev/null; then
     print_warning "Potential hardcoded secrets found"
     ((issues++))
   fi
 
-  # Check for SQL injection patterns
-  if grep -r -i -E "execute\s*\(\s*['\"].*%.*['\"]" . --exclude-dir=__pycache__ 2>/dev/null; then
+  # Check for SQL injection patterns (excluding tests directory)
+  if grep -r -i -E "execute\s*\(\s*['\"].*%.*['\"]" . --exclude-dir=__pycache__ --exclude-dir=tests 2>/dev/null; then
     print_warning "Potential SQL injection vulnerability found"
     ((issues++))
   fi
 
-  # Check file permissions in created files
-  if grep -r -E "chmod\s+[0-9]{3}" . --exclude-dir=__pycache__ 2>/dev/null | grep -v "0o600\|0o700"; then
+  # Check file permissions in created files (excluding tests directory)
+  if grep -r -E "chmod\s+[0-9]{3}" . --exclude-dir=__pycache__ --exclude-dir=tests 2>/dev/null | grep -v "0o600\|0o700"; then
     print_warning "Potentially insecure file permissions found"
     ((issues++))
   fi

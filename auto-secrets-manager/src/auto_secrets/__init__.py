@@ -15,8 +15,8 @@ from .core.branch_manager import BranchManager
 from .core.cache_manager import CacheManager
 
 __all__ = [
-    "cli_main",
-    "CacheManager",
-    "BranchManager",
-    "__version__",
+  "cli_main",
+  "CacheManager",
+  "BranchManager",
+  "__version__",
 ]
