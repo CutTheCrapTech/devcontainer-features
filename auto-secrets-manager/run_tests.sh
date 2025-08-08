@@ -139,12 +139,10 @@ initialize_environment() {
 
   if [[ "$CI_MODE" == "true" ]]; then
     pip3 install --quiet --upgrade pip
-    pip3 install --quiet -r requirements.txt
     # CI: Test the actual installation users will get
     pip3 install .
   else
     pip3 install --upgrade pip
-    pip3 install -r requirements.txt
     # Development: Use editable for convenience
     pip3 install -e .
   fi
@@ -167,7 +165,7 @@ run_unit_tests() {
 
   print_step "Running Python unit tests"
 
-  cd "$ROOT_DIR"
+  cd "$SRC_DIR"
 
   # Prepare pytest arguments
   pytest_args=(
@@ -187,8 +185,8 @@ run_unit_tests() {
     pytest_args+=(
       "--cov=auto_secrets"
       "--cov-report=term-missing"
-      "--cov-report=html:$REPORTS_DIR/htmlcov"
-      "--cov-report=xml:$REPORTS_DIR/coverage.xml"
+      "--cov-report=html:../reports/htmlcov"
+      "--cov-report=xml:../reports/coverage.xml"
       "--cov-branch"
     )
 
@@ -199,7 +197,7 @@ run_unit_tests() {
 
   # Add JUnit XML for CI
   if [[ "$CI_MODE" == "true" ]]; then
-    pytest_args+=("--junitxml=$REPORTS_DIR/junit.xml")
+    pytest_args+=("--junitxml=../reports/junit.xml")
   fi
 
   # Run tests
@@ -221,7 +219,7 @@ run_integration_tests() {
 
   print_step "Running integration tests"
 
-  cd "$ROOT_DIR"
+  cd "$SRC_DIR"
 
   # Set up test environment variables
   export AUTO_SECRETS_DEBUG=true
@@ -356,43 +354,25 @@ run_lint_checks() {
   cd "$SRC_DIR"
   local errors=0
 
-  # Python code formatting (black)
-  if command_exists black; then
-    print_info "Checking Python code formatting with black..."
-    if black --check --diff . 2>/dev/null; then
-      print_info "✓ Black formatting check passed"
+  # Use Ruff for Python linting and formatting
+  if command_exists ruff; then
+    print_info "Running Ruff linting..."
+    if ruff check . 2>/dev/null; then
+      print_info "✓ Ruff linting passed"
     else
-      print_warning "✗ Code formatting issues found (run 'black .' to fix)"
+      print_warning "✗ Ruff linting issues found (run 'ruff check --fix .' to fix)"
       ((errors++))
     fi
-  else
-    print_warning "black not found, skipping formatting check"
-  fi
 
-  # Import sorting (isort)
-  if command_exists isort; then
-    print_info "Checking import sorting with isort..."
-    if isort --check-only --diff . 2>/dev/null; then
-      print_info "✓ Import sorting check passed"
+    print_info "Checking Python code formatting with Ruff..."
+    if ruff format --check . 2>/dev/null; then
+      print_info "✓ Ruff formatting check passed"
     else
-      print_warning "✗ Import sorting issues found (run 'isort .' to fix)"
+      print_warning "✗ Code formatting issues found (run 'ruff format .' to fix)"
       ((errors++))
     fi
   else
-    print_warning "isort not found, skipping import sorting check"
-  fi
-
-  # Python linting (flake8)
-  if command_exists flake8; then
-    print_info "Running flake8 linting..."
-    if flake8 --max-line-length=120 --extend-ignore=E203,W503 . 2>/dev/null; then
-      print_info "✓ Flake8 linting passed"
-    else
-      print_warning "✗ Flake8 linting issues found"
-      ((errors++))
-    fi
-  else
-    print_warning "flake8 not found, skipping Python linting"
+    print_warning "ruff not found, skipping Python linting and formatting"
   fi
 
   # Shell script linting (shellcheck)
@@ -443,7 +423,7 @@ run_type_checks() {
 
   if command_exists mypy; then
     print_info "Running mypy type checking..."
-    if mypy --ignore-missing-imports --no-strict-optional auto_secrets/ 2>/dev/null; then
+    if mypy . 2>/dev/null; then
       print_success "Type checking passed"
       return 0
     else
@@ -503,7 +483,7 @@ run_security_checks() {
 validate_installation() {
   print_step "Validating installation"
 
-  cd "$ROOT_DIR"
+  cd "$SRC_DIR"
   local errors=0
 
   # Test Python package import
@@ -517,7 +497,6 @@ validate_installation() {
 
   # Test CLI command
   print_info "Testing CLI command..."
-  cd "$SRC_DIR"
   if python3 -m auto_secrets.cli --help >/dev/null 2>&1; then
     print_info "✓ CLI command working"
   else
