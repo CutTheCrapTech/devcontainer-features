@@ -1,4 +1,4 @@
-#!/usr/bin/env zsh
+#!/bin/bash
 # Auto Secrets Manager - Zsh Integration
 #
 # Minimal zsh integration that leverages branch-detection.sh and Python backend.

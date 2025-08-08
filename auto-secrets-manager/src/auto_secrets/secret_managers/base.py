@@ -17,32 +17,38 @@ from ..core.config import ConfigManager
 
 class SecretManagerError(Exception):
     """Base exception for secret manager operations."""
+
     pass
 
 
 class AuthenticationError(SecretManagerError):
     """Authentication-related errors."""
+
     pass
 
 
 class NetworkError(SecretManagerError):
     """Network-related errors."""
+
     pass
 
 
 class ConfigurationError(SecretManagerError):
     """Configuration-related errors."""
+
     pass
 
 
 class SecretNotFoundError(SecretManagerError):
     """Secret not found errors."""
+
     pass
 
 
 @dataclass
 class SecretInfo:
     """Information about a secret."""
+
     key: str
     path: str
     environment: str
@@ -54,6 +60,7 @@ class SecretInfo:
 @dataclass
 class ConnectionTestResult:
     """Result of connection test."""
+
     success: bool
     message: str
     details: Dict[str, Any]
@@ -91,7 +98,9 @@ class SecretManagerBase(ABC):
             raise ConfigurationError("Configuration must be a dictionary")
 
     @abstractmethod
-    def fetch_secrets(self, environment: str, paths: Optional[List[str]] = None) -> Dict[str, str]:
+    def fetch_secrets(
+        self, environment: str, paths: Optional[List[str]] = None
+    ) -> Dict[str, str]:
         """
         Fetch secrets for the given environment and optional paths.
 
@@ -134,15 +143,17 @@ class SecretManagerBase(ABC):
             return False
 
         # Must be alphanumeric with hyphens/underscores, can't start/end with -/_
-        if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$', environment):
+        if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$", environment):
             # Special case for single character names
-            if len(environment) == 1 and re.match(r'^[a-zA-Z0-9]$', environment):
+            if len(environment) == 1 and re.match(r"^[a-zA-Z0-9]$", environment):
                 return True
             return False
 
         return True
 
-    def filter_secrets_by_paths(self, secrets: Dict[str, str], paths: List[str]) -> Dict[str, str]:
+    def filter_secrets_by_paths(
+        self, secrets: Dict[str, str], paths: List[str]
+    ) -> Dict[str, str]:
         """
         Filter secrets by path patterns.
 
@@ -182,28 +193,32 @@ class SecretManagerBase(ABC):
             bool: True if key matches pattern
         """
         # Normalize paths (ensure leading slash)
-        if not secret_key.startswith('/'):
-            secret_key = '/' + secret_key
-        if not pattern.startswith('/'):
-            pattern = '/' + pattern
+        if not secret_key.startswith("/"):
+            secret_key = "/" + secret_key
+        if not pattern.startswith("/"):
+            pattern = "/" + pattern
         pattern = pattern.strip()
 
         # Handle different pattern types
-        if pattern.endswith('/**'):
+        if pattern.endswith("/**"):
             # Recursive: /infrastructure/** matches /infrastructure/anything/deeper
             base_path = pattern[:-3]  # Remove /**
-            return secret_key.startswith(base_path + '/')
-        elif pattern.endswith('/*'):
+            return secret_key.startswith(base_path + "/")
+        elif pattern.endswith("/*"):
             # Non-recursive: /infrastructure/* matches /infrastructure/something
             # but not /infrastructure/something/deeper
             base_path = pattern[:-2]  # Remove /*
-            remaining = secret_key[len(base_path):] if secret_key.startswith(base_path) else ""
-            return remaining.startswith('/') and '/' not in remaining[1:]
+            remaining = (
+                secret_key[len(base_path) :] if secret_key.startswith(base_path) else ""
+            )
+            return remaining.startswith("/") and "/" not in remaining[1:]
         else:
             # Exact match
             return secret_key == pattern
 
-    def get_config_value(self, key: str, default: Any = None, required: bool = False) -> Any:
+    def get_config_value(
+        self, key: str, default: Any = None, required: bool = False
+    ) -> Any:
         """
         Get configuration value with optional default and validation.
 
@@ -222,7 +237,7 @@ class SecretManagerBase(ABC):
             return self.config[key]
 
         # Check environment variables (uppercase with underscores)
-        env_key = key.upper().replace('-', '_')
+        env_key = key.upper().replace("-", "_")
         env_value = os.getenv(env_key)
         if env_value is not None:
             return env_value
@@ -246,7 +261,7 @@ class SecretManagerBase(ABC):
             return value
 
         # Handle ${VAR} pattern
-        pattern = re.compile(r'\$\{([^}]+)\}')
+        pattern = re.compile(r"\$\{([^}]+)\}")
 
         def replace_var(match):
             var_name = match.group(1)
@@ -311,15 +326,15 @@ class SecretManagerBase(ABC):
             str: Sanitized key suitable for environment variable
         """
         # Remove leading slash and replace remaining slashes with underscores
-        clean_key = key.lstrip('/')
-        clean_key = clean_key.replace('/', '_')
+        clean_key = key.lstrip("/")
+        clean_key = clean_key.replace("/", "_")
 
         # Ensure valid environment variable name (alphanumeric + underscore)
-        clean_key = re.sub(r'[^a-zA-Z0-9_]', '_', clean_key)
+        clean_key = re.sub(r"[^a-zA-Z0-9_]", "_", clean_key)
 
         # Ensure it starts with letter or underscore
         if clean_key and clean_key[0].isdigit():
-            clean_key = '_' + clean_key
+            clean_key = "_" + clean_key
 
         return clean_key.upper()
 
@@ -358,11 +373,13 @@ class SecretManagerBase(ABC):
             return self._config_file_cache
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config_data = json.load(f)
 
             if not isinstance(config_data, dict):
-                raise ConfigurationError(f"Config file must contain a JSON object: {config_path}")
+                raise ConfigurationError(
+                    f"Config file must contain a JSON object: {config_path}"
+                )
 
             self._config_file_cache = config_data
             self.log_debug(f"Loaded config file with {len(config_data)} keys")

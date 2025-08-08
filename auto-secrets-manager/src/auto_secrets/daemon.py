@@ -51,7 +51,9 @@ class SecretsDaemon:
 
             secret_manager = create_secret_manager(self.config)
             if not secret_manager:
-                raise ValueError("Failed to create secret manager - check configuration")
+                raise ValueError(
+                    "Failed to create secret manager - check configuration"
+                )
             self.secret_manager = secret_manager
 
             # Set up PID file
@@ -79,10 +81,11 @@ class SecretsDaemon:
 
             # Import and use the proper logging setup
             from .logging_config import setup_logging
+
             setup_logging(
-                log_level="DEBUG" if self.config.get('debug', False) else "INFO",
+                log_level="DEBUG" if self.config.get("debug", False) else "INFO",
                 log_dir=str(logs_dir),
-                log_file="daemon.log"
+                log_file="daemon.log",
             )
 
             self.logger = get_logger("daemon")
@@ -103,7 +106,7 @@ class SecretsDaemon:
             # Check if daemon is already running
             if self.pid_file.exists():
                 try:
-                    with open(self.pid_file, 'r') as f:
+                    with open(self.pid_file, "r") as f:
                         old_pid = int(f.read().strip())
 
                     # Check if process is still running
@@ -114,14 +117,16 @@ class SecretsDaemon:
                     except OSError:
                         # Process doesn't exist, remove stale PID file
                         self.pid_file.unlink()
-                        self.logger.info(f"Removed stale PID file for process {old_pid}")
+                        self.logger.info(
+                            f"Removed stale PID file for process {old_pid}"
+                        )
                 except (ValueError, OSError):
                     # Invalid PID file, remove it
                     self.pid_file.unlink()
                     self.logger.info("Removed invalid PID file")
 
             # Write current PID
-            with open(self.pid_file, 'w') as f:
+            with open(self.pid_file, "w") as f:
                 f.write(str(os.getpid()))
 
             self.logger.info(f"PID file created: {self.pid_file}")
@@ -133,6 +138,7 @@ class SecretsDaemon:
 
     def _setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown."""
+
         def signal_handler(signum, frame):
             self.logger.info(f"Received signal {signum}, shutting down gracefully...")
             self.running = False
@@ -148,7 +154,9 @@ class SecretsDaemon:
                 self.cache_manager = CacheManager(self.config)
                 secret_manager = create_secret_manager(self.config)
                 if not secret_manager:
-                    raise ValueError("Failed to create secret manager - check configuration")
+                    raise ValueError(
+                        "Failed to create secret manager - check configuration"
+                    )
                 self.secret_manager = secret_manager
                 self.logger.info("Configuration reloaded successfully")
             except Exception as e:
@@ -161,7 +169,9 @@ class SecretsDaemon:
         default_interval = 900  # 15 minutes
 
         try:
-            interval_str = self.config.get('cache_config', {}).get("refresh_interval", "15m")
+            interval_str = self.config.get("cache_config", {}).get(
+                "refresh_interval", "15m"
+            )
             return CommonUtils.parse_duration(interval_str)
         except Exception as e:
             self.logger.warning(f"Invalid refresh interval, using default: {e}")
@@ -172,7 +182,9 @@ class SecretsDaemon:
         default_interval = 900  # 15 minutes
 
         try:
-            interval_str = self.config.get('cache_config', {}).get("cleanup_interval", "7d")
+            interval_str = self.config.get("cache_config", {}).get(
+                "cleanup_interval", "7d"
+            )
             return CommonUtils.parse_duration(interval_str)
         except Exception as e:
             self.logger.warning(f"Invalid cleanup interval, using default: {e}")
@@ -217,7 +229,9 @@ class SecretsDaemon:
             # Update cache atomically
             self.cache_manager.update_environment_cache(environment, secrets)
 
-            self.logger.info(f"Successfully refreshed {len(secrets)} secrets for {environment}")
+            self.logger.info(
+                f"Successfully refreshed {len(secrets)} secrets for {environment}"
+            )
             return True
 
         except Exception as e:
@@ -227,13 +241,15 @@ class SecretsDaemon:
     def _cleanup_old_caches(self) -> None:
         """Clean up old cache files."""
         try:
-            cache_config = self.config.get('cache_config', {})
+            cache_config = self.config.get("cache_config", {})
             cleanup_interval_str = cache_config.get("cleanup_interval", "7d")
             cleanup_age = CommonUtils.parse_duration(cleanup_interval_str)
 
             if cleanup_age > 0:
                 # Simple cleanup based on file age
-                cleaned_count = self.cache_manager.cleanup_stale(max_age_seconds=cleanup_age)
+                cleaned_count = self.cache_manager.cleanup_stale(
+                    max_age_seconds=cleanup_age
+                )
                 self.logger.info(f"Cleaned up {cleaned_count} stale cache entries")
 
         except Exception as e:
@@ -244,7 +260,7 @@ class SecretsDaemon:
         try:
             if self.pid_file:
                 heartbeat_file = self.pid_file.parent / "daemon.heartbeat"
-                with open(heartbeat_file, 'w') as f:
+                with open(heartbeat_file, "w") as f:
                     f.write(datetime.now().isoformat())
         except Exception as e:
             self.logger.debug(f"Failed to update heartbeat: {e}")
@@ -258,7 +274,9 @@ class SecretsDaemon:
             self.running = True
             refresh_interval = self._get_refresh_interval()
 
-            self.logger.info(f"Daemon started with refresh interval: {refresh_interval}s")
+            self.logger.info(
+                f"Daemon started with refresh interval: {refresh_interval}s"
+            )
 
             last_cleanup = time.time()
             cleanup_check_interval = 3600  # Attempt clean up every hour
@@ -274,7 +292,9 @@ class SecretsDaemon:
                     environments = self._get_environments_to_refresh()
 
                     if environments:
-                        self.logger.info(f"Refreshing {len(environments)} environments: {environments}")
+                        self.logger.info(
+                            f"Refreshing {len(environments)} environments: {environments}"
+                        )
 
                         for env in environments:
                             if not self.running:  # Check if we should stop
@@ -282,7 +302,9 @@ class SecretsDaemon:
 
                             success = self._refresh_environment_secrets(env)
                             if not success:
-                                self.logger.warning(f"Failed to refresh environment: {env}")
+                                self.logger.warning(
+                                    f"Failed to refresh environment: {env}"
+                                )
                     else:
                         self.logger.debug("No environments need refreshing")
 
@@ -300,7 +322,9 @@ class SecretsDaemon:
                 sleep_time = max(0, refresh_interval - elapsed)
 
                 if sleep_time > 0:
-                    self.logger.debug(f"Sleeping for {sleep_time:.1f}s until next refresh")
+                    self.logger.debug(
+                        f"Sleeping for {sleep_time:.1f}s until next refresh"
+                    )
 
                     # Sleep in small increments to allow for graceful shutdown
                     while sleep_time > 0 and self.running:

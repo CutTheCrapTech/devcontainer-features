@@ -6,7 +6,7 @@ Handles fetching secrets from Infisical using the Python SDK.
 
 import os
 from typing import Dict, List, Optional, Any
-from infisical_sdk import InfisicalSDKClient      # type: ignore
+from infisical_sdk import InfisicalSDKClient  # type: ignore
 
 from .base import (
     SecretManagerBase,
@@ -62,8 +62,7 @@ class InfisicalSecretManager(SecretManagerBase):
         if self._client is None:
             try:
                 self._client = InfisicalSDKClient(
-                    host=self.host,
-                    cache_ttl=300  # 5 minutes cache
+                    host=self.host, cache_ttl=300  # 5 minutes cache
                 )
             except Exception as e:
                 raise SecretManagerError(f"Failed to initialize Infisical client: {e}")
@@ -80,15 +79,16 @@ class InfisicalSecretManager(SecretManagerBase):
 
         try:
             self._client.auth.universal_auth.login(
-                client_id=self.client_id,
-                client_secret=self.client_secret
+                client_id=self.client_id, client_secret=self.client_secret
             )
             self._authenticated = True
             self.log_debug("Infisical authentication successful")
         except Exception as e:
             raise AuthenticationError(f"Infisical authentication failed: {e}")
 
-    def fetch_secrets(self, environment: str, paths: Optional[List[str]] = None) -> Dict[str, str]:
+    def fetch_secrets(
+        self, environment: str, paths: Optional[List[str]] = None
+    ) -> Dict[str, str]:
         """
         Fetch secrets from Infisical for the given environment.
 
@@ -110,7 +110,9 @@ class InfisicalSecretManager(SecretManagerBase):
 
         client = self._get_client()
 
-        self.log_debug(f"Fetching secrets for environment: {environment}, project: {self.project_id}")
+        self.log_debug(
+            f"Fetching secrets for environment: {environment}, project: {self.project_id}"
+        )
 
         try:
             # Get secrets from root path and all subpaths if paths are specified
@@ -130,7 +132,7 @@ class InfisicalSecretManager(SecretManagerBase):
                         secret_path=secret_path,
                         expand_secret_references=True,
                         include_imports=True,
-                        recursive=True
+                        recursive=True,
                     )
 
                     # Convert response to key-value pairs
@@ -155,22 +157,30 @@ class InfisicalSecretManager(SecretManagerBase):
                         continue
                     elif "unauthorized" in error_msg or "forbidden" in error_msg:
                         raise AuthenticationError(
-                          f"Insufficient permissions for environment '{environment}' or path '{secret_path}'"
+                            f"Insufficient permissions for environment '{environment}' or path '{secret_path}'"
                         )
                     elif "network" in error_msg or "timeout" in error_msg:
-                        raise NetworkError(f"Network error fetching secrets from path '{secret_path}': {e}")
+                        raise NetworkError(
+                            f"Network error fetching secrets from path '{secret_path}': {e}"
+                        )
                     else:
-                        raise SecretManagerError(f"Failed to fetch secrets from path '{secret_path}': {e}")
+                        raise SecretManagerError(
+                            f"Failed to fetch secrets from path '{secret_path}': {e}"
+                        )
 
             # If no secrets found and we were looking for specific paths, that might be an error
             if not all_secrets and paths:
-                self.log_debug(f"No secrets found for paths {paths} in environment {environment}")
+                self.log_debug(
+                    f"No secrets found for paths {paths} in environment {environment}"
+                )
 
             # Filter by paths if specified and we got secrets from root path
             if paths and "/" in paths_to_check:
                 all_secrets = self.filter_secrets_by_paths(all_secrets, paths)
 
-            self.log_debug(f"Successfully fetched {len(all_secrets)} secrets from Infisical")
+            self.log_debug(
+                f"Successfully fetched {len(all_secrets)} secrets from Infisical"
+            )
             return all_secrets
 
         except AuthenticationError:
@@ -184,7 +194,9 @@ class InfisicalSecretManager(SecretManagerBase):
             if "project" in error_msg and "not found" in error_msg:
                 raise SecretNotFoundError(f"Project '{self.project_id}' not found")
             elif "environment" in error_msg and "not found" in error_msg:
-                raise SecretNotFoundError(f"Environment '{environment}' not found in project '{self.project_id}'")
+                raise SecretNotFoundError(
+                    f"Environment '{environment}' not found in project '{self.project_id}'"
+                )
             else:
                 raise SecretManagerError(f"Failed to fetch secrets: {e}")
 
@@ -196,7 +208,6 @@ class InfisicalSecretManager(SecretManagerBase):
             ConnectionTestResult: Result of the connection test
         """
         details = {
-
             "sdk_available": False,
             "authenticated": False,
             "project_access": False,
@@ -210,8 +221,7 @@ class InfisicalSecretManager(SecretManagerBase):
                 client = self._get_client()
                 # Test authentication by attempting to authenticate
                 client.auth.universal_auth.login(
-                    client_id=self.client_id,
-                    client_secret=self.client_secret
+                    client_id=self.client_id, client_secret=self.client_secret
                 )
                 details["sdk_available"] = True
                 details["authenticated"] = True
@@ -220,14 +230,14 @@ class InfisicalSecretManager(SecretManagerBase):
                     success=False,
                     message=f"Authentication failed: {e}",
                     details=details,
-                    authenticated=False
+                    authenticated=False,
                 )
             except Exception as e:
                 return ConnectionTestResult(
                     success=False,
                     message=f"Failed to initialize client: {e}",
                     details=details,
-                    authenticated=False
+                    authenticated=False,
                 )
 
             # Test project access by trying to get environments
@@ -246,7 +256,7 @@ class InfisicalSecretManager(SecretManagerBase):
                     success=False,
                     message=f"Project access test failed: {e}",
                     details=details,
-                    authenticated=True
+                    authenticated=True,
                 )
 
         except Exception as e:
@@ -254,7 +264,7 @@ class InfisicalSecretManager(SecretManagerBase):
                 success=False,
                 message=f"Connection test failed: {e}",
                 details=details,
-                authenticated=False
+                authenticated=False,
             )
 
     def clear_authentication_cache(self) -> None:

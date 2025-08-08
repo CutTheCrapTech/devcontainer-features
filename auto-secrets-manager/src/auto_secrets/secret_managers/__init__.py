@@ -15,7 +15,7 @@ from .base import (
     ConfigurationError,
     SecretNotFoundError,
     SecretInfo,
-    ConnectionTestResult
+    ConnectionTestResult,
 )
 from .infisical import InfisicalSecretManager
 
@@ -53,7 +53,9 @@ def create_secret_manager(config: Dict[str, Any]) -> Optional[SecretManagerBase]
 
     if manager_type not in SECRET_MANAGERS:
         available = ", ".join(SECRET_MANAGERS.keys())
-        raise ValueError(f"Unknown secret manager: {manager_type}. Available: {available}")
+        raise ValueError(
+            f"Unknown secret manager: {manager_type}. Available: {available}"
+        )
 
     manager_config = config.get("secret_manager_config", {})
     manager_config["cache_base_dir"] = config.get("cache_base_dir", None)
@@ -62,7 +64,9 @@ def create_secret_manager(config: Dict[str, Any]) -> Optional[SecretManagerBase]
     try:
         return manager_class(manager_config)
     except Exception as e:
-        raise SecretManagerError(f"Failed to initialize {manager_type} secret manager: {e}")
+        raise SecretManagerError(
+            f"Failed to initialize {manager_type} secret manager: {e}"
+        )
 
 
 def create_secret_manager_legacy(manager_type: str, config: dict) -> SecretManagerBase:
@@ -82,14 +86,18 @@ def create_secret_manager_legacy(manager_type: str, config: dict) -> SecretManag
     """
     if manager_type not in SECRET_MANAGERS:
         available = ", ".join(SECRET_MANAGERS.keys())
-        raise ValueError(f"Unknown secret manager: {manager_type}. Available: {available}")
+        raise ValueError(
+            f"Unknown secret manager: {manager_type}. Available: {available}"
+        )
 
     manager_class = SECRET_MANAGERS[manager_type]
 
     try:
         return manager_class(config)
     except Exception as e:
-        raise SecretManagerError(f"Failed to initialize {manager_type} secret manager: {e}")
+        raise SecretManagerError(
+            f"Failed to initialize {manager_type} secret manager: {e}"
+        )
 
 
 def get_available_managers() -> List[str]:
@@ -102,7 +110,9 @@ def get_available_managers() -> List[str]:
     return list(SECRET_MANAGERS.keys())
 
 
-def validate_secret_manager_config(manager_type: str, config: Dict[str, Any]) -> List[str]:
+def validate_secret_manager_config(
+    manager_type: str, config: Dict[str, Any]
+) -> List[str]:
     """
     Validate configuration for a specific secret manager type.
 
@@ -144,10 +154,10 @@ def get_manager_info(manager_type: str) -> Dict[str, Any]:
     return {
         "type": manager_type,
         "class": manager_class.__name__,
-        "description": getattr(manager_class, '__doc__', 'No description available'),
+        "description": getattr(manager_class, "__doc__", "No description available"),
         "module": manager_class.__module__,
-        "supports_environments": hasattr(manager_class, 'get_available_environments'),
-        "supports_test_connection": hasattr(manager_class, 'test_connection'),
+        "supports_environments": hasattr(manager_class, "get_available_environments"),
+        "supports_test_connection": hasattr(manager_class, "test_connection"),
     }
 
 
@@ -158,7 +168,9 @@ def list_all_managers_info() -> Dict[str, Dict[str, Any]]:
     Returns:
         Dict[str, Dict[str, Any]]: Dictionary mapping manager types to their info
     """
-    return {manager_type: get_manager_info(manager_type) for manager_type in SECRET_MANAGERS}
+    return {
+        manager_type: get_manager_info(manager_type) for manager_type in SECRET_MANAGERS
+    }
 
 
 __all__ = [
@@ -171,20 +183,16 @@ __all__ = [
     "SecretNotFoundError",
     "SecretInfo",
     "ConnectionTestResult",
-
     # Concrete implementations
     "InfisicalSecretManager",
-
     # Factory functions
     "create_secret_manager",
     "create_secret_manager_legacy",
-
     # Utility functions
     "get_available_managers",
     "validate_secret_manager_config",
     "get_manager_info",
     "list_all_managers_info",
-
     # Registry
     "SECRET_MANAGERS",
 ]

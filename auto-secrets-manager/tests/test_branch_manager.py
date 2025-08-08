@@ -24,9 +24,9 @@ class TestBranchManager:
                 "hotfix/*": "production",
                 "hotfix-*": "production",
                 "release/**": "staging",
-                "default": "development"
+                "default": "development",
             },
-            "debug": False
+            "debug": False,
         }
         self.branch_manager = BranchManager(self.config)
 
@@ -45,39 +45,81 @@ class TestBranchManager:
     def test_map_branch_to_environment_pattern_match(self):
         """Test pattern-based branch matching."""
         # Test feature/* pattern
-        assert self.branch_manager.map_branch_to_environment("feature/auth") == "development"
-        assert self.branch_manager.map_branch_to_environment("feature/new-ui") == "development"
-        assert self.branch_manager.map_branch_to_environment("feature/payment-system") == "development"
+        assert (
+            self.branch_manager.map_branch_to_environment("feature/auth")
+            == "development"
+        )
+        assert (
+            self.branch_manager.map_branch_to_environment("feature/new-ui")
+            == "development"
+        )
+        assert (
+            self.branch_manager.map_branch_to_environment("feature/payment-system")
+            == "development"
+        )
 
         # Test release/* pattern
-        assert self.branch_manager.map_branch_to_environment("release/v1.0") == "staging"
-        assert self.branch_manager.map_branch_to_environment("release/v2.1-beta") == "staging"
+        assert (
+            self.branch_manager.map_branch_to_environment("release/v1.0") == "staging"
+        )
+        assert (
+            self.branch_manager.map_branch_to_environment("release/v2.1-beta")
+            == "staging"
+        )
 
         # Test hotfix/* pattern
-        assert self.branch_manager.map_branch_to_environment("hotfix/security") == "production"
-        assert self.branch_manager.map_branch_to_environment("hotfix/login-bug") == "production"
+        assert (
+            self.branch_manager.map_branch_to_environment("hotfix/security")
+            == "production"
+        )
+        assert (
+            self.branch_manager.map_branch_to_environment("hotfix/login-bug")
+            == "production"
+        )
 
         # Test hotfix-* pattern (different from hotfix/*)
-        assert self.branch_manager.map_branch_to_environment("hotfix-login") == "production"
-        assert self.branch_manager.map_branch_to_environment("hotfix-payment") == "production"
+        assert (
+            self.branch_manager.map_branch_to_environment("hotfix-login")
+            == "production"
+        )
+        assert (
+            self.branch_manager.map_branch_to_environment("hotfix-payment")
+            == "production"
+        )
 
     def test_map_branch_to_environment_double_star_pattern(self):
         """Test double star pattern matching."""
         # Test release/** pattern (should match nested paths)
-        assert self.branch_manager.map_branch_to_environment("release/v1.0/hotfix") == "staging"
-        assert self.branch_manager.map_branch_to_environment("release/feature/auth") == "staging"
+        assert (
+            self.branch_manager.map_branch_to_environment("release/v1.0/hotfix")
+            == "staging"
+        )
+        assert (
+            self.branch_manager.map_branch_to_environment("release/feature/auth")
+            == "staging"
+        )
 
     def test_map_branch_to_environment_default(self):
         """Test default environment mapping."""
         # Test branches that don't match any pattern
-        assert self.branch_manager.map_branch_to_environment("random-branch") == "development"
-        assert self.branch_manager.map_branch_to_environment("experimental") == "development"
-        assert self.branch_manager.map_branch_to_environment("test-123") == "development"
+        assert (
+            self.branch_manager.map_branch_to_environment("random-branch")
+            == "development"
+        )
+        assert (
+            self.branch_manager.map_branch_to_environment("experimental")
+            == "development"
+        )
+        assert (
+            self.branch_manager.map_branch_to_environment("test-123") == "development"
+        )
 
     def test_map_branch_to_environment_special_cases(self):
         """Test special branch cases."""
         # Test special branch states
-        assert self.branch_manager.map_branch_to_environment("detached") == "development"
+        assert (
+            self.branch_manager.map_branch_to_environment("detached") == "development"
+        )
         assert self.branch_manager.map_branch_to_environment("no-git") == "development"
         assert self.branch_manager.map_branch_to_environment("") == "development"
 
@@ -98,10 +140,7 @@ class TestBranchManager:
     def test_map_branch_to_environment_no_default(self):
         """Test behavior when no default mapping exists."""
         config_no_default = {
-            "branch_mappings": {
-                "main": "production",
-                "staging": "staging"
-            }
+            "branch_mappings": {"main": "production", "staging": "staging"}
         }
         manager = BranchManager(config_no_default)
 
@@ -114,22 +153,25 @@ class TestBranchManager:
         # Test single * (doesn't match /)
         assert self.branch_manager._branch_matches_pattern("feature/auth", "feature/*")
         assert self.branch_manager._branch_matches_pattern("hotfix-login", "hotfix-*")
-        assert not self.branch_manager._branch_matches_pattern("feature/auth/sub", "feature/*")
+        assert not self.branch_manager._branch_matches_pattern(
+            "feature/auth/sub", "feature/*"
+        )
 
     def test_branch_matches_pattern_double_wildcards(self):
         """Test double wildcard pattern matching."""
         # Test ** (matches everything including /)
         assert self.branch_manager._branch_matches_pattern("release/v1.0", "release/**")
-        assert self.branch_manager._branch_matches_pattern("release/v1.0/hotfix", "release/**")
-        assert self.branch_manager._branch_matches_pattern("release/feature/auth/sub", "release/**")
+        assert self.branch_manager._branch_matches_pattern(
+            "release/v1.0/hotfix", "release/**"
+        )
+        assert self.branch_manager._branch_matches_pattern(
+            "release/feature/auth/sub", "release/**"
+        )
 
     def test_branch_matches_pattern_question_mark(self):
         """Test question mark pattern matching."""
         config_with_question = {
-            "branch_mappings": {
-                "test?": "development",
-                "default": "development"
-            }
+            "branch_mappings": {"test?": "development", "default": "development"}
         }
         manager = BranchManager(config_with_question)
 
@@ -187,8 +229,8 @@ class TestBranchManager:
     def test_test_branch_mapping_with_failures(self):
         """Test branch mapping testing with failed cases."""
         test_cases = [
-            ("main", "production"),     # Should pass
-            ("main", "staging"),        # Should fail
+            ("main", "production"),  # Should pass
+            ("main", "staging"),  # Should fail
             ("feature/auth", "production"),  # Should fail
         ]
 
@@ -213,12 +255,7 @@ class TestBranchManager:
 
     def test_validate_configuration_no_default(self):
         """Test configuration validation with no default."""
-        config = {
-            "branch_mappings": {
-                "main": "production",
-                "staging": "staging"
-            }
-        }
+        config = {"branch_mappings": {"main": "production", "staging": "staging"}}
         manager = BranchManager(config)
 
         errors = manager.validate_configuration()
@@ -226,12 +263,7 @@ class TestBranchManager:
 
     def test_validate_configuration_invalid_pattern(self):
         """Test configuration validation with invalid pattern."""
-        config = {
-            "branch_mappings": {
-                "[": "production",
-                "default": "development"
-            }
-        }
+        config = {"branch_mappings": {"[": "production", "default": "development"}}
         manager = BranchManager(config)
 
         errors = manager.validate_configuration()
@@ -255,24 +287,26 @@ class TestBranchManagerIntegration:
                 "release/v*": "staging",
                 "hotfix-?": "production",
                 "test*test": "testing",
-                "default": "development"
+                "default": "development",
             }
         }
         manager = BranchManager(config)
 
         test_cases = [
             ("feature/a/b/c/d", "development"),  # ** should match multiple levels
-            ("release/v1", "staging"),           # * should match single level
-            ("hotfix-a", "production"),          # ? should match single char
-            ("hotfix-ab", "development"),        # ? should not match multiple chars
-            ("testabctest", "testing"),          # * in middle
-            ("test/test", "development"),        # * should not match /
+            ("release/v1", "staging"),  # * should match single level
+            ("hotfix-a", "production"),  # ? should match single char
+            ("hotfix-ab", "development"),  # ? should not match multiple chars
+            ("testabctest", "testing"),  # * in middle
+            ("test/test", "development"),  # * should not match /
         ]
 
         for branch, expected in test_cases:
             actual = manager.map_branch_to_environment(branch)
-            assert actual == expected, f"Branch '{branch}' expected '{expected}', got '{actual}'"
+            assert (
+                actual == expected
+            ), f"Branch '{branch}' expected '{expected}', got '{actual}'"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main([__file__])

@@ -17,6 +17,7 @@ from .utils import CommonUtils
 
 class ConfigError(Exception):
     """Configuration-related errors."""
+
     pass
 
 
@@ -47,15 +48,15 @@ class ConfigManager:
         """
         val = os.getenv(env_variable, "").strip()
         if default is None and not val:
-            raise ConfigError(
-                f"{env_variable} environment variable is required. "
-            )
+            raise ConfigError(f"{env_variable} environment variable is required. ")
         elif default is not None and not val:
             val = default
         return val
 
     @classmethod
-    def _parse_json(cls,  env_variable: str, json_str: str, default: Optional[str] = None) -> Any:
+    def _parse_json(
+        cls, env_variable: str, json_str: str, default: Optional[str] = None
+    ) -> Any:
         """
         Parse environment variables for configuration.
 
@@ -106,19 +107,29 @@ class ConfigManager:
         # === Branch Mapping (Security Critical - No Defaults) - (required) ===
 
         branch_mapping_json = cls._parse_env("AUTO_SECRETS_BRANCH_MAPPINGS")
-        config["branch_mappings"] = cls._parse_json("AUTO_SECRETS_BRANCH_MAPPINGS", branch_mapping_json)
-        logger.info(f"Loaded branch mappings for {len(config['branch_mappings'])} entries")
+        config["branch_mappings"] = cls._parse_json(
+            "AUTO_SECRETS_BRANCH_MAPPINGS", branch_mapping_json
+        )
+        logger.info(
+            f"Loaded branch mappings for {len(config['branch_mappings'])} entries"
+        )
 
         # === Secret Manager Configuration ===
 
         sm_config_json = cls._parse_env("AUTO_SECRETS_SECRET_MANAGER_CONFIG", "{}")
-        config["secret_manager_config"] = cls._parse_json("AUTO_SECRETS_SECRET_MANAGER_CONFIG", sm_config_json)
+        config["secret_manager_config"] = cls._parse_json(
+            "AUTO_SECRETS_SECRET_MANAGER_CONFIG", sm_config_json
+        )
 
         # === Auto Commands Configuration ===
 
         auto_commands_json = cls._parse_env("AUTO_SECRETS_AUTO_COMMANDS", "{}")
-        config["auto_commands"] = cls._parse_json("AUTO_SECRETS_AUTO_COMMANDS", auto_commands_json)
-        logger.info(f"Loaded branch mappings for {len(config['auto_commands'])} entries")
+        config["auto_commands"] = cls._parse_json(
+            "AUTO_SECRETS_AUTO_COMMANDS", auto_commands_json
+        )
+        logger.info(
+            f"Loaded branch mappings for {len(config['auto_commands'])} entries"
+        )
 
         # === Cache Configuration ===
 
@@ -127,7 +138,9 @@ class ConfigManager:
 
         # Cache settings (required)
         cache_config_json = cls._parse_env("AUTO_SECRETS_CACHE_CONFIG")
-        config["cache_config"] = cls._parse_json("AUTO_SECRETS_CACHE_CONFIG", cache_config_json)
+        config["cache_config"] = cls._parse_json(
+            "AUTO_SECRETS_CACHE_CONFIG", cache_config_json
+        )
 
         # === Paths and Directories ===
 
@@ -188,7 +201,9 @@ class ConfigManager:
             raise ConfigError(f"Invalid cache configuration: {e}")
 
     @classmethod
-    def get_cache_dir(cls, config: Dict[str, Any], environment: Optional[str] = None) -> Path:
+    def get_cache_dir(
+        cls, config: Dict[str, Any], environment: Optional[str] = None
+    ) -> Path:
         """
         Get the cache directory path for the current user and optionally environment.
         Args:
@@ -204,7 +219,9 @@ class ConfigManager:
             return base_path
 
     @classmethod
-    def get_log_file_path(cls, config: Dict[str, Any], log_name: str = "auto-secrets.log") -> Path:
+    def get_log_file_path(
+        cls, config: Dict[str, Any], log_name: str = "auto-secrets.log"
+    ) -> Path:
         """
         Get the log file path.
 
@@ -243,19 +260,19 @@ class ConfigManager:
                 "main": "production",
                 "develop": "staging",
                 "feature/*": "development",
-                "default": "development"
+                "default": "development",
             },
             "secret_manager_config": {
                 "# Infisical configuration": "See documentation for setup",
                 "client_id": "your-client-id",
                 "client_secret": "your-client-secret",
-                "project_id": "your-project-id"
+                "project_id": "your-project-id",
             },
             "auto_commands": {
                 "terraform": ["/infrastructure/**"],
                 "tofu": ["/infrastructure/**"],
                 "kubectl": ["/kubernetes/**"],
-                "docker": ["/docker/**"]
+                "docker": ["/docker/**"],
             },
             "cache_config": {
                 "refresh_interval": "15m",
@@ -284,6 +301,9 @@ class ConfigManager:
         # Must be alphanumeric with hyphens/underscores
         # Can't start or end with special characters
         if len(environment) == 1:
-            return re.match(r'^[a-zA-Z0-9]$', environment) is not None
+            return re.match(r"^[a-zA-Z0-9]$", environment) is not None
         else:
-            return re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$', environment) is not None
+            return (
+                re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$", environment)
+                is not None
+            )

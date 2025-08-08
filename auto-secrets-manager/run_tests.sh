@@ -529,8 +529,13 @@ validate_installation() {
   export AUTO_SECRETS_SECRET_MANAGER=infisical
   export AUTO_SECRETS_SHELLS=both
   export AUTO_SECRETS_BRANCH_MAPPINGS='{"main":"production","default":"development"}'
+  export AUTO_SECRETS_CACHE_DIR="/dev/shm/auto-secrets"
+  export AUTO_SECRETS_LOG_DIR="/var/log/auto-secrets"
+  export AUTO_SECRETS_LOG_LEVEL="INFO"
+  export AUTO_SECRETS_CACHE_CONFIG='{"refresh_interval":"15m","cleanup_interval":"7d"}'
+  export AUTO_SECRETS_FEATURE_DIR="/usr/local/share/auto-secrets"
 
-  if python3 -c "from auto_secrets.core.config import load_config; load_config(); print('✓ Configuration loading successful')" 2>/dev/null; then
+  if python3 -c "from auto_secrets.core.config import ConfigManager; ConfigManager.load_config(); print('✓ Configuration loading successful')" 2>/dev/null; then
     print_info "✓ Configuration loading successful"
   else
     print_error "✗ Configuration loading failed"
@@ -538,7 +543,7 @@ validate_installation() {
   fi
 
   # Test core modules
-  local modules=("config" "environment" "branch_manager" "cache_manager")
+  local modules=("config" "utils" "branch_manager" "cache_manager")
   for module in "${modules[@]}"; do
     if python3 -c "from auto_secrets.core import $module; print('✓ Module $module import successful')" 2>/dev/null; then
       print_info "✓ Module $module import successful"

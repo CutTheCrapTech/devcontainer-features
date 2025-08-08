@@ -26,7 +26,7 @@ class CommonUtils:
             raise ValueError(f"Invalid duration format: {duration_str}")
 
         duration_str = duration_str.strip().lower()
-        match = re.match(r'^(\d+)([smhd]?)$', duration_str)
+        match = re.match(r"^(\d+)([smhd]?)$", duration_str)
 
         if not match:
             raise ValueError(f"Invalid duration format: {duration_str}")
@@ -34,11 +34,6 @@ class CommonUtils:
         number, unit = match.groups()
         number = int(number)
 
-        multipliers = {
-            '': 1, 's': 1,
-            'm': 60,
-            'h': 3600,
-            'd': 86400
-        }
+        multipliers = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
 
         return number * multipliers.get(unit, 1)

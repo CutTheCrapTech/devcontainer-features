@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Auto Secrets Manager - Bash Integration
 #
 # Minimal bash integration that leverages branch-detection.sh and Python backend.

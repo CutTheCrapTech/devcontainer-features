@@ -60,11 +60,7 @@ class TestSecretInfo:
 
     def test_minimal_creation(self):
         """Test creating SecretInfo with required fields."""
-        info = SecretInfo(
-            key="API_KEY",
-            path="/api/key",
-            environment="production"
-        )
+        info = SecretInfo(key="API_KEY", path="/api/key", environment="production")
 
         assert info.key == "API_KEY"
         assert info.path == "/api/key"
@@ -81,7 +77,7 @@ class TestSecretInfo:
             environment="staging",
             last_modified="2024-01-15T10:00:00Z",
             version="v1.2.3",
-            description="Database connection password"
+            description="Database connection password",
         )
 
         assert info.key == "DB_PASSWORD"
@@ -100,7 +96,7 @@ class TestConnectionTestResult:
         result = ConnectionTestResult(
             success=True,
             message="Connection successful",
-            details={"host": "example.com"}
+            details={"host": "example.com"},
         )
 
         assert result.success is True
@@ -114,7 +110,7 @@ class TestConnectionTestResult:
             success=False,
             message="Authentication failed",
             details={"error": "Invalid credentials", "status_code": 401},
-            authenticated=False
+            authenticated=False,
         )
 
         assert result.success is False
@@ -128,7 +124,7 @@ class TestConnectionTestResult:
             success=True,
             message="Authenticated successfully",
             details={"user": "admin"},
-            authenticated=True
+            authenticated=True,
         )
 
         assert result.success is True
@@ -148,7 +144,7 @@ class ConcreteSecretManager(SecretManagerBase):
             success=True,
             message="Test connection successful",
             details={},
-            authenticated=True
+            authenticated=True,
         )
 
 
@@ -161,7 +157,7 @@ class TestSecretManagerBase:
             "host": "https://api.example.com",
             "api_key": "test_key_123",
             "debug": False,
-            "timeout": 30
+            "timeout": 30,
         }
 
     def test_init_valid_config(self):
@@ -206,7 +202,7 @@ class TestSecretManagerBase:
             "a",
             "environment-with-hyphens",
             "environment_with_underscores",
-            "mixed-env_123"
+            "mixed-env_123",
         ]
 
         for name in valid_names:
@@ -256,7 +252,7 @@ class TestSecretManagerBase:
         secrets = {
             "/api/key": "value1",
             "/db/password": "value2",
-            "/cache/token": "value3"
+            "/cache/token": "value3",
         }
 
         result = manager.filter_secrets_by_paths(secrets, [])
@@ -266,10 +262,7 @@ class TestSecretManagerBase:
         """Test filtering secrets with None paths."""
         manager = ConcreteSecretManager(self.valid_config)
 
-        secrets = {
-            "/api/key": "value1",
-            "/db/password": "value2"
-        }
+        secrets = {"/api/key": "value1", "/db/password": "value2"}
 
         result = manager.filter_secrets_by_paths(secrets, None)
         assert result == secrets
@@ -282,23 +275,21 @@ class TestSecretManagerBase:
             "/api/key": "value1",
             "/api/secret": "value2",
             "/db/password": "value3",
-            "/cache/token": "value4"
+            "/cache/token": "value4",
         }
 
-        with patch.object(manager, '_matches_path_pattern') as mock_matches:
+        with patch.object(manager, "_matches_path_pattern") as mock_matches:
             # Mock to return True only for /api/ paths
             def mock_match(key, pattern):
                 if pattern == "/api/*":
                     return key.startswith("/api/")
                 return False
+
             mock_matches.side_effect = mock_match
 
             result = manager.filter_secrets_by_paths(secrets, ["/api/*"])
 
-            expected = {
-                "/api/key": "value1",
-                "/api/secret": "value2"
-            }
+            expected = {"/api/key": "value1", "/api/secret": "value2"}
             assert result == expected
 
     def test_matches_path_pattern_exact_match(self):
@@ -322,7 +313,9 @@ class TestSecretManagerBase:
 
         for key, pattern, expected in test_cases:
             result = manager._matches_path_pattern(key, pattern)
-            assert result == expected, f"Key '{key}' with pattern '{pattern}' should be {expected}"
+            assert (
+                result == expected
+            ), f"Key '{key}' with pattern '{pattern}' should be {expected}"
 
     def test_matches_path_pattern_non_recursive_wildcard(self):
         """Test non-recursive wildcard pattern matching."""
@@ -338,7 +331,9 @@ class TestSecretManagerBase:
 
         for key, pattern, expected in test_cases:
             result = manager._matches_path_pattern(key, pattern)
-            assert result == expected, f"Key '{key}' with pattern '{pattern}' should be {expected}"
+            assert (
+                result == expected
+            ), f"Key '{key}' with pattern '{pattern}' should be {expected}"
 
     def test_matches_path_pattern_normalization(self):
         """Test path normalization in pattern matching."""
@@ -360,13 +355,17 @@ class TestSecretManagerBase:
         """Test getting missing config value with default."""
         manager = ConcreteSecretManager(self.valid_config)
 
-        assert manager.get_config_value("missing_key", "default_value") == "default_value"
+        assert (
+            manager.get_config_value("missing_key", "default_value") == "default_value"
+        )
 
     def test_get_config_value_missing_required_key(self):
         """Test getting missing required config value."""
         manager = ConcreteSecretManager(self.valid_config)
 
-        with pytest.raises(ConfigurationError, match="Required configuration key missing: required_key"):
+        with pytest.raises(
+            ConfigurationError, match="Required configuration key missing: required_key"
+        ):
             manager.get_config_value("required_key", required=True)
 
     @patch.dict(os.environ, {"TEST_API_KEY": "env_value"})
@@ -420,15 +419,17 @@ class TestSecretManagerBase:
         config["debug"] = True
         manager = ConcreteSecretManager(config)
 
-        with patch('builtins.print') as mock_print:
+        with patch("builtins.print") as mock_print:
             manager.log_debug("Test debug message")
-            mock_print.assert_called_once_with("DEBUG [ConcreteSecretManager]: Test debug message")
+            mock_print.assert_called_once_with(
+                "DEBUG [ConcreteSecretManager]: Test debug message"
+            )
 
     def test_log_debug_disabled(self):
         """Test debug logging when disabled."""
         manager = ConcreteSecretManager(self.valid_config)  # debug=False
 
-        with patch('builtins.print') as mock_print:
+        with patch("builtins.print") as mock_print:
             manager.log_debug("Test debug message")
             mock_print.assert_not_called()
 
@@ -436,9 +437,11 @@ class TestSecretManagerBase:
         """Test error logging."""
         manager = ConcreteSecretManager(self.valid_config)
 
-        with patch('builtins.print') as mock_print:
+        with patch("builtins.print") as mock_print:
             manager.log_error("Test error message")
-            mock_print.assert_called_once_with("ERROR [ConcreteSecretManager]: Test error message")
+            mock_print.assert_called_once_with(
+                "ERROR [ConcreteSecretManager]: Test error message"
+            )
 
     def test_format_error_message(self):
         """Test error message formatting."""
@@ -479,7 +482,10 @@ class TestSecretManagerBase:
             ("/api/v1/key@2024", "API_V1_KEY_2024"),
             ("secret.with.dots", "SECRET_WITH_DOTS"),
             ("key with spaces", "KEY_WITH_SPACES"),
-            ("complex/path-with_many@special.chars!", "COMPLEX_PATH_WITH_MANY_SPECIAL_CHARS_"),
+            (
+                "complex/path-with_many@special.chars!",
+                "COMPLEX_PATH_WITH_MANY_SPECIAL_CHARS_",
+            ),
         ]
 
         for input_key, expected in test_cases:
@@ -542,11 +548,7 @@ class TestSecretManagerBaseIntegration:
 
     def test_full_workflow(self):
         """Test complete secret manager workflow."""
-        config = {
-            "host": "${HOST:-https://default.com}",
-            "timeout": 30,
-            "debug": True
-        }
+        config = {"host": "${HOST:-https://default.com}", "timeout": 30, "debug": True}
 
         with patch.dict(os.environ, {"HOST": "https://production.com"}):
             manager = ConcreteSecretManager(config)
@@ -565,11 +567,14 @@ class TestSecretManagerBaseIntegration:
                 "/api/key1": "value1",
                 "/api/key2": "value2",
                 "/db/password": "value3",
-                "/cache/token": "value4"
+                "/cache/token": "value4",
             }
 
-            with patch.object(manager, '_matches_path_pattern',
-                              side_effect=lambda k, p: k.startswith("/api/")):
+            with patch.object(
+                manager,
+                "_matches_path_pattern",
+                side_effect=lambda k, p: k.startswith("/api/"),
+            ):
                 filtered = manager.filter_secrets_by_paths(all_secrets, ["/api/*"])
                 expected = {"/api/key1": "value1", "/api/key2": "value2"}
                 assert filtered == expected
@@ -587,11 +592,14 @@ class TestSecretManagerBaseIntegration:
                 "/api/key1": "value1",
                 "/api/key2": "value2",
                 "/db/password": "value3",
-                "/cache/token": "value4"
+                "/cache/token": "value4",
             }
 
-            with patch.object(manager, '_matches_path_pattern',
-                              side_effect=lambda k, p: k.startswith("/api/")):
+            with patch.object(
+                manager,
+                "_matches_path_pattern",
+                side_effect=lambda k, p: k.startswith("/api/"),
+            ):
                 filtered = manager.filter_secrets_by_paths(all_secrets, ["/api/*"])
                 expected = {"/api/key1": "value1", "/api/key2": "value2"}
                 assert filtered == expected
@@ -619,10 +627,7 @@ class TestSecretManagerBaseConfigFile:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.valid_config = {
-            "host": "https://api.example.com",
-            "debug": False
-        }
+        self.valid_config = {"host": "https://api.example.com", "debug": False}
 
     def test_find_config_file_cache_dir(self, tmp_path):
         """Test finding config file in cache directory."""
@@ -635,7 +640,10 @@ class TestSecretManagerBaseConfigFile:
         config_file.write_text('{"test": "value"}')
 
         # Mock the cache dir
-        with patch('auto_secrets.secret_managers.base.ConfigManager.get_cache_dir', return_value=cache_dir):
+        with patch(
+            "auto_secrets.secret_managers.base.ConfigManager.get_cache_dir",
+            return_value=cache_dir,
+        ):
             result = manager._find_config_file()
             assert result == config_file
 
@@ -651,10 +659,12 @@ class TestSecretManagerBaseConfigFile:
 
         # Mock paths
         with patch(
-          'auto_secrets.secret_managers.base.ConfigManager.get_cache_dir',
-          return_value=tmp_path / "nonexistent"
+            "auto_secrets.secret_managers.base.ConfigManager.get_cache_dir",
+            return_value=tmp_path / "nonexistent",
         ):
-            with patch('auto_secrets.secret_managers.base.Path.home', return_value=tmp_path):
+            with patch(
+                "auto_secrets.secret_managers.base.Path.home", return_value=tmp_path
+            ):
                 result = manager._find_config_file()
                 assert result == config_file
 
@@ -670,15 +680,22 @@ class TestSecretManagerBaseConfigFile:
 
         # Mock all paths - cache and home don't exist, but etc does
         with patch(
-          'auto_secrets.secret_managers.base.ConfigManager.get_cache_dir',
-          return_value=tmp_path / "nonexistent_cache"
+            "auto_secrets.secret_managers.base.ConfigManager.get_cache_dir",
+            return_value=tmp_path / "nonexistent_cache",
         ):
-            with patch('auto_secrets.secret_managers.base.Path.home', return_value=tmp_path / "nonexistent_home"):
+            with patch(
+                "auto_secrets.secret_managers.base.Path.home",
+                return_value=tmp_path / "nonexistent_home",
+            ):
                 # Create a custom mock for the _find_config_file locations list
                 def mock_find_config_file():
                     locations = [
                         tmp_path / "nonexistent_cache" / "config.json",
-                        tmp_path / "nonexistent_home" / ".config" / "auto-secrets" / "config.json",
+                        tmp_path
+                        / "nonexistent_home"
+                        / ".config"
+                        / "auto-secrets"
+                        / "config.json",
                         etc_config_file,  # Use our actual temp file
                     ]
 
@@ -697,16 +714,25 @@ class TestSecretManagerBaseConfigFile:
 
         # Mock all paths to return non-existent locations (don't create any files)
         with patch(
-          'auto_secrets.secret_managers.base.ConfigManager.get_cache_dir',
-          return_value=tmp_path / "nonexistent_cache"
+            "auto_secrets.secret_managers.base.ConfigManager.get_cache_dir",
+            return_value=tmp_path / "nonexistent_cache",
         ):
-            with patch('auto_secrets.secret_managers.base.Path.home', return_value=tmp_path / "nonexistent_home"):
+            with patch(
+                "auto_secrets.secret_managers.base.Path.home",
+                return_value=tmp_path / "nonexistent_home",
+            ):
                 # Create a custom mock that checks non-existent locations
                 def mock_find_config_file():
                     locations = [
                         tmp_path / "nonexistent_cache" / "config.json",
-                        tmp_path / "nonexistent_home" / ".config" / "auto-secrets" / "config.json",
-                        tmp_path / "nonexistent_etc" / "config.json",  # This won't exist
+                        tmp_path
+                        / "nonexistent_home"
+                        / ".config"
+                        / "auto-secrets"
+                        / "config.json",
+                        tmp_path
+                        / "nonexistent_etc"
+                        / "config.json",  # This won't exist
                     ]
 
                     for location in locations:
@@ -734,8 +760,13 @@ class TestSecretManagerBaseConfigFile:
         home_config.write_text('{"source": "home"}')
 
         # Cache dir should take precedence
-        with patch('auto_secrets.secret_managers.base.ConfigManager.get_cache_dir', return_value=cache_dir):
-            with patch('auto_secrets.secret_managers.base.Path.home', return_value=tmp_path):
+        with patch(
+            "auto_secrets.secret_managers.base.ConfigManager.get_cache_dir",
+            return_value=cache_dir,
+        ):
+            with patch(
+                "auto_secrets.secret_managers.base.Path.home", return_value=tmp_path
+            ):
                 result = manager._find_config_file()
                 assert result == cache_config
 
@@ -747,11 +778,11 @@ class TestSecretManagerBaseConfigFile:
         config_data = {
             "API_KEY": "secret123",
             "DATABASE_URL": "postgresql://localhost/db",
-            "TIMEOUT": 30
+            "TIMEOUT": 30,
         }
         config_file.write_text(json.dumps(config_data))
 
-        with patch.object(manager, '_find_config_file', return_value=config_file):
+        with patch.object(manager, "_find_config_file", return_value=config_file):
             result = manager._load_config_file()
             assert result == config_data
 
@@ -763,7 +794,9 @@ class TestSecretManagerBaseConfigFile:
         config_data = {"cached": "value"}
         config_file.write_text(json.dumps(config_data))
 
-        with patch.object(manager, '_find_config_file', return_value=config_file) as mock_find:
+        with patch.object(
+            manager, "_find_config_file", return_value=config_file
+        ) as mock_find:
             # First call should read file
             result1 = manager._load_config_file()
             assert result1 == config_data
@@ -779,7 +812,7 @@ class TestSecretManagerBaseConfigFile:
         """Test loading config when no file is found."""
         manager = ConcreteSecretManager(self.valid_config)
 
-        with patch.object(manager, '_find_config_file', return_value=None):
+        with patch.object(manager, "_find_config_file", return_value=None):
             result = manager._load_config_file()
             assert result == {}
 
@@ -790,7 +823,7 @@ class TestSecretManagerBaseConfigFile:
         config_file = tmp_path / "config.json"
         config_file.write_text('{"invalid": json,}')  # Invalid JSON
 
-        with patch.object(manager, '_find_config_file', return_value=config_file):
+        with patch.object(manager, "_find_config_file", return_value=config_file):
             with pytest.raises(ConfigurationError, match="Invalid JSON in config file"):
                 manager._load_config_file()
 
@@ -799,10 +832,14 @@ class TestSecretManagerBaseConfigFile:
         manager = ConcreteSecretManager(self.valid_config)
 
         config_file = tmp_path / "config.json"
-        config_file.write_text('["array", "not", "object"]')  # Valid JSON but not object
+        config_file.write_text(
+            '["array", "not", "object"]'
+        )  # Valid JSON but not object
 
-        with patch.object(manager, '_find_config_file', return_value=config_file):
-            with pytest.raises(ConfigurationError, match="Config file must contain a JSON object"):
+        with patch.object(manager, "_find_config_file", return_value=config_file):
+            with pytest.raises(
+                ConfigurationError, match="Config file must contain a JSON object"
+            ):
                 manager._load_config_file()
 
     def test_load_config_file_read_error(self, tmp_path):
@@ -812,9 +849,11 @@ class TestSecretManagerBaseConfigFile:
         config_file = tmp_path / "config.json"
         config_file.write_text('{"test": "value"}')
 
-        with patch.object(manager, '_find_config_file', return_value=config_file):
-            with patch('builtins.open', side_effect=PermissionError("Access denied")):
-                with pytest.raises(ConfigurationError, match="Failed to read config file"):
+        with patch.object(manager, "_find_config_file", return_value=config_file):
+            with patch("builtins.open", side_effect=PermissionError("Access denied")):
+                with pytest.raises(
+                    ConfigurationError, match="Failed to read config file"
+                ):
                     manager._load_config_file()
 
     @patch.dict(os.environ, {"TEST_SECRET": "env_value"})
@@ -833,7 +872,7 @@ class TestSecretManagerBaseConfigFile:
         config_data = {"CONFIG_SECRET": "config_value"}
         config_file.write_text(json.dumps(config_data))
 
-        with patch.object(manager, '_find_config_file', return_value=config_file):
+        with patch.object(manager, "_find_config_file", return_value=config_file):
             result = manager.get_secret_value("CONFIG_SECRET")
             assert result == "config_value"
 
@@ -846,7 +885,7 @@ class TestSecretManagerBaseConfigFile:
         config_data = {"PRIORITY_SECRET": "config_value"}
         config_file.write_text(json.dumps(config_data))
 
-        with patch.object(manager, '_find_config_file', return_value=config_file):
+        with patch.object(manager, "_find_config_file", return_value=config_file):
             result = manager.get_secret_value("PRIORITY_SECRET")
             assert result == "env_value"  # Environment should win
 
@@ -854,7 +893,7 @@ class TestSecretManagerBaseConfigFile:
         """Test getting non-existent optional secret value."""
         manager = ConcreteSecretManager(self.valid_config)
 
-        with patch.object(manager, '_load_config_file', return_value={}):
+        with patch.object(manager, "_load_config_file", return_value={}):
             result = manager.get_secret_value("NONEXISTENT_SECRET")
             assert result is None
 
@@ -862,8 +901,10 @@ class TestSecretManagerBaseConfigFile:
         """Test getting non-existent required secret value."""
         manager = ConcreteSecretManager(self.valid_config)
 
-        with patch.object(manager, '_load_config_file', return_value={}):
-            with pytest.raises(ConfigurationError, match="Required secret 'REQUIRED_SECRET' not found"):
+        with patch.object(manager, "_load_config_file", return_value={}):
+            with pytest.raises(
+                ConfigurationError, match="Required secret 'REQUIRED_SECRET' not found"
+            ):
                 manager.get_secret_value("REQUIRED_SECRET", required=True)
 
     def test_get_secret_value_config_load_error(self, tmp_path):
@@ -871,9 +912,9 @@ class TestSecretManagerBaseConfigFile:
         manager = ConcreteSecretManager(self.valid_config)
 
         config_file = tmp_path / "config.json"
-        config_file.write_text('invalid json')
+        config_file.write_text("invalid json")
 
-        with patch.object(manager, '_find_config_file', return_value=config_file):
+        with patch.object(manager, "_find_config_file", return_value=config_file):
             # Should not raise exception, just log debug and continue
             result = manager.get_secret_value("TEST_SECRET")
             assert result is None
@@ -888,13 +929,15 @@ class TestSecretManagerBaseConfigFile:
         config_data = {"LOG_TEST_SECRET": "config_value"}
         config_file.write_text(json.dumps(config_data))
 
-        with patch.object(manager, '_find_config_file', return_value=config_file):
-            with patch.object(manager, 'log_debug') as mock_log:
+        with patch.object(manager, "_find_config_file", return_value=config_file):
+            with patch.object(manager, "log_debug") as mock_log:
                 manager.get_secret_value("LOG_TEST_SECRET")
 
                 # Check that debug messages were logged
                 debug_calls = [call.args[0] for call in mock_log.call_args_list]
-                assert any("Found LOG_TEST_SECRET in config file" in msg for msg in debug_calls)
+                assert any(
+                    "Found LOG_TEST_SECRET in config file" in msg for msg in debug_calls
+                )
 
     @patch.dict(os.environ, {"ENV_LOG_SECRET": "env_value"})
     def test_get_secret_value_environment_debug_logging(self):
@@ -903,7 +946,7 @@ class TestSecretManagerBaseConfigFile:
         config["debug"] = True
         manager = ConcreteSecretManager(config)
 
-        with patch.object(manager, 'log_debug') as mock_log:
+        with patch.object(manager, "log_debug") as mock_log:
             manager.get_secret_value("ENV_LOG_SECRET")
 
             mock_log.assert_any_call("Found ENV_LOG_SECRET in environment variables")
@@ -915,10 +958,10 @@ class TestSecretManagerBaseConfigFile:
         manager = ConcreteSecretManager(config)
 
         config_file = tmp_path / "config.json"
-        config_file.write_text('invalid json')
+        config_file.write_text("invalid json")
 
-        with patch.object(manager, '_find_config_file', return_value=config_file):
-            with patch.object(manager, 'log_debug') as mock_log:
+        with patch.object(manager, "_find_config_file", return_value=config_file):
+            with patch.object(manager, "log_debug") as mock_log:
                 manager.get_secret_value("TEST_SECRET")
 
                 mock_log.assert_any_call("Could not load config file for TEST_SECRET")
@@ -932,11 +975,11 @@ class TestSecretManagerBaseConfigFile:
             "STRING_SECRET": "string_value",
             "INTEGER_SECRET": 123,
             "BOOLEAN_SECRET": True,
-            "NULL_SECRET": None
+            "NULL_SECRET": None,
         }
         config_file.write_text(json.dumps(config_data))
 
-        with patch.object(manager, '_find_config_file', return_value=config_file):
+        with patch.object(manager, "_find_config_file", return_value=config_file):
             assert manager.get_secret_value("STRING_SECRET") == "string_value"
             assert manager.get_secret_value("INTEGER_SECRET") == "123"
             assert manager.get_secret_value("BOOLEAN_SECRET") == "True"

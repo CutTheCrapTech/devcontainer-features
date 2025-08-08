@@ -19,7 +19,7 @@
           },
           "pycodestyle": {
             "enabled": true,
-            "maxLineLength": 120
+            "maxLineLength": 100
           }
         }
       }

@@ -88,12 +88,12 @@ def handle_inspect_secrets(args) -> None:
             return
 
         # Format output
-        if args.format == 'json':
+        if args.format == "json":
             output = json.dumps(secrets, indent=2)
-        elif args.format == 'env':
-            output = '\n'.join([f'{k}="{v}"' for k, v in secrets.items()])
-        elif args.format == 'keys':
-            output = '\n'.join(secrets.keys())
+        elif args.format == "env":
+            output = "\n".join([f'{k}="{v}"' for k, v in secrets.items()])
+        elif args.format == "keys":
+            output = "\n".join(secrets.keys())
         else:  # table format (default)
             output = f"Environment: {environment}\n"
             output += f"Secrets Count: {len(secrets)}\n"
@@ -149,8 +149,8 @@ def handle_exec_command(args) -> None:
 
         if not secrets:
             logger.warning(
-              f"No cached secrets found for environment: {environment}"
-              "Continuing execution without secrets."
+                f"No cached secrets found for environment: {environment}"
+                "Continuing execution without secrets."
             )
 
         # Prepare environment
@@ -158,7 +158,7 @@ def handle_exec_command(args) -> None:
         env.update(secrets)
 
         # Add environment indicator
-        env['AUTO_SECRETS_CURRENT_ENV'] = environment
+        env["AUTO_SECRETS_CURRENT_ENV"] = environment
 
         logger.info(f"Executing command with {len(secrets)} secrets loaded")
 
@@ -280,7 +280,10 @@ def handle_debug_env() -> None:
             config_dict = dict(config)
             # Redact sensitive information
             for key in config_dict:
-                if any(sensitive in key.lower() for sensitive in ['token', 'secret', 'key', 'password']):
+                if any(
+                    sensitive in key.lower()
+                    for sensitive in ["token", "secret", "key", "password"]
+                ):
                     config_dict[key] = "***REDACTED***"
             print(json.dumps(config_dict, indent=2))
         except Exception as e:
@@ -322,12 +325,15 @@ def handle_debug_env() -> None:
 
         # Environment variables
         print("\n--- Environment Variables ---")
-        env_vars = [var for var in os.environ.keys() if var.startswith('AUTO_SECRETS_')]
+        env_vars = [var for var in os.environ.keys() if var.startswith("AUTO_SECRETS_")]
         if env_vars:
             for var in sorted(env_vars):
                 value = os.getenv(var)
                 # Redact sensitive values
-                if any(sensitive in var.lower() for sensitive in ['token', 'secret', 'key', 'password']):
+                if any(
+                    sensitive in var.lower()
+                    for sensitive in ["token", "secret", "key", "password"]
+                ):
                     value = "***REDACTED***"
                 print(f"{var}: {value}")
         else:
@@ -389,9 +395,13 @@ def _background_refresh_secrets(environment: Optional[str], config: dict) -> Non
 
         if secrets:
             cache_manager.update_environment_cache(environment, secrets)
-            logger.info(f"Background refresh completed for {environment}: {len(secrets)} secrets")
+            logger.info(
+                f"Background refresh completed for {environment}: {len(secrets)} secrets"
+            )
         else:
-            logger.warning(f"No secrets found during background refresh for {environment}")
+            logger.warning(
+                f"No secrets found during background refresh for {environment}"
+            )
 
     except Exception as e:
         logger.error(f"Error in background refresh: {e}", exc_info=True)
@@ -402,81 +412,98 @@ def main() -> None:
     """Main CLI entry point."""
     # Set up argument parser
     parser = argparse.ArgumentParser(
-        prog='auto-secrets',
-        description='Auto Secrets Manager - Automatic environment secrets management'
+        prog="auto-secrets",
+        description="Auto Secrets Manager - Automatic environment secrets management",
     )
 
     # Global options
-    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
-    parser.add_argument('--quiet', action='store_true', help='Suppress output messages')
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--quiet", action="store_true", help="Suppress output messages")
     parser.add_argument(
-      '--log-level',
-      choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-      help='Set log level'
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set log level",
     )
 
     # Subcommands
-    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Branch change command (called from shell)
-    branch_parser = subparsers.add_parser('branch-changed', help='Handle branch change notification')
-    branch_parser.add_argument('--branch', help='New branch name')
-    branch_parser.add_argument('--repopath', help='Repository path')
+    branch_parser = subparsers.add_parser(
+        "branch-changed", help="Handle branch change notification"
+    )
+    branch_parser.add_argument("--branch", help="New branch name")
+    branch_parser.add_argument("--repopath", help="Repository path")
     branch_parser.set_defaults(func=handle_branch_change)
 
     # Refresh secrets command
-    refresh_parser = subparsers.add_parser('refresh', help='Refresh secrets cache')
-    refresh_parser.add_argument('--environment', help='Specific environment to refresh')
-    refresh_parser.add_argument('--paths', nargs='*', help='Specific secret paths to refresh')
+    refresh_parser = subparsers.add_parser("refresh", help="Refresh secrets cache")
+    refresh_parser.add_argument("--environment", help="Specific environment to refresh")
+    refresh_parser.add_argument(
+        "--paths", nargs="*", help="Specific secret paths to refresh"
+    )
     refresh_parser.set_defaults(func=handle_refresh_secrets)
 
     # Inspect secrets command
-    inspect_parser = subparsers.add_parser('inspect', help='Inspect cached secrets')
-    inspect_parser.add_argument('--environment', help='Specific environment to inspect')
-    inspect_parser.add_argument('--paths', nargs='*', help='Specific secret paths to inspect')
+    inspect_parser = subparsers.add_parser("inspect", help="Inspect cached secrets")
+    inspect_parser.add_argument("--environment", help="Specific environment to inspect")
     inspect_parser.add_argument(
-      '--format',
-      choices=['table', 'json', 'env', 'keys'],
-      default='table', help='Output format'
+        "--paths", nargs="*", help="Specific secret paths to inspect"
     )
     inspect_parser.add_argument(
-      '--show-values',
-      action='store_true',
-      help='Show actual secret values (security risk)'
+        "--format",
+        choices=["table", "json", "env", "keys"],
+        default="table",
+        help="Output format",
+    )
+    inspect_parser.add_argument(
+        "--show-values",
+        action="store_true",
+        help="Show actual secret values (security risk)",
     )
     inspect_parser.set_defaults(func=handle_inspect_secrets)
 
     # Execute command with secrets
-    exec_parser = subparsers.add_parser('exec', help='Execute command with secrets loaded')
-    exec_parser.add_argument('--environment', help='Specific environment to use')
-    exec_parser.add_argument('--paths', nargs='*', help='Specific secret paths to load')
-    exec_parser.add_argument('command', nargs='+', help='Command to execute')
+    exec_parser = subparsers.add_parser(
+        "exec", help="Execute command with secrets loaded"
+    )
+    exec_parser.add_argument("--environment", help="Specific environment to use")
+    exec_parser.add_argument("--paths", nargs="*", help="Specific secret paths to load")
+    exec_parser.add_argument("command", nargs="+", help="Command to execute")
     exec_parser.set_defaults(func=handle_exec_command)
 
     # Output environment for shell sourcing
-    output_env_parser = subparsers.add_parser('output-env', help='Output environment variables for shell sourcing')
-    output_env_parser.add_argument('--environment', help='Specific environment to use')
-    output_env_parser.add_argument('--paths', nargs='*', help='Specific secret paths to load')
+    output_env_parser = subparsers.add_parser(
+        "output-env", help="Output environment variables for shell sourcing"
+    )
+    output_env_parser.add_argument("--environment", help="Specific environment to use")
+    output_env_parser.add_argument(
+        "--paths", nargs="*", help="Specific secret paths to load"
+    )
     output_env_parser.set_defaults(func=handle_exec_for_shell)
 
     # Current environment command
-    current_parser = subparsers.add_parser('current-env', help='Show current environment')
-    current_parser.add_argument('--branch', help='Branch name')
-    current_parser.add_argument(
-      '--prompt-format',
-      action='store_true',
-      help='Format for shell prompt'
+    current_parser = subparsers.add_parser(
+        "current-env", help="Show current environment"
     )
-    current_parser.add_argument('--json', action='store_true', help='JSON output format')
+    current_parser.add_argument("--branch", help="Branch name")
+    current_parser.add_argument(
+        "--prompt-format", action="store_true", help="Format for shell prompt"
+    )
+    current_parser.add_argument(
+        "--json", action="store_true", help="JSON output format"
+    )
     current_parser.set_defaults(func=handle_current_env)
 
     # Debug command
-    debug_parser = subparsers.add_parser('debug', help='Show debug information')
+    debug_parser = subparsers.add_parser("debug", help="Show debug information")
     debug_parser.set_defaults(func=handle_debug_env)
 
     # Cleanup command
-    cleanup_parser = subparsers.add_parser('cleanup', help='Clean up cache files')
-    cleanup_parser.add_argument('--all', action='store_true', help='Clean up all cache files')
+    cleanup_parser = subparsers.add_parser("cleanup", help="Clean up cache files")
+    cleanup_parser.add_argument(
+        "--all", action="store_true", help="Clean up all cache files"
+    )
     cleanup_parser.set_defaults(func=handle_cleanup)
 
     # Parse arguments
@@ -484,25 +511,23 @@ def main() -> None:
 
     # Set up logging
     config = ConfigManager.load_config()
-    log_level = "DEBUG" if config.get('debug', False) else "INFO"
+    log_level = "DEBUG" if config.get("debug", False) else "INFO"
     logs_dir = Path(config["log_dir"])
 
     logger = setup_logging(
-        log_level=log_level,
-        log_dir=str(logs_dir),
-        log_file="cli.log"
+        log_level=log_level, log_dir=str(logs_dir), log_file="cli.log"
     )
 
     if log_level == "DEBUG":
         log_system_info(logger)
 
     # Execute command
-    if hasattr(args, 'func'):
+    if hasattr(args, "func"):
         args.func(args)
     else:
         parser.print_help()
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

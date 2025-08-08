@@ -37,7 +37,7 @@ class TestLoggingFormatting:
 
     def test_different_log_levels(self):
         """Test different log levels are handled properly."""
-        with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as temp_file:
             logger = setup_logging(log_file=temp_file.name)
 
             logger.debug("Debug message")
@@ -51,7 +51,7 @@ class TestLoggingFormatting:
                 handler.flush()
 
             # Read log file
-            with open(temp_file.name, 'r') as f:
+            with open(temp_file.name, "r") as f:
                 content = f.read()
 
             # Should contain the messages
@@ -107,7 +107,7 @@ class TestSetupLogging:
                 handler.flush()
 
             # Read log file content
-            with open(log_path, 'r') as f:
+            with open(log_path, "r") as f:
                 content = f.read()
                 assert "Test message" in content
 
@@ -208,8 +208,8 @@ class TestLogSystemInfo:
         assert "Python" in logged_text or "python" in logged_text.lower()
         assert "Platform" in logged_text or "platform" in logged_text.lower()
 
-    @patch('platform.system')
-    @patch('platform.release')
+    @patch("platform.system")
+    @patch("platform.release")
     def test_log_system_info_details(self, mock_release, mock_system):
         """Test detailed system info logging."""
         mock_logger = Mock()
@@ -231,7 +231,7 @@ class TestLogSystemInfo:
         # Should log multiple pieces of information
         assert mock_logger.info.call_count > 1
 
-    @patch('os.environ')
+    @patch("os.environ")
     def test_log_system_info_environment_vars(self, mock_environ):
         """Test system info logging includes environment variables."""
         mock_logger = Mock()
@@ -241,7 +241,7 @@ class TestLogSystemInfo:
             ("AUTO_SECRETS_DEBUG", "true"),
             ("AUTO_SECRETS_CONFIG", "/path/to/config"),
             ("OTHER_VAR", "ignored"),
-            ("PATH", "/usr/bin")
+            ("PATH", "/usr/bin"),
         ]
 
         log_system_info(mock_logger)
@@ -254,7 +254,7 @@ class TestLogSystemInfo:
         mock_logger = Mock()
 
         # Mock an error in system info gathering
-        with patch('platform.system', side_effect=Exception("Platform error")):
+        with patch("platform.system", side_effect=Exception("Platform error")):
             # Should not raise exception
             log_system_info(mock_logger)
 
@@ -272,7 +272,7 @@ class TestLoggingIntegration:
 
     def test_end_to_end_logging(self):
         """Test complete logging workflow."""
-        with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(mode="w+", delete=False) as temp_file:
             log_path = temp_file.name
 
             # Setup logging
@@ -299,11 +299,14 @@ class TestLoggingIntegration:
                 handler.flush()
 
             # Read log file
-            with open(log_path, 'r') as f:
+            with open(log_path, "r") as f:
                 log_content = f.read()
 
             # Verify messages are logged (some may be filtered by level)
-            assert "Info message from module1" in log_content or "Warning message from module2.submodule" in log_content
+            assert (
+                "Info message from module1" in log_content
+                or "Warning message from module2.submodule" in log_content
+            )
 
             # Cleanup
             os.unlink(log_path)
@@ -325,11 +328,14 @@ class TestLoggingIntegration:
                 handler.flush()
 
             # Check file output
-            with open(log_path, 'r') as f:
+            with open(log_path, "r") as f:
                 file_output = f.read()
 
             # File should contain the messages
-            assert "Test info message" in file_output or "Test error message" in file_output
+            assert (
+                "Test info message" in file_output
+                or "Test error message" in file_output
+            )
 
             # Cleanup
             os.unlink(log_path)
@@ -356,7 +362,7 @@ class TestLoggingIntegration:
             logger = get_logger("test")
 
             logger.debug("Debug message")  # Should not appear
-            logger.info("Info message")    # Should appear
+            logger.info("Info message")  # Should appear
             logger.warning("Warning message")  # Should appear
             logger.error("Error message")  # Should appear
 
@@ -364,7 +370,7 @@ class TestLoggingIntegration:
             for handler in main_logger.handlers:
                 handler.flush()
 
-            with open(log_path, 'r') as f:
+            with open(log_path, "r") as f:
                 content = f.read()
 
             # At least some messages should appear

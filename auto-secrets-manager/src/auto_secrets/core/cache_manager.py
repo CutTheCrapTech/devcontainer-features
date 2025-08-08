@@ -22,12 +22,14 @@ from .utils import CommonUtils
 
 class CacheError(Exception):
     """Cache-related errors."""
+
     pass
 
 
 @dataclass
 class CacheMetadata:
     """Metadata for cached secrets."""
+
     environment: str
     created_at: int
     last_updated: int
@@ -44,7 +46,7 @@ class CacheMetadata:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'CacheMetadata':
+    def from_dict(cls, data: Dict[str, Any]) -> "CacheMetadata":
         """Create from dictionary loaded from JSON."""
         return cls(**data)
 
@@ -96,10 +98,11 @@ class CacheManager:
         return self.cache_dir / "environments" / environment
 
     def update_environment_cache(
-      self, environment: str,
-      secrets: Dict[str, str],
-      branch: Optional[str] = None,
-      repo_path: Optional[str] = None
+        self,
+        environment: str,
+        secrets: Dict[str, str],
+        branch: Optional[str] = None,
+        repo_path: Optional[str] = None,
     ) -> None:
         """
         Update environment cache atomically.
@@ -116,7 +119,9 @@ class CacheManager:
         if not environment:
             raise CacheError("Environment name cannot be empty")
 
-        self.logger.info(f"Updating cache for environment: {environment} ({len(secrets)} secrets)")
+        self.logger.info(
+            f"Updating cache for environment: {environment} ({len(secrets)} secrets)"
+        )
 
         try:
             env_cache_dir = self.get_environment_cache_dir(environment)
@@ -131,31 +136,31 @@ class CacheManager:
                 secret_count=len(secrets),
                 branch=branch,
                 repo_path=repo_path,
-                status="ok"
+                status="ok",
             )
 
             # Write secrets in JSON format (full data)
             self._write_file_atomically(
                 env_cache_dir / f"{environment}.json",
-                {
-                    "metadata": metadata.to_dict(),
-                    "secrets": secrets
-                }
+                {"metadata": metadata.to_dict(), "secrets": secrets},
             )
 
             # Write secrets in shell-friendly format
             self._write_env_file_atomically(
-                env_cache_dir / f"{environment}.env",
-                secrets
+                env_cache_dir / f"{environment}.env", secrets
             )
 
-            self.logger.info(f"Successfully cached {len(secrets)} secrets for {environment}")
+            self.logger.info(
+                f"Successfully cached {len(secrets)} secrets for {environment}"
+            )
 
         except Exception as e:
             self.logger.error(f"Failed to update cache for {environment}: {e}")
             raise CacheError(f"Cache update failed: {e}")
 
-    def get_cached_secrets(self, environment: str, paths: Optional[List[str]] = None) -> Dict[str, str]:
+    def get_cached_secrets(
+        self, environment: str, paths: Optional[List[str]] = None
+    ) -> Dict[str, str]:
         """
         Get cached secrets for environment.
 
@@ -183,7 +188,7 @@ class CacheManager:
                 return {}
 
             # Read cache file
-            with open(cache_file, 'r') as f:
+            with open(cache_file, "r") as f:
                 cache_data = json.load(f)
 
             secrets = cache_data.get("secrets", {})
@@ -197,12 +202,16 @@ class CacheManager:
                 filtered_secrets = {}
                 for path in paths:
                     # Simple path matching - can be enhanced for glob patterns
-                    matching_keys = [k for k in secrets.keys() if self._path_matches(k, path)]
+                    matching_keys = [
+                        k for k in secrets.keys() if self._path_matches(k, path)
+                    ]
                     for key in matching_keys:
                         filtered_secrets[key] = secrets[key]
                 secrets = filtered_secrets
 
-            self.logger.debug(f"Retrieved {len(secrets)} cached secrets for {environment}")
+            self.logger.debug(
+                f"Retrieved {len(secrets)} cached secrets for {environment}"
+            )
             return secrets
 
         except (OSError, json.JSONDecodeError) as e:
@@ -226,11 +235,15 @@ class CacheManager:
             return secret_key.startswith(prefix)
         elif path_filter.endswith("*"):
             prefix = path_filter[:-1]
-            return secret_key.startswith(prefix) and "/" not in secret_key[len(prefix):]
+            return (
+                secret_key.startswith(prefix) and "/" not in secret_key[len(prefix) :]
+            )
         else:
             return secret_key == path_filter
 
-    def is_cache_stale(self, environment: str, max_age_seconds: Optional[int] = None) -> bool:
+    def is_cache_stale(
+        self, environment: str, max_age_seconds: Optional[int] = None
+    ) -> bool:
         """
         Check if environment cache is stale.
 
@@ -250,19 +263,21 @@ class CacheManager:
             if not cache_file.exists():
                 return True
 
-            with open(cache_file, 'r') as f:
+            with open(cache_file, "r") as f:
                 cache_data = json.load(f)
 
             metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
             is_stale = metadata.is_stale(max_age)
 
             self.logger.debug(
-              f"Cache staleness check for {environment}: stale={is_stale}, age={metadata.age_seconds()}s"
+                f"Cache staleness check for {environment}: stale={is_stale}, age={metadata.age_seconds()}s"
             )
             return is_stale
 
         except Exception as e:
-            self.logger.warning(f"Error checking cache staleness for {environment}: {e}")
+            self.logger.warning(
+                f"Error checking cache staleness for {environment}: {e}"
+            )
             return True  # Assume stale on error
 
     def mark_environment_stale(self, environment: str, reason: str = "Manual") -> None:
@@ -284,7 +299,7 @@ class CacheManager:
                 return
 
             # Read current cache
-            with open(cache_file, 'r') as f:
+            with open(cache_file, "r") as f:
                 cache_data = json.load(f)
 
             # Update metadata
@@ -330,7 +345,9 @@ class CacheManager:
                         cleaned_count += 1
                         self.logger.debug(f"Cleaned up stale cache for {environment}")
                     except OSError as e:
-                        self.logger.warning(f"Failed to clean up cache for {environment}: {e}")
+                        self.logger.warning(
+                            f"Failed to clean up cache for {environment}: {e}"
+                        )
 
             self.logger.info(f"Cleaned up {cleaned_count} stale cache entries")
             return {"removed": cleaned_count}
@@ -379,7 +396,7 @@ class CacheManager:
             if not cache_file.exists():
                 return None
 
-            with open(cache_file, 'r') as f:
+            with open(cache_file, "r") as f:
                 cache_data = json.load(f)
 
             metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
@@ -394,7 +411,7 @@ class CacheManager:
                 "is_stale": metadata.is_stale(self.max_age_seconds),
                 "status": metadata.status,
                 "error_message": metadata.error_message,
-                "cache_file": str(cache_file)
+                "cache_file": str(cache_file),
             }
 
         except Exception as e:
@@ -416,11 +433,11 @@ class CacheManager:
 
             # Create temporary file in same directory
             with tempfile.NamedTemporaryFile(
-                mode='w',
+                mode="w",
                 dir=target_path.parent,
                 prefix=f".{target_path.name}.",
-                suffix='.tmp',
-                delete=False
+                suffix=".tmp",
+                delete=False,
             ) as tmp_file:
                 json.dump(data, tmp_file, indent=2)
                 tmp_file.flush()
@@ -442,7 +459,9 @@ class CacheManager:
                 pass
             raise e
 
-    def _write_env_file_atomically(self, target_path: Path, secrets: Dict[str, str]) -> None:
+    def _write_env_file_atomically(
+        self, target_path: Path, secrets: Dict[str, str]
+    ) -> None:
         """
         Write secrets in shell-friendly .env format atomically.
 
@@ -457,11 +476,11 @@ class CacheManager:
 
             # Create temporary file
             with tempfile.NamedTemporaryFile(
-                mode='w',
+                mode="w",
                 dir=target_path.parent,
                 prefix=f".{target_path.name}.",
-                suffix='.tmp',
-                delete=False
+                suffix=".tmp",
+                delete=False,
             ) as tmp_file:
                 tmp_file.write("# Auto-generated environment file\n")
                 tmp_file.write(f"# Generated at: {time.ctime()}\n\n")
@@ -506,7 +525,7 @@ class CacheManager:
                 return
 
             # Read current cache
-            with open(cache_file, 'r') as f:
+            with open(cache_file, "r") as f:
                 cache_data = json.load(f)
 
             # Update access time
@@ -517,7 +536,9 @@ class CacheManager:
             try:
                 self._write_file_atomically(cache_file, cache_data)
             except Exception as e:
-                self.logger.debug(f"Failed to update access time for {environment}: {e}")
+                self.logger.debug(
+                    f"Failed to update access time for {environment}: {e}"
+                )
 
         except Exception as e:
             self.logger.debug(f"Failed to update access time for {environment}: {e}")
@@ -535,7 +556,7 @@ class CacheManager:
             "total_environments": 0,
             "total_secrets": 0,
             "stale_environments": 0,
-            "environments": {}
+            "environments": {},
         }
 
         try:
@@ -567,4 +588,6 @@ class CacheManager:
 
     def __repr__(self) -> str:
         """String representation of CacheManager."""
-        return f"CacheManager(cache_dir={self.cache_dir}, max_age={self.max_age_seconds}s)"
+        return (
+            f"CacheManager(cache_dir={self.cache_dir}, max_age={self.max_age_seconds}s)"
+        )

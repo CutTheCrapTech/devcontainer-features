@@ -13,6 +13,7 @@ from ..logging_config import get_logger
 
 class BranchManagerError(Exception):
     """Branch manager related errors."""
+
     pass
 
 
@@ -28,7 +29,9 @@ class BranchManager:
         self.config = config
         self.logger = get_logger("branch_manager")
 
-    def map_branch_to_environment(self, branch: str, repo_path: Optional[str] = None) -> Optional[str]:
+    def map_branch_to_environment(
+        self, branch: str, repo_path: Optional[str] = None
+    ) -> Optional[str]:
         """
         Map a git branch to an environment using configuration rules.
 
@@ -69,16 +72,22 @@ class BranchManager:
                 continue  # Skip default, handle separately
 
             if self._branch_matches_pattern(branch, pattern):
-                self.logger.info(f"Pattern match: {branch} matches {pattern} -> {environment}")
+                self.logger.info(
+                    f"Pattern match: {branch} matches {pattern} -> {environment}"
+                )
                 return environment
 
         # Use default if no matches found
         default_env = self._get_default_environment()
         if default_env:
-            self.logger.info(f"No match found for '{branch}', using default: {default_env}")
+            self.logger.info(
+                f"No match found for '{branch}', using default: {default_env}"
+            )
             return default_env
 
-        self.logger.error(f"No mapping found for branch '{branch}' and no default configured")
+        self.logger.error(
+            f"No mapping found for branch '{branch}' and no default configured"
+        )
         return None
 
     def _get_default_environment(self) -> Optional[str]:
@@ -102,7 +111,7 @@ class BranchManager:
             bool: True if branch matches pattern
         """
         # Skip patterns without wildcards
-        if '*' not in pattern and '?' not in pattern:
+        if "*" not in pattern and "?" not in pattern:
             return False
 
         self.logger.debug(f"Testing pattern '{pattern}' against branch '{branch_name}'")
@@ -113,19 +122,21 @@ class BranchManager:
 
             # Replace wildcards with regex equivalents
             # ** matches anything including /
-            regex_pattern = regex_pattern.replace('**', '___DOUBLE_STAR___')
+            regex_pattern = regex_pattern.replace("**", "___DOUBLE_STAR___")
             # * matches anything except /
-            regex_pattern = regex_pattern.replace('*', '[^/]*')
+            regex_pattern = regex_pattern.replace("*", "[^/]*")
             # Restore **
-            regex_pattern = regex_pattern.replace('___DOUBLE_STAR___', '.*')
+            regex_pattern = regex_pattern.replace("___DOUBLE_STAR___", ".*")
             # ? matches single character
-            regex_pattern = regex_pattern.replace('?', '.')
+            regex_pattern = regex_pattern.replace("?", ".")
 
             # Anchor the pattern
             regex_pattern = f"^{regex_pattern}$"
 
             match_result = bool(re.match(regex_pattern, branch_name))
-            self.logger.debug(f"Pattern '{pattern}' -> regex '{regex_pattern}' -> {match_result}")
+            self.logger.debug(
+                f"Pattern '{pattern}' -> regex '{regex_pattern}' -> {match_result}"
+            )
             return match_result
 
         except re.error as e:
@@ -159,7 +170,7 @@ class BranchManager:
             "total": len(test_cases),
             "passed": 0,
             "failed": 0,
-            "details": []
+            "details": [],
         }
 
         for branch, expected_env in test_cases:
@@ -172,23 +183,29 @@ class BranchManager:
                 else:
                     results["failed"] += 1
 
-                results["details"].append({
-                    "branch": branch,
-                    "expected": expected_env,
-                    "actual": actual_env,
-                    "success": success
-                })
+                results["details"].append(
+                    {
+                        "branch": branch,
+                        "expected": expected_env,
+                        "actual": actual_env,
+                        "success": success,
+                    }
+                )
 
             except Exception as e:
                 results["failed"] += 1
-                results["details"].append({
-                    "branch": branch,
-                    "expected": expected_env,
-                    "actual": f"ERROR: {e}",
-                    "success": False
-                })
+                results["details"].append(
+                    {
+                        "branch": branch,
+                        "expected": expected_env,
+                        "actual": f"ERROR: {e}",
+                        "success": False,
+                    }
+                )
 
-        self.logger.info(f"Branch mapping test: {results['passed']}/{results['total']} passed")
+        self.logger.info(
+            f"Branch mapping test: {results['passed']}/{results['total']} passed"
+        )
         return results
 
     def validate_configuration(self) -> List[str]:
@@ -215,7 +232,9 @@ class BranchManager:
 
             try:
                 # Test the pattern conversion - validate all patterns, not just wildcards
-                test_pattern = pattern.replace('**', '.*').replace('*', '[^/]*').replace('?', '.')
+                test_pattern = (
+                    pattern.replace("**", ".*").replace("*", "[^/]*").replace("?", ".")
+                )
                 re.compile(f"^{test_pattern}$")
             except re.error:
                 errors.append(f"Invalid pattern syntax: {pattern}")

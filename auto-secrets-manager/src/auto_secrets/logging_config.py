@@ -21,7 +21,9 @@ DEFAULT_MAX_BYTES = 10 * 1024 * 1024  # 10MB
 DEFAULT_BACKUP_COUNT = 5
 
 # Log format
-LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+LOG_FORMAT = (
+    "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+)
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
@@ -29,7 +31,7 @@ def setup_logging(
     log_level: Optional[str] = None,
     log_dir: Optional[str] = None,
     log_file: Optional[str] = None,
-    console_output: bool = False
+    console_output: bool = False,
 ) -> logging.Logger:
     """
     Set up logging configuration for auto-secrets-manager.
@@ -71,7 +73,7 @@ def setup_logging(
             log_path,
             maxBytes=DEFAULT_MAX_BYTES,
             backupCount=DEFAULT_BACKUP_COUNT,
-            mode='a'
+            mode="a",
         )
         file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
@@ -131,14 +133,18 @@ def log_system_info(logger: logging.Logger) -> None:
         "AUTO_SECRETS_CONFIG_PATH",
         "AUTO_SECRETS_LOG_LEVEL",
         "AUTO_SECRETS_SECRET_MANAGER",
-        "AUTO_SECRETS_BRANCH_MAPPINGS"
+        "AUTO_SECRETS_BRANCH_MAPPINGS",
     ]
 
     for var in env_vars:
         value = os.getenv(var)
         if value:
             # Don't log sensitive values in full
-            if "token" in var.lower() or "secret" in var.lower() or "key" in var.lower():
+            if (
+                "token" in var.lower()
+                or "secret" in var.lower()
+                or "key" in var.lower()
+            ):
                 logger.info(f"{var}: ***REDACTED***")
             else:
                 logger.info(f"{var}: {value}")
