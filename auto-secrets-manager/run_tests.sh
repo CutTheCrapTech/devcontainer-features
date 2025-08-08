@@ -11,7 +11,6 @@ echo "=================================================="
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$SCRIPT_DIR"
 SRC_DIR="$ROOT_DIR/src"
-TESTS_DIR="$ROOT_DIR/tests"
 REPORTS_DIR="$ROOT_DIR/reports"
 
 # Colors for output
@@ -250,9 +249,6 @@ run_integration_tests() {
     print_error "Integration tests failed"
     return 1
   fi
-
-  # Cleanup test cache
-  rm -rf "/tmp/auto-secrets-test-$$" 2>/dev/null || true
 }
 
 # Test shell integration
@@ -292,7 +288,9 @@ test_shell_integration() {
   if [[ -f "$SRC_DIR/shell/bash-integration.sh" ]]; then
     if (
       cd "$temp_dir"
+      # shellcheck disable=SC2030
       export SHELL=bash
+      # shellcheck disable=SC1091
       source "$SRC_DIR/shell/bash-integration.sh" 2>/dev/null
     ); then
       print_info "✓ Bash integration loads successfully"
@@ -306,7 +304,9 @@ test_shell_integration() {
   if command_exists zsh && [[ -f "$SRC_DIR/shell/zsh-integration.sh" ]]; then
     if (
       cd "$temp_dir"
+      # shellcheck disable=SC2031
       export SHELL=zsh
+      # shellcheck disable=SC1091
       zsh -c "source '$SRC_DIR/shell/zsh-integration.sh'" 2>/dev/null
     ); then
       print_info "✓ Zsh integration loads successfully"
@@ -320,6 +320,7 @@ test_shell_integration() {
   if [[ -f "$SRC_DIR/shell/branch-detection.sh" ]]; then
     if (
       cd "$temp_dir"
+      # shellcheck disable=SC1091
       source "$SRC_DIR/shell/branch-detection.sh"
       # Test that key functions are defined
       type _auto_secrets_check_branch_change >/dev/null 2>&1
@@ -384,7 +385,7 @@ run_lint_checks() {
   # Python linting (flake8)
   if command_exists flake8; then
     print_info "Running flake8 linting..."
-    if flake8 --max-line-length=100 --extend-ignore=E203,W503 . 2>/dev/null; then
+    if flake8 --max-line-length=120 --extend-ignore=E203,W503 . 2>/dev/null; then
       print_info "✓ Flake8 linting passed"
     else
       print_warning "✗ Flake8 linting issues found"
@@ -399,7 +400,7 @@ run_lint_checks() {
     print_info "Running shellcheck on shell scripts..."
     local shell_errors=0
 
-    for script in "$ROOT_DIR"/src/shell/*.sh "$ROOT_DIR"/devcontainer-feature/*.sh; do
+    for script in "$ROOT_DIR"/src/shell/*.sh "$ROOT_DIR"/*.sh; do
       if [[ -f "$script" ]]; then
         if shellcheck "$script" 2>/dev/null; then
           print_info "✓ $(basename "$script") - shellcheck passed"
@@ -606,7 +607,8 @@ EOF
 # Main execution
 main() {
   local exit_code=0
-  local start_time=$(date +%s)
+  local start_time
+  start_time=$(date +%s)
 
   echo "Starting test run at $(date)"
   echo ""
@@ -643,8 +645,10 @@ main() {
   generate_report
 
   # Summary
-  local end_time=$(date +%s)
-  local duration=$((end_time - start_time))
+  local end_time
+  end_time=$(date +%s)
+  local duration
+  duration=$((end_time - start_time))
 
   echo ""
   echo "=================================================="

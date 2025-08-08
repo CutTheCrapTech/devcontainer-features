@@ -5,20 +5,19 @@ Plugin-style secret manager implementations with a common interface.
 Currently supports Infisical secret manager with plans for additional providers.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 from .base import (
+    AuthenticationError,
+    ConfigurationError,
+    ConnectionTestResult,
+    NetworkError,
+    SecretInfo,
     SecretManagerBase,
     SecretManagerError,
-    AuthenticationError,
-    NetworkError,
-    ConfigurationError,
     SecretNotFoundError,
-    SecretInfo,
-    ConnectionTestResult,
 )
 from .infisical import InfisicalSecretManager
-
 
 # Registry of available secret managers
 SECRET_MANAGERS = {

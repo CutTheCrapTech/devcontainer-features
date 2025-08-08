@@ -5,13 +5,14 @@ Abstract base class defining the interface for all secret manager implementation
 Provides common functionality and error handling patterns.
 """
 
+import json
 import os
 import re
-import json
-from pathlib import Path
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 from ..core.config import ConfigManager
 
 

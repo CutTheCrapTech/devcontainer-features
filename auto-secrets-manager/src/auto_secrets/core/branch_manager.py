@@ -6,7 +6,7 @@ Provides pattern matching for branch names and proper logging.
 """
 
 import re
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
 
 from ..logging_config import get_logger
 

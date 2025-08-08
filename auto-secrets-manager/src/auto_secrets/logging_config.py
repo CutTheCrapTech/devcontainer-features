@@ -12,7 +12,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-
 # Default log configuration
 DEFAULT_LOG_DIR = "/var/log/auto-secrets"
 DEFAULT_LOG_FILE = "auto-secrets.log"

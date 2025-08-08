@@ -7,27 +7,23 @@ command execution, and integration with other modules.
 
 import os
 from io import StringIO
+from typing import Any, Dict
 from unittest.mock import Mock, patch
-import pytest
-from typing import Dict, Any
 
-from auto_secrets.cli import (  # type: ignore
-    main,
-    handle_branch_change,
-    handle_refresh_secrets,
-    handle_inspect_secrets,
+import pytest
+from auto_secrets.cli import handle_branch_change  # type: ignore
+from auto_secrets.cli import (
+    _background_refresh_secrets,
+    handle_cleanup,
+    handle_debug_env,
     handle_exec_command,
     handle_exec_for_shell,
-    handle_current_env,
-    handle_debug_env,
-    handle_cleanup,
-    _background_refresh_secrets,
+    handle_inspect_secrets,
+    handle_refresh_secrets,
+    main,
 )
 from auto_secrets.core.config import ConfigError  # type: ignore
-from auto_secrets.secret_managers.base import (  # type: ignore
-    SecretManagerError,
-    ConnectionTestResult,
-)
+from auto_secrets.secret_managers.base import ConnectionTestResult, SecretManagerError  # type: ignore
 
 
 class TestHandleBranchChange:
@@ -76,7 +72,7 @@ class TestHandleBranchChange:
             handle_branch_change(self.mock_args)
 
         mock_cache_instance.update_environment_cache.assert_called_once_with(
-            "production", {"key": "value"}
+            "production", {"key": "value"}, 'main', '/path/to/repo'
         )
 
     @patch("auto_secrets.cli.ConfigManager.load_config")
@@ -298,64 +294,6 @@ class TestHandleExecForShell:
             output = mock_stdout.getvalue()
             assert 'export API_KEY="secret123"' in output
             assert 'export DB_PASSWORD="dbpass456"' in output
-
-
-class TestHandleCurrentEnv:
-    """Test handle_current_env function."""
-
-    def setup_method(self) -> None:
-        """Set up test fixtures."""
-        self.mock_args = Mock()
-        self.mock_args.branch = "main"
-        self.mock_args.repo_path = "/path/to/repo"
-        self.mock_args.prompt_format = False
-
-        self.mock_config: Dict[str, Any] = {
-            "branch_mappings": {
-                "main": "production",
-                "develop": "staging",
-                "default": "development",
-            }
-        }
-
-    @patch("auto_secrets.cli.ConfigManager.load_config")
-    @patch("auto_secrets.cli.BranchManager")
-    def test_handle_current_env_normal(self, mock_branch_manager, mock_load_config):
-        """Test displaying current environment normally."""
-        self.mock_config["cache_base_dir"] = "/tmp"
-        mock_load_config.return_value = self.mock_config
-
-        mock_branch_instance = Mock()
-        mock_branch_instance.map_branch_to_environment.return_value = "production"
-        mock_branch_manager.return_value = mock_branch_instance
-
-        with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-            handle_current_env(self.mock_args)
-
-            output = mock_stdout.getvalue()
-            assert '"environment": "production"' in output
-            assert '"branch": "main"' in output
-
-    @patch("auto_secrets.cli.ConfigManager.load_config")
-    @patch("auto_secrets.cli.BranchManager")
-    def test_handle_current_env_prompt_format(
-        self, mock_branch_manager, mock_load_config
-    ):
-        """Test displaying current environment for prompt."""
-        self.mock_args.prompt_format = True
-
-        self.mock_config["cache_base_dir"] = "/tmp"
-        mock_load_config.return_value = self.mock_config
-
-        mock_branch_instance = Mock()
-        mock_branch_instance.map_branch_to_environment.return_value = "production"
-        mock_branch_manager.return_value = mock_branch_instance
-
-        with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-            handle_current_env(self.mock_args)
-
-            output = mock_stdout.getvalue()
-            assert "[production]" in output
 
 
 class TestHandleDebugEnv:
@@ -644,40 +582,6 @@ class TestMainFunction:
         mock_parse_args.return_value = mock_args
 
         with patch("auto_secrets.cli.handle_exec_for_shell") as mock_handle, patch.dict(
-            os.environ,
-            {
-                "AUTO_SECRETS_SECRET_MANAGER": "infisical",
-                "AUTO_SECRETS_SHELLS": "bash",
-                "AUTO_SECRETS_BRANCH_MAPPINGS": '{"main": "production", "default": "development"}',
-            },
-        ):
-            mock_args.func = mock_handle
-            main()
-
-            mock_setup_logging.assert_called_once()
-            mock_handle.assert_called_once_with(mock_args)
-
-    @patch("auto_secrets.cli.ConfigManager.load_config")
-    @patch("auto_secrets.cli.setup_logging")
-    @patch("argparse.ArgumentParser.parse_args")
-    def test_main_current_env_command(
-        self, mock_parse_args, mock_setup_logging, mock_load_config
-    ):
-        """Test main function with current-env command."""
-        mock_load_config.return_value = {
-            "cache_base_dir": "/tmp",
-            "secret_manager": "infisical",
-            "log_dir": "/tmp",
-        }
-        mock_args = Mock()
-        mock_args.debug = False
-        mock_args.quiet = False
-        mock_args.command = "current-env"
-        mock_args.prompt_format = False
-        mock_args.json = False
-        mock_parse_args.return_value = mock_args
-
-        with patch("auto_secrets.cli.handle_current_env") as mock_handle, patch.dict(
             os.environ,
             {
                 "AUTO_SECRETS_SECRET_MANAGER": "infisical",

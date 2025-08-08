@@ -8,15 +8,11 @@ including secure caching, atomic operations, and staleness detection.
 import json
 import tempfile
 from pathlib import Path
+from typing import Any, Dict
 from unittest.mock import patch
-import pytest
-from typing import Dict, Any
 
-from auto_secrets.core.cache_manager import (  # type: ignore
-    CacheError,
-    CacheMetadata,
-    CacheManager,
-)
+import pytest
+from auto_secrets.core.cache_manager import CacheError, CacheManager, CacheMetadata  # type: ignore
 
 
 class TestCacheMetadata:
@@ -231,9 +227,11 @@ class TestCacheManager:
         return config
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_init_with_config(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_init_with_config(self, mock_get_base_dir, mock_get_cache_dir):
         """Test CacheManager initialization."""
         mock_get_cache_dir.return_value = Path("/tmp/test_cache")
+        mock_get_base_dir.return_value = Path("/tmp/test_base")
 
         with patch.object(CacheManager, "_ensure_cache_directory"):
             manager = CacheManager(self.test_config)
@@ -243,9 +241,11 @@ class TestCacheManager:
             assert manager.max_age_seconds == 900
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_init_default_max_age(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_init_default_max_age(self, mock_get_base_dir, mock_get_cache_dir):
         """Test CacheManager with default max_age_seconds."""
         mock_get_cache_dir.return_value = Path("/tmp/test_cache")
+        mock_get_base_dir.return_value = Path("/tmp/test_base")
         config = {"cache_config": {}}
 
         with patch.object(CacheManager, "_ensure_cache_directory"):
@@ -254,9 +254,11 @@ class TestCacheManager:
             assert manager.max_age_seconds == 900  # Default value
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_init_no_cache_config(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_init_no_cache_config(self, mock_get_base_dir, mock_get_cache_dir):
         """Test CacheManager with no cache_config."""
         mock_get_cache_dir.return_value = Path("/tmp/test_cache")
+        mock_get_base_dir.return_value = Path("/tmp/test_base")
         config = {}
 
         with patch.object(CacheManager, "_ensure_cache_directory"):
@@ -265,20 +267,28 @@ class TestCacheManager:
             assert manager.max_age_seconds == 900  # Default value
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_ensure_cache_directory_success(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_ensure_cache_directory_success(self, mock_get_base_dir, mock_get_cache_dir):
         """Test successful cache directory creation."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir) / "cache"
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             CacheManager(self.test_config)
 
             assert cache_dir.exists()
             assert (cache_dir / "environments").exists()
 
+            assert base_dir.exists()
+            assert (base_dir / "state").exists()
+
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
     @patch("pathlib.Path.mkdir")
-    def test_ensure_cache_directory_failure(self, mock_mkdir, mock_get_cache_dir):
+    def test_ensure_cache_directory_failure(self, mock_mkdir, mock_get_base_dir, mock_get_cache_dir):
         """Test cache directory creation failure."""
         mock_get_cache_dir.return_value = Path("/invalid/path")
         mock_mkdir.side_effect = OSError("Permission denied")
@@ -287,9 +297,11 @@ class TestCacheManager:
             CacheManager(self.test_config)
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_get_environment_cache_dir(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_get_environment_cache_dir(self, mock_get_base_dir, mock_get_cache_dir):
         """Test getting environment-specific cache directory."""
         mock_get_cache_dir.return_value = Path("/tmp/test_cache")
+        mock_get_base_dir.return_value = Path("/tmp/test_base")
 
         with patch.object(CacheManager, "_ensure_cache_directory"):
             manager = CacheManager(self.test_config)
@@ -300,14 +312,18 @@ class TestCacheManager:
             assert result == expected
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
     @patch("time.time")
-    def test_update_environment_cache_success(self, mock_time, mock_get_cache_dir):
+    def test_update_environment_cache_success(self, mock_time, mock_get_base_dir, mock_get_cache_dir):
         """Test successful cache update."""
         mock_time.return_value = 1234567890
 
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             manager = CacheManager(self.test_config)
 
@@ -319,22 +335,26 @@ class TestCacheManager:
                 manager, "_write_env_file_atomically"
             ) as mock_write_env:
 
-                manager.update_environment_cache("production", secrets)
+                manager.update_environment_cache("production", secrets, branch="main", repo_path="/repo")
 
                 # Check that files were written
-                assert mock_write_file.call_count == 1
+                assert mock_write_file.call_count == 3
                 assert mock_write_env.call_count == 1
 
                 # Check metadata creation
-                metadata_call = mock_write_file.call_args[0]
+                metadata_call = mock_write_file.call_args_list[1]
                 assert "production.json" in str(metadata_call[0])
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_update_environment_cache_with_branch_info(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_update_environment_cache_with_branch_info(self, mock_get_base_dir, mock_get_cache_dir):
         """Test cache update with branch information."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             manager = CacheManager(self.test_config)
 
@@ -348,19 +368,24 @@ class TestCacheManager:
                     "production", secrets, branch="main", repo_path="/repo"
                 )
 
-                # Verify metadata includes branch info
-                metadata_call = mock_write_file.call_args[0]
-                metadata_content = metadata_call[1]["metadata"]
+                # Get the 2nd call (index 1) - this should be the production.json write
+                second_call = mock_write_file.call_args_list[1]
 
+                # Verify metadata includes branch info
+                metadata_content = second_call[0][1]["metadata"]
                 assert metadata_content["branch"] == "main"
                 assert metadata_content["repo_path"] == "/repo"
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_get_cached_secrets_success(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_get_cached_secrets_success(self, mock_get_base_dir, mock_get_cache_dir):
         """Test successful retrieval of cached secrets."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             # Create cache structure
             env_dir = cache_dir / "environments" / "production"
@@ -391,11 +416,15 @@ class TestCacheManager:
                 assert result == secrets_data
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_get_cached_secrets_not_found(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_get_cached_secrets_not_found(self, mock_get_base_dir, mock_get_cache_dir):
         """Test cached secrets retrieval when cache doesn't exist."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             manager = CacheManager(self.test_config)
 
@@ -404,11 +433,15 @@ class TestCacheManager:
             assert result == {}
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_get_cached_secrets_corrupted(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_get_cached_secrets_corrupted(self, mock_get_base_dir, mock_get_cache_dir):
         """Test cached secrets retrieval with corrupted files."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             # Create cache structure with corrupted file
             env_dir = cache_dir / "environments" / "production"
@@ -424,11 +457,15 @@ class TestCacheManager:
                 manager.get_cached_secrets("production")
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_get_cached_secrets_with_paths_filter(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_get_cached_secrets_with_paths_filter(self, mock_get_base_dir, mock_get_cache_dir):
         """Test cached secrets retrieval with path filtering."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             # Create cache structure
             env_dir = cache_dir / "environments" / "production"
@@ -492,11 +529,15 @@ class TestCacheManager:
         assert not manager._path_matches("/db/password", "/api/**")
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_is_cache_stale_true(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_is_cache_stale_true(self, mock_get_base_dir, mock_get_cache_dir):
         """Test cache staleness detection when stale."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             # Create stale cache
             env_dir = cache_dir / "environments" / "production"
@@ -521,11 +562,15 @@ class TestCacheManager:
                     assert manager.is_cache_stale("production")
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_is_cache_stale_false(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_is_cache_stale_false(self, mock_get_base_dir, mock_get_cache_dir):
         """Test cache staleness detection when fresh."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             # Create fresh cache
             env_dir = cache_dir / "environments" / "production"
@@ -553,11 +598,15 @@ class TestCacheManager:
                 assert not manager.is_cache_stale("production")
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_is_cache_stale_missing_metadata(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_is_cache_stale_missing_metadata(self, mock_get_base_dir, mock_get_cache_dir):
         """Test cache staleness when metadata is missing."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             manager = CacheManager(self.test_config)
 
@@ -565,11 +614,15 @@ class TestCacheManager:
             assert manager.is_cache_stale("production")
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_mark_environment_stale(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_mark_environment_stale(self, mock_get_base_dir, mock_get_cache_dir):
         """Test marking environment cache as stale."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             # Create cache
             env_dir = cache_dir / "environments" / "production"
@@ -604,11 +657,15 @@ class TestCacheManager:
             )
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_cleanup_stale(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_cleanup_stale(self, mock_get_base_dir, mock_get_cache_dir):
         """Test cleanup of stale cache entries."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             # Create environments directory
             envs_dir = cache_dir / "environments"
@@ -662,11 +719,15 @@ class TestCacheManager:
                 assert fresh_env.exists()
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_cleanup_all(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_cleanup_all(self, mock_get_base_dir, mock_get_cache_dir):
         """Test cleanup of all cache entries."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             # Create environments directory with content
             envs_dir = cache_dir / "environments"
@@ -689,11 +750,15 @@ class TestCacheManager:
             assert not env2.exists()
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_get_cache_info(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_get_cache_info(self, mock_get_base_dir, mock_get_cache_dir):
         """Test getting cache information."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             # Create cache structure
             envs_dir = cache_dir / "environments"
@@ -850,11 +915,15 @@ class TestCacheManager:
         manager._update_access_time(invalid_file, metadata)
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_get_cache_stats(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_get_cache_stats(self, mock_get_base_dir, mock_get_cache_dir):
         """Test getting comprehensive cache statistics."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             # Create test cache structure
             envs_dir = cache_dir / "environments"
@@ -907,11 +976,15 @@ class TestCacheManager:
                 assert "staging" in stats["environments"]
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_get_cache_stats_empty(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_get_cache_stats_empty(self, mock_get_base_dir, mock_get_cache_dir):
         """Test getting cache statistics when no cache exists."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             manager = CacheManager(self.test_config)
 
@@ -932,11 +1005,15 @@ class TestCacheManager:
         assert "max_age=" in repr_str
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_integration_full_cache_lifecycle(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_integration_full_cache_lifecycle(self, mock_get_base_dir, mock_get_cache_dir):
         """Test complete cache lifecycle integration."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             manager = CacheManager(self.test_config)
 
@@ -944,7 +1021,7 @@ class TestCacheManager:
             secrets = {"/api/key": "secret123", "/db/password": "dbpass456"}
 
             with patch("time.time", return_value=1234567890):
-                manager.update_environment_cache("production", secrets, branch="main")
+                manager.update_environment_cache("production", secrets, branch="main", repo_path="/repo")
 
             # 2. Verify cache was created
             with patch("time.time", return_value=1234567890):
@@ -976,11 +1053,15 @@ class TestCacheManager:
             assert final_retrieved == {}
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_error_handling_permissions(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_error_handling_permissions(self, mock_get_base_dir, mock_get_cache_dir):
         """Test error handling for permission issues."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             manager = CacheManager(self.test_config)
 
@@ -993,17 +1074,21 @@ class TestCacheManager:
                     manager, "get_environment_cache_dir", return_value=readonly_dir
                 ):
                     with pytest.raises(CacheError):
-                        manager.update_environment_cache("test", {"key": "value"})
+                        manager.update_environment_cache("test", {"key": "value"}, "main", "/repo")
             finally:
                 # Cleanup: restore permissions
                 readonly_dir.chmod(0o755)
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_concurrent_access_simulation(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_concurrent_access_simulation(self, mock_get_base_dir, mock_get_cache_dir):
         """Test simulation of concurrent access scenarios."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             manager = CacheManager(self.test_config)
 
@@ -1012,8 +1097,8 @@ class TestCacheManager:
             secrets2 = {"key2": "value2"}
 
             with patch("time.time", return_value=1234567890):
-                manager.update_environment_cache("test1", secrets1)
-                manager.update_environment_cache("test2", secrets2)
+                manager.update_environment_cache("test1", secrets1, "main", "/repo")
+                manager.update_environment_cache("test2", secrets2, "main", "/repo")
 
             # Verify both caches exist and are independent
             result1 = manager.get_cached_secrets("test1")
@@ -1023,11 +1108,15 @@ class TestCacheManager:
             assert result2 == secrets2
 
     @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
-    def test_large_secrets_handling(self, mock_get_cache_dir):
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_large_secrets_handling(self, mock_get_base_dir, mock_get_cache_dir):
         """Test handling of large secret payloads."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_dir = Path(temp_dir)
             mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
 
             manager = CacheManager(self.test_config)
 
@@ -1039,9 +1128,441 @@ class TestCacheManager:
                 )
 
             with patch("time.time", return_value=1234567890):
-                manager.update_environment_cache("large_env", large_secrets)
+                manager.update_environment_cache("large_env", large_secrets, "main", "/repo")
 
             # Verify retrieval works correctly
             retrieved = manager.get_cached_secrets("large_env")
             assert len(retrieved) == 1000
             assert retrieved["/secret_0000"] == "very_long_secret_value_0000" * 10
+
+
+class TestMergeStateFileAtomically:
+    """Test _merge_state_file_atomically method."""
+
+    def setup_method(self) -> None:
+        """Set up test fixtures."""
+        self.test_config: Dict[str, Any] = {
+            "cache_config": {"max_age_seconds": 900}
+        }
+        self.temp_dir = None
+
+    def teardown_method(self):
+        """Clean up test fixtures."""
+        if self.temp_dir:
+            import shutil
+            try:
+                shutil.rmtree(self.temp_dir)
+            except FileNotFoundError:
+                pass
+
+    def _get_temp_config(self):
+        """Get config with temporary directory."""
+        self.temp_dir = tempfile.mkdtemp()
+        config = self.test_config.copy()
+        config["cache_base_dir"] = self.temp_dir
+        return config
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_new_file(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test creating new state file when none exists."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            manager = CacheManager(self.test_config)
+
+            manager._merge_state_file_atomically("main", "/repo/path", "production")
+
+            state_file = base_dir / "state" / "current_branch.json"
+            assert state_file.exists()
+
+            with open(state_file, "r") as f:
+                data = json.load(f)
+
+            expected_key = "main:/repo/path"
+            assert expected_key in data
+            assert data[expected_key] == "production"
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_existing_file(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test merging with existing state file."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            # Create existing state file
+            state_dir = base_dir / "state"
+            state_dir.mkdir(parents=True)
+            state_file = state_dir / "current_branch.json"
+
+            existing_data = {"develop:/other/repo": "staging"}
+            with open(state_file, "w") as f:
+                json.dump(existing_data, f)
+
+            manager = CacheManager(self.test_config)
+
+            manager._merge_state_file_atomically("main", "/repo/path", "production")
+
+            with open(state_file, "r") as f:
+                data = json.load(f)
+
+            # Should contain both old and new entries
+            assert "develop:/other/repo" in data
+            assert data["develop:/other/repo"] == "staging"
+            assert "main:/repo/path" in data
+            assert data["main:/repo/path"] == "production"
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_overwrite_existing_key(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test overwriting existing branch:repo_path combination."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            # Create existing state file with same branch:repo_path
+            state_dir = base_dir / "state"
+            state_dir.mkdir(parents=True)
+            state_file = state_dir / "current_branch.json"
+
+            existing_data = {"main:/repo/path": "staging"}
+            with open(state_file, "w") as f:
+                json.dump(existing_data, f)
+
+            manager = CacheManager(self.test_config)
+
+            manager._merge_state_file_atomically("main", "/repo/path", "production")
+
+            with open(state_file, "r") as f:
+                data = json.load(f)
+
+            # Should overwrite the existing value
+            assert "main:/repo/path" in data
+            assert data["main:/repo/path"] == "production"
+            assert len(data) == 1
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_corrupted_existing_file(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test handling corrupted existing state file."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            # Create corrupted state file
+            state_dir = base_dir / "state"
+            state_dir.mkdir(parents=True)
+            state_file = state_dir / "current_branch.json"
+
+            with open(state_file, "w") as f:
+                f.write("invalid json content")
+
+            manager = CacheManager(self.test_config)
+
+            manager._merge_state_file_atomically("main", "/repo/path", "production")
+
+            with open(state_file, "r") as f:
+                data = json.load(f)
+
+            # Should create new state ignoring corrupted data
+            assert "main:/repo/path" in data
+            assert data["main:/repo/path"] == "production"
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_empty_branch_error(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test no base file write when branch name is empty."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            manager = CacheManager(self.test_config)
+
+            with patch.object(
+                manager, "_write_file_atomically"
+            ) as mock_write_file, patch.object(
+                manager, "_write_env_file_atomically"
+            ) as mock_write_env:
+
+                manager.update_environment_cache("production", secrets={"a": "b"})
+
+                # Check that files were written
+                assert mock_write_file.call_count == 1
+                assert mock_write_env.call_count == 1
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_empty_repo_path_error(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test no base file write when repo_path is empty."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            manager = CacheManager(self.test_config)
+
+            with patch.object(
+                manager, "_write_file_atomically"
+            ) as mock_write_file, patch.object(
+                manager, "_write_env_file_atomically"
+            ) as mock_write_env:
+
+                manager.update_environment_cache("production", secrets={"a": "b"})
+
+                # Check that files were written
+                assert mock_write_file.call_count == 1
+                assert mock_write_env.call_count == 1
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_empty_environment_error(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test error when environment is empty."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            manager = CacheManager(self.test_config)
+
+            with pytest.raises(CacheError, match="Environment name cannot be empty"):
+                manager._merge_state_file_atomically("main", "/repo/path", "")
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_none_branch_error(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test no base file when branch is None."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            manager = CacheManager(self.test_config)
+
+            with patch.object(
+                manager, "_write_file_atomically"
+            ) as mock_write_file, patch.object(
+                manager, "_write_env_file_atomically"
+            ) as mock_write_env:
+
+                manager.update_environment_cache("production", secrets={"a": "b"})
+
+                # Check that files were written
+                assert mock_write_file.call_count == 1
+                assert mock_write_env.call_count == 1
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_none_repo_path_error(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test base file write when repo_path is None."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            manager = CacheManager(self.test_config)
+
+            with patch.object(
+                manager, "_write_file_atomically"
+            ) as mock_write_file, patch.object(
+                manager, "_write_env_file_atomically"
+            ) as mock_write_env:
+
+                manager.update_environment_cache("production", secrets={"a": "b"})
+
+                # Check that files were written
+                assert mock_write_file.call_count == 1
+                assert mock_write_env.call_count == 1
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_special_characters(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test handling branch and repo paths with special characters."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            manager = CacheManager(self.test_config)
+
+            branch = "feature/special-chars@123"
+            repo_path = "/path/with spaces/and-dashes"
+            environment = "prod-env_123"
+
+            manager._merge_state_file_atomically(branch, repo_path, environment)
+
+            state_file = base_dir / "state" / "current_branch.json"
+            with open(state_file, "r") as f:
+                data = json.load(f)
+
+            expected_key = f"{branch}:{repo_path}"
+            assert expected_key in data
+            assert data[expected_key] == environment
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_multiple_entries(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test multiple sequential calls create multiple entries."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            manager = CacheManager(self.test_config)
+
+            # Add multiple entries
+            manager._merge_state_file_atomically("main", "/repo1", "production")
+            manager._merge_state_file_atomically("develop", "/repo1", "staging")
+            manager._merge_state_file_atomically("feature", "/repo2", "development")
+
+            state_file = base_dir / "state" / "current_branch.json"
+            with open(state_file, "r") as f:
+                data = json.load(f)
+
+            assert len(data) == 3
+            assert data["main:/repo1"] == "production"
+            assert data["develop:/repo1"] == "staging"
+            assert data["feature:/repo2"] == "development"
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_permission_error(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test handling permission errors when writing state file."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            # Create read-only state directory
+            state_dir = base_dir / "state"
+            state_dir.mkdir(parents=True)
+            state_dir.chmod(0o444)  # Read-only
+
+            manager = CacheManager(self.test_config)
+
+            try:
+                with pytest.raises(CacheError, match="State write failed"):
+                    manager._merge_state_file_atomically("main", "/repo/path", "production")
+            finally:
+                # Cleanup: restore permissions
+                state_dir.chmod(0o755)
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_atomic_write_failure(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test handling atomic write failure."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            manager = CacheManager(self.test_config)
+
+            with patch.object(manager, "_write_file_atomically", side_effect=OSError("Disk full")):
+                with pytest.raises(CacheError, match="State write failed"):
+                    manager._merge_state_file_atomically("main", "/repo/path", "production")
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_creates_directory_structure(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test that method creates necessary directory structure."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            # Don't create directories beforehand
+            manager = CacheManager(self.test_config)
+
+            manager._merge_state_file_atomically("main", "/repo/path", "production")
+
+            # Verify directory structure was created
+            state_dir = base_dir / "state"
+            assert state_dir.exists()
+            assert state_dir.is_dir()
+
+            state_file = state_dir / "current_branch.json"
+            assert state_file.exists()
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_concurrent_access_simulation(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test simulation of concurrent access to state file."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            manager = CacheManager(self.test_config)
+
+            # Simulate concurrent writes by multiple calls
+            manager._merge_state_file_atomically("branch1", "/repo1", "env1")
+            manager._merge_state_file_atomically("branch2", "/repo2", "env2")
+            manager._merge_state_file_atomically("branch3", "/repo1", "env3")
+
+            state_file = base_dir / "state" / "current_branch.json"
+            with open(state_file, "r") as f:
+                data = json.load(f)
+
+            # All entries should be present
+            assert len(data) == 3
+            assert data["branch1:/repo1"] == "env1"
+            assert data["branch2:/repo2"] == "env2"
+            assert data["branch3:/repo1"] == "env3"
+
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_cache_dir")
+    @patch("auto_secrets.core.cache_manager.ConfigManager.get_base_dir")
+    def test_merge_state_file_preserves_file_permissions(self, mock_get_base_dir, mock_get_cache_dir):
+        """Test that state file has proper permissions after creation."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_dir = Path(temp_dir) / "cache"
+            mock_get_cache_dir.return_value = cache_dir
+
+            base_dir = Path(temp_dir) / "base"
+            mock_get_base_dir.return_value = base_dir
+
+            manager = CacheManager(self.test_config)
+
+            manager._merge_state_file_atomically("main", "/repo/path", "production")
+
+            state_file = base_dir / "state" / "current_branch.json"
+
+            # Check that file has restrictive permissions (600 = rw-------)
+            file_mode = oct(state_file.stat().st_mode)[-3:]
+            assert file_mode == "600"

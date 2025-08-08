@@ -5,16 +5,14 @@ Tests the InfisicalSecretManager implementation.
 """
 
 import os
-import pytest
-from unittest.mock import Mock, patch
 from dataclasses import dataclass
 from typing import Optional
+from unittest.mock import Mock, patch
 
+import pytest
+from auto_secrets.secret_managers.base import AuthenticationError  # type: ignore
+from auto_secrets.secret_managers.base import SecretManagerError
 from auto_secrets.secret_managers.infisical import InfisicalSecretManager  # type: ignore
-from auto_secrets.secret_managers.base import (  # type: ignore
-    SecretManagerError,
-    AuthenticationError,
-)
 
 
 # Mock classes to simulate Infisical SDK responses

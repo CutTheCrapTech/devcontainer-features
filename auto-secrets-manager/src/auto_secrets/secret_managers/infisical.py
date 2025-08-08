@@ -5,16 +5,17 @@ Handles fetching secrets from Infisical using the Python SDK.
 """
 
 import os
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
+
 from infisical_sdk import InfisicalSDKClient  # type: ignore
 
 from .base import (
+    AuthenticationError,
+    ConnectionTestResult,
+    NetworkError,
     SecretManagerBase,
     SecretManagerError,
-    AuthenticationError,
-    NetworkError,
     SecretNotFoundError,
-    ConnectionTestResult,
 )
 
 

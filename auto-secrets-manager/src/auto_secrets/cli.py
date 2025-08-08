@@ -13,10 +13,10 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from .logging_config import setup_logging, get_logger, log_system_info
-from .core.config import ConfigManager
-from .core.cache_manager import CacheManager
 from .core.branch_manager import BranchManager
+from .core.cache_manager import CacheManager
+from .core.config import ConfigManager
+from .logging_config import get_logger, log_system_info, setup_logging
 from .secret_managers import create_secret_manager
 
 
@@ -35,7 +35,7 @@ def handle_branch_change(args) -> None:
 
         # Map branch to environment
         environment = branch_manager.map_branch_to_environment(branch, repo_path)
-        _background_refresh_secrets(environment, config)
+        _background_refresh_secrets(environment, config, branch, repo_path)
 
     except Exception as e:
         logger.error(f"Error handling branch change: {e}", exc_info=True)
@@ -215,50 +215,6 @@ def handle_exec_for_shell(args) -> None:
         pass
 
 
-def handle_current_env(args) -> None:
-    """Display current environment information."""
-    logger = get_logger("cli.current_env")
-
-    try:
-        config = ConfigManager.load_config()
-        branch_manager = BranchManager(config)
-
-        branch = args.branch
-        repo_path = args.repo_path
-
-        # Map branch to environment
-        environment = branch_manager.map_branch_to_environment(branch, repo_path)
-
-        if args.prompt_format:
-            # Format for shell prompt
-            if environment:
-                print(f"[{environment}]")
-            else:
-                print("")
-        elif args.json:
-            # JSON format
-            output = {
-                "environment": environment,
-                "branch": branch,
-            }
-            print(json.dumps(output, indent=2))
-        else:
-            # Human readable format
-            if environment:
-                print(f"Current Environment: {environment}")
-                print(f"Branch: {branch}")
-            else:
-                print("No current environment set")
-
-        logger.debug(f"Current environment: {environment}")
-
-    except Exception as e:
-        logger.error(f"Error getting current environment: {e}", exc_info=True)
-        if not args.prompt_format:  # Don't show errors in prompt format
-            print(f"❌ Failed to get current environment: {e}", file=sys.stderr)
-        sys.exit(1)
-
-
 def handle_debug_env() -> None:
     """Comprehensive environment debugging information."""
     logger = get_logger("cli.debug")
@@ -372,7 +328,12 @@ def handle_cleanup(args) -> None:
         sys.exit(1)
 
 
-def _background_refresh_secrets(environment: Optional[str], config: dict) -> None:
+def _background_refresh_secrets(
+  environment: Optional[str],
+  config: dict,
+  branch: Optional[str] = None,
+  repo_path: Optional[str] = None
+) -> None:
     """Background refresh of secrets (non-blocking)."""
     logger = get_logger("cli.background_refresh")
 
@@ -394,7 +355,7 @@ def _background_refresh_secrets(environment: Optional[str], config: dict) -> Non
         secrets = secret_manager.fetch_secrets(environment)
 
         if secrets:
-            cache_manager.update_environment_cache(environment, secrets)
+            cache_manager.update_environment_cache(environment, secrets, branch, repo_path)
             logger.info(
                 f"Background refresh completed for {environment}: {len(secrets)} secrets"
             )
@@ -481,19 +442,6 @@ def main() -> None:
         "--paths", nargs="*", help="Specific secret paths to load"
     )
     output_env_parser.set_defaults(func=handle_exec_for_shell)
-
-    # Current environment command
-    current_parser = subparsers.add_parser(
-        "current-env", help="Show current environment"
-    )
-    current_parser.add_argument("--branch", help="Branch name")
-    current_parser.add_argument(
-        "--prompt-format", action="store_true", help="Format for shell prompt"
-    )
-    current_parser.add_argument(
-        "--json", action="store_true", help="JSON output format"
-    )
-    current_parser.set_defaults(func=handle_current_env)
 
     # Debug command
     debug_parser = subparsers.add_parser("debug", help="Show debug information")

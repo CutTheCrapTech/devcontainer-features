@@ -4,20 +4,20 @@ Tests for auto_secrets.secret_managers.base module.
 Tests the SecretManagerBase abstract class and related utilities.
 """
 
-import os
-import pytest
 import json
+import os
 from unittest.mock import patch
 
-from auto_secrets.secret_managers.base import (  # type: ignore
-    SecretManagerError,
-    AuthenticationError,
-    NetworkError,
+import pytest
+from auto_secrets.secret_managers.base import AuthenticationError  # type: ignore
+from auto_secrets.secret_managers.base import (
     ConfigurationError,
-    SecretNotFoundError,
-    SecretInfo,
     ConnectionTestResult,
+    NetworkError,
+    SecretInfo,
     SecretManagerBase,
+    SecretManagerError,
+    SecretNotFoundError,
 )
 
 

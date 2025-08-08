@@ -6,11 +6,11 @@ Comprehensive tests for configuration loading, validation, and management.
 
 import json
 import os
-import pytest
 from pathlib import Path
 from unittest.mock import patch
 
-from auto_secrets.core.config import ConfigManager, ConfigError  # type: ignore
+import pytest
+from auto_secrets.core.config import ConfigError, ConfigManager  # type: ignore
 
 
 class TestLoadConfig:

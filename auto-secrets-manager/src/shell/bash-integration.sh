@@ -5,13 +5,14 @@
 # Provides optional features like prompt display and history marking.
 
 # Ensure we have the core branch detection logic
-if [[ ! -f "${AUTO_SECRETS_FEATURE_DIR:-/usr/local/share/auto-secrets}/branch-detection.sh" ]]; then
+if [[ ! -f "${AUTO_SECRETS_FEATURE_DIR}/branch-detection.sh" ]]; then
   echo "Error: branch-detection.sh not found" >&2
   return 1
 fi
 
 # Source the core branch detection logic
-source "${AUTO_SECRETS_FEATURE_DIR:-/usr/local/share/auto-secrets}/branch-detection.sh"
+# shellcheck disable=SC1091
+source "${AUTO_SECRETS_FEATURE_DIR}/branch-detection.sh"
 
 # Set up PROMPT_COMMAND for branch change detection
 if [[ "$AUTO_SECRETS_BRANCH_DETECTION" != "false" ]]; then
@@ -28,6 +29,7 @@ fi
 # Optional: Environment indicator in prompt
 if [[ "$AUTO_SECRETS_SHOW_ENV_IN_PROMPT" == "true" ]]; then
   # Add environment to PS1 if not already present
+  # shellcheck disable=SC2016
   if [[ "$PS1" != *'$(_auto_secrets_get_current_env)'* ]]; then
     PS1='$(_auto_secrets_get_current_env)'"$PS1"
   fi
@@ -118,6 +120,7 @@ if [[ -z "$_auto_secrets_exit_trap_installed" ]]; then
   _auto_secrets_original_exit_trap="$(trap -p EXIT | sed "s/trap -- '\(.*\)' EXIT/\1/")"
 
   if [[ -n "$_auto_secrets_original_exit_trap" ]]; then
+    # shellcheck disable=SC2064
     trap "_auto_secrets_bash_cleanup; $_auto_secrets_original_exit_trap" EXIT
   else
     trap "_auto_secrets_bash_cleanup" EXIT

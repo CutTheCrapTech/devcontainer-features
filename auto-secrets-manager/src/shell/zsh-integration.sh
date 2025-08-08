@@ -5,13 +5,14 @@
 # Provides optional features like prompt display and history marking.
 
 # Ensure we have the core branch detection logic
-if [[ ! -f "${AUTO_SECRETS_FEATURE_DIR:-/usr/local/share/auto-secrets}/branch-detection.sh" ]]; then
+if [[ ! -f "${AUTO_SECRETS_FEATURE_DIR}/branch-detection.sh" ]]; then
     echo "Error: branch-detection.sh not found" >&2
     return 1
 fi
 
 # Source the core branch detection logic
-source "${AUTO_SECRETS_FEATURE_DIR:-/usr/local/share/auto-secrets}/branch-detection.sh"
+# shellcheck disable=SC1091
+source "${AUTO_SECRETS_FEATURE_DIR}/branch-detection.sh"
 
 # Set up precmd hook for branch change detection
 if [[ "$AUTO_SECRETS_BRANCH_DETECTION" != "false" ]]; then
@@ -25,8 +26,10 @@ fi
 if [[ "$AUTO_SECRETS_SHOW_ENV_IN_PROMPT" == "true" ]]; then
     # Add environment to right prompt
     if [[ -z "$RPROMPT" ]]; then
+        # shellcheck disable=SC2016
         RPROMPT='$(_auto_secrets_get_current_env)'
     else
+        # shellcheck disable=SC2016
         RPROMPT='$(_auto_secrets_get_current_env)'$RPROMPT
     fi
 fi
@@ -52,7 +55,8 @@ fi
 # Error handling for secret commands
 if [[ "$AUTO_SECRETS_DEBUG" == "true" ]]; then
     TRAPZERR() {
-        local cmd=$(fc -ln -1)
+        local cmd
+        cmd=$(fc -ln -1)
         if [[ "$cmd" =~ (auto-secrets) ]]; then
             echo "💡 Secret command failed. Run 'auto-secrets debug' for diagnostics" >&2
         fi
@@ -63,10 +67,12 @@ fi
 # Cleanup on shell exit
 _auto_secrets_zsh_cleanup() {
     # Remove from precmd_functions
+    # shellcheck disable=SC2206
     precmd_functions=(${precmd_functions[@]/_auto_secrets_check_branch_change})
 
     # Remove from zshaddhistory_functions if present
     if [[ "$AUTO_SECRETS_MARK_HISTORY" == "true" ]]; then
+        # shellcheck disable=SC2206
         zshaddhistory_functions=(${zshaddhistory_functions[@]/_auto_secrets_mark_secret_commands})
     fi
 

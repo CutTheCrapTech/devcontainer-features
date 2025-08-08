@@ -5,22 +5,20 @@ Background daemon for proactive secret cache refresh and maintenance.
 Runs as a simple background process managed by DevContainer lifecycle.
 """
 
+import logging
 import os
+import signal
 import sys
 import time
-import signal
-from typing import Dict, Any, Optional
-
-import logging
 from datetime import datetime
-
 from pathlib import Path
+from typing import Any, Dict, Optional
 
-from .logging_config import get_logger
-from .core.config import ConfigManager
 from .core.cache_manager import CacheManager
-from .secret_managers import create_secret_manager, SecretManagerBase
+from .core.config import ConfigManager
 from .core.utils import CommonUtils
+from .logging_config import get_logger
+from .secret_managers import SecretManagerBase, create_secret_manager
 
 
 class SecretsDaemon:

@@ -10,11 +10,7 @@ import os
 import tempfile
 from unittest.mock import Mock, patch
 
-from auto_secrets.logging_config import (  # type: ignore
-    setup_logging,
-    get_logger,
-    log_system_info,
-)
+from auto_secrets.logging_config import get_logger, log_system_info, setup_logging  # type: ignore
 
 
 class TestLoggingFormatting:

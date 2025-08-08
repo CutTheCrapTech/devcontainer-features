@@ -6,18 +6,12 @@
 # Designed to be fast (~2-5ms with caching) and reliable.
 
 # Cache directory for branch state
-AUTO_SECRETS_CACHE_DIR="${AUTO_SECRETS_CACHE_DIR:-/dev/shm/auto-secrets}"
 AUTO_SECRETS_BRANCH_CACHE="${AUTO_SECRETS_CACHE_DIR}/state/current_branch"
 
 # Initialize branch cache directory
 _auto_secrets_init_branch_cache() {
   if [[ ! -d "${AUTO_SECRETS_CACHE_DIR}/state" ]]; then
-    mkdir -p "${AUTO_SECRETS_CACHE_DIR}/state" 2>/dev/null || {
-      # Fallback to home directory if /dev/shm is not available
-      AUTO_SECRETS_CACHE_DIR="${HOME}/.cache/auto-secrets"
-      AUTO_SECRETS_BRANCH_CACHE="${AUTO_SECRETS_CACHE_DIR}/state/current_branch"
-      mkdir -p "${AUTO_SECRETS_CACHE_DIR}/state" 2>/dev/null
-    }
+    mkdir -p "${AUTO_SECRETS_CACHE_DIR}/state" 2>/dev/null
   fi
 }
 
@@ -42,9 +36,10 @@ _auto_secrets_get_current_branch() {
 }
 
 # Get the last known branch from cache
-_auto_secrets_get_cached_branch() {
-  if [[ -f "$AUTO_SECRETS_BRANCH_CACHE" ]]; then
-    cat "$AUTO_SECRETS_BRANCH_CACHE" 2>/dev/null || echo ""
+_auto_secrets_get_cached_data() {
+  local file="$1"
+  if [[ -f "${file}" ]]; then
+    cat "${file}" 2>/dev/null || echo ""
   else
     echo ""
   fi
@@ -58,7 +53,7 @@ _auto_secrets_update_cached_branch() {
   _auto_secrets_init_branch_cache
 
   # Store branch and repo path
-  echo "$branch" >"$AUTO_SECRETS_BRANCH_CACHE" 2>/dev/null
+  echo "$branch" >"${AUTO_SECRETS_BRANCH_CACHE}.branch" 2>/dev/null
   echo "$repo_path" >"${AUTO_SECRETS_BRANCH_CACHE}.repo" 2>/dev/null
 }
 
@@ -78,11 +73,9 @@ _auto_secrets_check_branch_change() {
 
   # Get cached branch and repo
   local cached_branch
-  cached_branch=$(_auto_secrets_get_cached_branch)
-  local cached_repo=""
-  if [[ -f "${AUTO_SECRETS_BRANCH_CACHE}.repo" ]]; then
-    cached_repo=$(cat "${AUTO_SECRETS_BRANCH_CACHE}.repo" 2>/dev/null || echo "")
-  fi
+  cached_branch=$(_auto_secrets_get_cached_data "${AUTO_SECRETS_BRANCH_CACHE}.branch")
+  local cached_repo
+  cached_repo=$(_auto_secrets_get_cached_data "${AUTO_SECRETS_BRANCH_CACHE}.repo")
 
   # Check if branch or repository changed
   if [[ "$current_branch" != "$cached_branch" ]] || [[ "$current_repo" != "$cached_repo" ]]; then
@@ -116,20 +109,26 @@ _auto_secrets_check_branch_change() {
 # Force refresh of branch detection
 _auto_secrets_force_branch_refresh() {
   # Clear cache to force detection
-  rm -f "$AUTO_SECRETS_BRANCH_CACHE" "${AUTO_SECRETS_BRANCH_CACHE}.repo" 2>/dev/null
+  rm -f "${AUTO_SECRETS_BRANCH_CACHE}.branch" "${AUTO_SECRETS_BRANCH_CACHE}.repo" 2>/dev/null
   _auto_secrets_check_branch_change
 }
 
 # Get current environment (for prompt display)
 _auto_secrets_get_current_env() {
-  local branch
-  branch=$(_auto_secrets_get_current_branch)
+  # Get cached branch and repo
+  local cached_branch
+  cached_branch=$(_auto_secrets_get_cached_data "${AUTO_SECRETS_BRANCH_CACHE}.branch")
+  local cached_repo
+  cached_repo=$(_auto_secrets_get_cached_data "${AUTO_SECRETS_BRANCH_CACHE}.repo")
 
-  if [[ -n "$branch" ]] && command -v auto-secrets >/dev/null 2>&1; then
-    auto-secrets current-env --branch "$branch" --prompt-format 2>/dev/null || echo ""
-  else
-    echo ""
-  fi
+  # Construct key for environment
+  local key
+  key="${cached_branch}-${cached_repo}"
+
+  # Get json data from cache
+  local data
+  cached_repo=$(_auto_secrets_get_cached_data "${AUTO_SECRETS_BRANCH_CACHE}.json")
+  echo "$data" | jq -r --arg k "$key" 'if . then .[$k] // "" else "" end' 2>/dev/null || echo ""
 }
 
 # Health check function

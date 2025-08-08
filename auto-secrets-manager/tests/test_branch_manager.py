@@ -5,7 +5,6 @@ Comprehensive tests for git branch detection and branch-to-environment mapping.
 """
 
 import pytest
-
 from auto_secrets.core.branch_manager import BranchManager, BranchManagerError  # type: ignore
 
 

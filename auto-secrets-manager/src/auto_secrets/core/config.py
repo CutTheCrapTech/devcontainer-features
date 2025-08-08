@@ -9,7 +9,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 from ..logging_config import get_logger
 from .utils import CommonUtils
@@ -217,6 +217,17 @@ class ConfigManager:
             return base_path / "environments" / environment
         else:
             return base_path
+
+    @classmethod
+    def get_base_dir(cls, config: Dict[str, Any]) -> Path:
+        """
+        Get the cache directory path for the current user and optionally environment.
+        Args:
+            config: Configuration dictionary
+        Returns:
+            Path: Cache directory path
+        """
+        return Path(config["cache_base_dir"])
 
     @classmethod
     def get_log_file_path(

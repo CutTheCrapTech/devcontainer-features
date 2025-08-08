@@ -12,7 +12,6 @@ SOURCE_DIR="$SCRIPT_DIR/src"
 
 # Installation directories
 INSTALL_DIR="/usr/local/share/auto-secrets"
-BIN_DIR="/usr/local/bin"
 
 # Parse options (provided as environment variables by DevContainer)
 # Note: DevContainer feature options use different casing, so we map them
@@ -158,6 +157,7 @@ if [[ "$SHELLS" == "zsh" ]] || [[ "$SHELLS" == "both" ]]; then
 
   # Add to system zshrc
   if [[ -f /etc/zsh/zshrc ]]; then
+    # shellcheck disable=SC2129
     echo "" >>/etc/zsh/zshrc
     echo "# Auto Secrets Manager - Zsh Integration" >>/etc/zsh/zshrc
     echo "if [[ -f '$INSTALL_DIR/zsh-integration.sh' ]]; then" >>/etc/zsh/zshrc
@@ -179,6 +179,7 @@ if [[ "$SHELLS" == "bash" ]] || [[ "$SHELLS" == "both" ]]; then
 
   # Add to system bashrc
   if [[ -f /etc/bash.bashrc ]]; then
+    # shellcheck disable=SC2129
     echo "" >>/etc/bash.bashrc
     echo "# Auto Secrets Manager - Bash Integration" >>/etc/bash.bashrc
     echo "if [[ -f '$INSTALL_DIR/bash-integration.sh' ]]; then" >>/etc/bash.bashrc

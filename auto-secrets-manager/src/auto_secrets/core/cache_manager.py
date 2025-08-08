@@ -71,6 +71,7 @@ class CacheManager:
         self.config = config
         self.logger = get_logger("cache_manager")
         self.cache_dir = ConfigManager.get_cache_dir(config)
+        self.base_dir = ConfigManager.get_base_dir(config)
 
         refresh_interval = config.get("cache_config", {}).get("refresh_interval", "15m")
         self.max_age_seconds = CommonUtils.parse_duration(refresh_interval)
@@ -82,12 +83,17 @@ class CacheManager:
         """Ensure cache directory exists with proper permissions."""
         try:
             self.cache_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+            self.base_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
             # Create environment subdirectory
             env_dir = self.cache_dir / "environments"
             env_dir.mkdir(exist_ok=True, mode=0o700)
 
-            self.logger.debug(f"Cache directory initialized: {self.cache_dir}")
+            # Create state subdirectory
+            state_dir = self.base_dir / "state"
+            state_dir.mkdir(exist_ok=True, mode=0o700)
+
+            self.logger.debug(f"Cache directories initialized: {self.cache_dir}")
 
         except OSError as e:
             self.logger.error(f"Failed to create cache directory: {e}")
@@ -96,6 +102,63 @@ class CacheManager:
     def get_environment_cache_dir(self, environment: str) -> Path:
         """Get cache directory for specific environment."""
         return self.cache_dir / "environments" / environment
+
+    def _merge_state_file_atomically(
+      self,
+      branch: Optional[str],
+      repo_path: Optional[str],
+      environment: str,
+    ) -> None:
+        """
+        Merge state file atomically for branch and repo path.
+
+        Args:
+            branch: Branch name
+            repo_path: Optional repository path
+            environment: Environment name
+
+        Raises:
+            CacheError: If state file cannot be written
+        """
+        if not branch or not repo_path:
+            return
+        if not environment:
+            raise CacheError("Environment name cannot be empty")
+
+        self.logger.info(f"Writing state for branch: {branch}")
+
+        try:
+            state_dir = self.base_dir / "state"
+            state_file = state_dir / "current_branch.json"
+
+            # Ensure parent directory exists
+            state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+            # Create metadata
+            metadata = {
+                f"{branch}:{repo_path}": environment
+            }
+
+            # Read existing state if it exists
+            existing_metadata = {}
+            if state_file.exists():
+                try:
+                    with open(state_file, "r") as f:
+                        existing_metadata = json.load(f)
+                except json.JSONDecodeError:
+                    existing_metadata = {}
+
+            # Merge with existing metadata
+            new_metadata = existing_metadata | metadata
+
+            # Write metadata atomically
+            self._write_file_atomically(state_file, new_metadata)
+
+            self.logger.info(f"State for {branch} written successfully")
+
+        except Exception as e:
+            self.logger.error(f"Failed to write state for {branch}: {e}")
+            raise CacheError(f"State write failed: {e}")
 
     def update_environment_cache(
         self,
@@ -124,6 +187,7 @@ class CacheManager:
         )
 
         try:
+            self._merge_state_file_atomically(branch, repo_path, environment)
             env_cache_dir = self.get_environment_cache_dir(environment)
 
             # Create metadata
@@ -149,6 +213,8 @@ class CacheManager:
             self._write_env_file_atomically(
                 env_cache_dir / f"{environment}.env", secrets
             )
+
+            self._merge_state_file_atomically(branch, repo_path, environment)
 
             self.logger.info(
                 f"Successfully cached {len(secrets)} secrets for {environment}"
