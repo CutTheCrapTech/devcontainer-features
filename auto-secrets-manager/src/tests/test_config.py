@@ -7,16 +7,17 @@ Comprehensive tests for configuration loading, validation, and management.
 import json
 import os
 from pathlib import Path
+from typing import Any, Dict
 from unittest.mock import patch
 
 import pytest
-from auto_secrets.core.config import ConfigError, ConfigManager  # type: ignore
+from auto_secrets.core.config import ConfigError, ConfigManager
 
 
 class TestLoadConfig:
     """Test configuration loading from environment variables."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment variables."""
         self.env_vars = {
             "AUTO_SECRETS_SECRET_MANAGER": "infisical",
@@ -43,7 +44,7 @@ class TestLoadConfig:
             ),
         }
 
-    def test_load_valid_config(self):
+    def test_load_valid_config(self) -> None:
         """Test loading a complete valid configuration."""
         with patch.dict(os.environ, self.env_vars, clear=True):
             config = ConfigManager.load_config()
@@ -57,7 +58,7 @@ class TestLoadConfig:
             assert config["auto_commands"]["terraform"] == ["/infrastructure/**"]
             assert config["cache_base_dir"] == "/tmp/auto-secrets-test"
 
-    def test_missing_required_secret_manager(self):
+    def test_missing_required_secret_manager(self) -> None:
         """Test error when secret manager is missing."""
         env_vars = self.env_vars.copy()
         del env_vars["AUTO_SECRETS_SECRET_MANAGER"]
@@ -70,7 +71,7 @@ class TestLoadConfig:
                 in str(exc_info.value)
             )
 
-    def test_missing_required_shells(self):
+    def test_missing_required_shells(self) -> None:
         """Test error when shells configuration is missing."""
         env_vars = self.env_vars.copy()
         del env_vars["AUTO_SECRETS_SHELLS"]
@@ -82,7 +83,7 @@ class TestLoadConfig:
                 exc_info.value
             )
 
-    def test_missing_branch_mappings(self):
+    def test_missing_branch_mappings(self) -> None:
         """Test error when branch mappings are missing."""
         env_vars = self.env_vars.copy()
         del env_vars["AUTO_SECRETS_BRANCH_MAPPINGS"]
@@ -95,7 +96,7 @@ class TestLoadConfig:
                 in str(exc_info.value)
             )
 
-    def test_invalid_branch_mappings_json(self):
+    def test_invalid_branch_mappings_json(self) -> None:
         """Test error when branch mappings JSON is invalid."""
         env_vars = self.env_vars.copy()
         env_vars["AUTO_SECRETS_BRANCH_MAPPINGS"] = "invalid-json"
@@ -105,7 +106,7 @@ class TestLoadConfig:
                 ConfigManager.load_config()
             assert "Invalid AUTO_SECRETS_BRANCH_MAPPINGS JSON" in str(exc_info.value)
 
-    def test_branch_mappings_missing_default(self):
+    def test_branch_mappings_missing_default(self) -> None:
         """Test error when branch mappings don't include default."""
         env_vars = self.env_vars.copy()
         env_vars["AUTO_SECRETS_BRANCH_MAPPINGS"] = json.dumps(
@@ -117,7 +118,7 @@ class TestLoadConfig:
                 ConfigManager.load_config()
             assert "must include a 'default' entry" in str(exc_info.value)
 
-    def test_debug_mode_enabled(self):
+    def test_debug_mode_enabled(self) -> None:
         """Test debug mode configuration."""
         env_vars = self.env_vars.copy()
         env_vars["AUTO_SECRETS_DEBUG"] = "true"
@@ -126,7 +127,7 @@ class TestLoadConfig:
             config = ConfigManager.load_config()
             assert config["debug"] is True
 
-    def test_default_values(self):
+    def test_default_values(self) -> None:
         """Test that default values are applied correctly."""
         with patch.dict(os.environ, self.env_vars, clear=True):
             config = ConfigManager.load_config()
@@ -134,7 +135,7 @@ class TestLoadConfig:
             # Test cache config defaults
             assert config["cache_config"]["refresh_interval"] == "10m"  # from env
 
-    def test_invalid_json_configs(self):
+    def test_invalid_json_configs(self) -> None:
         """Test handling of invalid JSON in various config fields."""
         test_cases = [
             ("AUTO_SECRETS_SECRET_MANAGER_CONFIG", "invalid-json"),
@@ -155,9 +156,9 @@ class TestLoadConfig:
 class TestConfigValidation:
     """Test configuration validation."""
 
-    def test_validate_valid_config(self):
+    def test_validate_valid_config(self) -> None:
         """Test validation of a valid configuration."""
-        config = {
+        config: Dict[str, Any] = {
             "secret_manager": "infisical",
             "shells": "both",
             "branch_mappings": {
@@ -173,9 +174,9 @@ class TestConfigValidation:
         # Should not raise any exception
         ConfigManager._validate_config(config)
 
-    def test_validate_invalid_secret_manager(self):
+    def test_validate_invalid_secret_manager(self) -> None:
         """Test validation with invalid secret manager."""
-        config = {
+        config: Dict[str, Any] = {
             "secret_manager": "invalid-manager",
             "shells": "both",
             "branch_mappings": {
@@ -192,9 +193,9 @@ class TestConfigValidation:
             ConfigManager._validate_config(config)
         assert "Invalid secret manager" in str(exc_info.value)
 
-    def test_validate_invalid_shells(self):
+    def test_validate_invalid_shells(self) -> None:
         """Test validation with invalid shells configuration."""
-        config = {
+        config: Dict[str, Any] = {
             "secret_manager": "infisical",
             "shells": "invalid-shell",
             "branch_mappings": {
@@ -211,9 +212,9 @@ class TestConfigValidation:
             ConfigManager._validate_config(config)
         assert "Invalid shells configuration" in str(exc_info.value)
 
-    def test_validate_empty_branch_mappings(self):
+    def test_validate_empty_branch_mappings(self) -> None:
         """Test validation with empty branch mappings."""
-        config = {
+        config: Dict[str, Any] = {
             "secret_manager": "infisical",
             "shells": "both",
             "branch_mappings": {},
@@ -227,9 +228,9 @@ class TestConfigValidation:
             ConfigManager._validate_config(config)
         assert "non-empty dictionary" in str(exc_info.value)
 
-    def test_validate_invalid_refresh_interval(self):
+    def test_validate_invalid_refresh_interval(self) -> None:
         """Test validation with negative cache age."""
-        config = {
+        config: Dict[str, Any] = {
             "secret_manager": "infisical",
             "shells": "both",
             "branch_mappings": {"main": "production", "default": "development"},
@@ -243,9 +244,9 @@ class TestConfigValidation:
             ConfigManager._validate_config(config)
         assert "Invalid duration format" in str(exc_info.value)
 
-    def test_validate_invalid_cleanup_interval(self):
+    def test_validate_invalid_cleanup_interval(self) -> None:
         """Test validation with negative cache age."""
-        config = {
+        config: Dict[str, Any] = {
             "secret_manager": "infisical",
             "shells": "both",
             "branch_mappings": {"main": "production", "default": "development"},
@@ -263,7 +264,7 @@ class TestConfigValidation:
 class TestCacheDirectories:
     """Test cache directory management functions."""
 
-    def test_get_cache_dir_no_environment(self):
+    def test_get_cache_dir_no_environment(self) -> None:
         """Test getting base cache directory."""
         config = {"cache_base_dir": "/tmp/test-cache"}
 
@@ -271,7 +272,7 @@ class TestCacheDirectories:
         expected = Path("/tmp/test-cache")
         assert cache_dir == expected
 
-    def test_get_cache_dir_with_environment(self):
+    def test_get_cache_dir_with_environment(self) -> None:
         """Test getting environment-specific cache directory."""
         config = {"cache_base_dir": "/tmp/test-cache"}
 
@@ -280,7 +281,7 @@ class TestCacheDirectories:
         assert cache_dir == expected
 
     @patch("pathlib.Path.mkdir")
-    def test_get_log_file_path_creates_directory(self, mock_mkdir):
+    def test_get_log_file_path_creates_directory(self, mock_mkdir: Any) -> None:
         """Test that log directory is created if it doesn't exist."""
         config = {"log_dir": "/var/log/auto-secrets"}
 
@@ -291,7 +292,7 @@ class TestCacheDirectories:
 class TestConfigTemplate:
     """Test configuration template creation."""
 
-    def test_create_minimal_config_template(self):
+    def test_create_minimal_config_template(self) -> None:
         """Test creating minimal configuration template."""
         template = ConfigManager.create_minimal_config_template()
 
@@ -314,7 +315,7 @@ class TestConfigTemplate:
 class TestEnvironmentNameValidation:
     """Test environment name validation."""
 
-    def test_valid_environment_names(self):
+    def test_valid_environment_names(self) -> None:
         """Test validation of valid environment names."""
         valid_names = [
             "production",
@@ -334,7 +335,7 @@ class TestEnvironmentNameValidation:
                 name
             ), f"'{name}' should be valid"
 
-    def test_invalid_environment_names(self):
+    def test_invalid_environment_names(self) -> None:
         """Test validation of invalid environment names."""
         invalid_names = [
             "",  # Empty
@@ -353,14 +354,14 @@ class TestEnvironmentNameValidation:
 
         for name in invalid_names:
             assert not ConfigManager.is_valid_environment_name(
-                name
+                name  # type: ignore[arg-type]
             ), f"'{name}' should be invalid"
 
 
 class TestConfigIntegration:
     """Integration tests for configuration system."""
 
-    def test_full_config_lifecycle(self):
+    def test_full_config_lifecycle(self) -> None:
         """Test complete configuration lifecycle."""
         # Set up environment
         env_vars = {

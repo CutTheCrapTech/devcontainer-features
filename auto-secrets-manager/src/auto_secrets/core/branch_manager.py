@@ -51,7 +51,7 @@ class BranchManager:
 
         self.logger.debug(f"Mapping branch '{branch}' to environment")
 
-        branch_mappings = self.config.get("branch_mappings", {})
+        branch_mappings: Dict[str, str] = self.config.get("branch_mappings", {})
         if not branch_mappings:
             raise BranchManagerError("No branch mappings configured")
 
@@ -150,13 +150,13 @@ class BranchManager:
         Returns:
             List[str]: List of environment names
         """
-        branch_mappings = self.config.get("branch_mappings", {})
+        branch_mappings: Dict[str, str] = self.config.get("branch_mappings", {})
         environments = set(branch_mappings.values())
         # Remove 'default' if it's used as a key
         environments.discard("default")
         return sorted(list(environments))
 
-    def test_branch_mapping(self, test_cases: List[tuple]) -> Dict[str, Any]:
+    def test_branch_mapping(self, test_cases: List[tuple[str, str]]) -> Dict[str, Any]:
         """
         Test branch mapping functionality with provided test cases.
 
@@ -216,7 +216,7 @@ class BranchManager:
             List[str]: List of validation errors (empty if valid)
         """
         errors = []
-        branch_mappings = self.config.get("branch_mappings", {})
+        branch_mappings: Dict[str, str] = self.config.get("branch_mappings", {})
 
         if not branch_mappings:
             errors.append("No branch mappings configured")

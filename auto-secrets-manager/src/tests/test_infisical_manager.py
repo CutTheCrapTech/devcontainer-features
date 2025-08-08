@@ -6,13 +6,16 @@ Tests the InfisicalSecretManager implementation.
 
 import os
 from dataclasses import dataclass
-from typing import Optional
-from unittest.mock import Mock, patch
+from typing import Any, Dict, List, Optional
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from auto_secrets.secret_managers.base import AuthenticationError  # type: ignore
-from auto_secrets.secret_managers.base import SecretManagerError
-from auto_secrets.secret_managers.infisical import InfisicalSecretManager  # type: ignore
+from auto_secrets.secret_managers.base import (
+    AuthenticationError,
+    ConnectionTestResult,
+    SecretManagerError,
+)
+from auto_secrets.secret_managers.infisical import InfisicalSecretManager
 
 
 # Mock classes to simulate Infisical SDK responses
@@ -29,15 +32,15 @@ class MockSecret:
 class MockSecretsResponse:
     """Mock secrets list response from Infisical SDK."""
 
-    secrets: list
+    secrets: List[MockSecret]
 
 
 class TestInfisicalSecretManager:
     """Test InfisicalSecretManager class."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
-        self.valid_config = {
+        self.valid_config: Dict[str, Any] = {
             "host": "https://app.infisical.com",
             "project_id": "test_project_123",
             "client_id": "test_client_456",
@@ -49,7 +52,7 @@ class TestInfisicalSecretManager:
             "INFISICAL_CLIENT_SECRET": "test_secret_789",
         }
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up after tests."""
         # Clear any environment variables that might have been set
         for key in [
@@ -62,7 +65,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret_789"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_init_with_config(self, mock_sdk_client):
+    def test_init_with_config(self, mock_sdk_client: MagicMock) -> None:
         """Test initialization with valid configuration."""
         manager = InfisicalSecretManager(self.valid_config)
 
@@ -75,7 +78,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret_789"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_init_with_default_host(self, mock_sdk_client):
+    def test_init_with_default_host(self, mock_sdk_client: MagicMock) -> None:
         """Test initialization with default host."""
         config = self.valid_config.copy()
         del config["host"]
@@ -92,7 +95,7 @@ class TestInfisicalSecretManager:
         },
     )
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_init_with_env_variables(self, mock_sdk_client):
+    def test_init_with_env_variables(self, mock_sdk_client: MagicMock) -> None:
         """Test initialization using environment variables."""
         config = {"client_id": "test_client"}
 
@@ -102,7 +105,7 @@ class TestInfisicalSecretManager:
         assert manager.client_id == "test_client"
 
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_init_missing_project_id(self, mock_sdk_client):
+    def test_init_missing_project_id(self, mock_sdk_client: MagicMock) -> None:
         """Test initialization with missing project_id."""
         config = {"client_id": "test_client"}
 
@@ -113,7 +116,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_init_missing_client_id(self, mock_sdk_client):
+    def test_init_missing_client_id(self, mock_sdk_client: MagicMock) -> None:
         """Test initialization with missing client_id."""
         config = {"project_id": "test_project"}
 
@@ -122,7 +125,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {}, clear=True)
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_init_missing_client_secret(self, mock_sdk_client):
+    def test_init_missing_client_secret(self, mock_sdk_client: MagicMock) -> None:
         """Test initialization with missing client_secret."""
         with pytest.raises(
             SecretManagerError,
@@ -132,7 +135,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_get_client_initialization(self, mock_sdk_client):
+    def test_get_client_initialization(self, mock_sdk_client: MagicMock) -> None:
         """Test client initialization."""
         mock_client_instance = Mock()
         mock_sdk_client.return_value = mock_client_instance
@@ -149,7 +152,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_get_client_initialization_failure(self, mock_sdk_client):
+    def test_get_client_initialization_failure(self, mock_sdk_client: MagicMock) -> None:
         """Test client initialization failure."""
         mock_sdk_client.side_effect = Exception("SDK initialization failed")
 
@@ -162,7 +165,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_authenticate_success(self, mock_sdk_client):
+    def test_authenticate_success(self, mock_sdk_client: MagicMock) -> None:
         """Test successful authentication."""
         mock_client_instance = Mock()
         mock_auth = Mock()
@@ -183,7 +186,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_authenticate_failure(self, mock_sdk_client):
+    def test_authenticate_failure(self, mock_sdk_client: MagicMock) -> None:
         """Test authentication failure."""
         mock_client_instance = Mock()
         mock_auth = Mock()
@@ -203,7 +206,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_authenticate_no_client(self, mock_sdk_client):
+    def test_authenticate_no_client(self, mock_sdk_client: MagicMock) -> None:
         """Test authentication with no client initialized."""
         manager = InfisicalSecretManager(self.valid_config)
 
@@ -212,7 +215,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_fetch_secrets_success(self, mock_sdk_client):
+    def test_fetch_secrets_success(self, mock_sdk_client: MagicMock) -> None:
         """Test successful secret fetching."""
         # Setup mock client and response
         mock_client_instance = Mock()
@@ -245,7 +248,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_fetch_secrets_with_paths(self, mock_sdk_client):
+    def test_fetch_secrets_with_paths(self, mock_sdk_client: MagicMock) -> None:
         """Test fetching secrets with specific paths."""
         mock_client_instance = Mock()
         mock_secrets = Mock()
@@ -256,7 +259,7 @@ class TestInfisicalSecretManager:
         mock_secret1 = MockSecret("API_KEY", "secret123", "/api")
         mock_secret2 = MockSecret("DB_PASS", "dbpass456", "/db")
 
-        def mock_list_secrets(**kwargs):
+        def mock_list_secrets(**kwargs: Any) -> MockSecretsResponse:
             if kwargs["secret_path"] == "/api":
                 return MockSecretsResponse([mock_secret1])
             elif kwargs["secret_path"] == "/db":
@@ -277,7 +280,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_fetch_secrets_invalid_environment(self, mock_sdk_client):
+    def test_fetch_secrets_invalid_environment(self, mock_sdk_client: MagicMock) -> None:
         """Test fetching secrets with invalid environment name."""
         manager = InfisicalSecretManager(self.valid_config)
 
@@ -286,7 +289,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_fetch_secrets_api_error(self, mock_sdk_client):
+    def test_fetch_secrets_api_error(self, mock_sdk_client: MagicMock) -> None:
         """Test fetching secrets with API error."""
         mock_client_instance = Mock()
         mock_secrets = Mock()
@@ -302,7 +305,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_fetch_secrets_with_root_path_secrets(self, mock_sdk_client):
+    def test_fetch_secrets_with_root_path_secrets(self, mock_sdk_client: MagicMock) -> None:
         """Test fetching secrets with root path normalization."""
         mock_client_instance = Mock()
         mock_secrets = Mock()
@@ -324,7 +327,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_fetch_secrets_none_values_filtered(self, mock_sdk_client):
+    def test_fetch_secrets_none_values_filtered(self, mock_sdk_client: MagicMock) -> None:
         """Test that secrets with None values are filtered out."""
         mock_client_instance = Mock()
         mock_secrets = Mock()
@@ -353,7 +356,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_test_connection_success(self, mock_sdk_client):
+    def test_test_connection_success(self, mock_sdk_client: MagicMock) -> None:
         """Test successful connection test."""
         mock_client_instance = Mock()
         mock_secrets = Mock()
@@ -376,7 +379,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_test_connection_network_error(self, mock_sdk_client):
+    def test_test_connection_network_error(self, mock_sdk_client: MagicMock) -> None:
         """Test connection test with network error."""
         mock_client_instance = Mock()
         mock_auth = Mock()
@@ -397,7 +400,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_repr(self, mock_sdk_client):
+    def test_repr(self, mock_sdk_client: MagicMock) -> None:
         """Test string representation."""
         manager = InfisicalSecretManager(self.valid_config)
 
@@ -407,7 +410,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_debug_logging(self, mock_sdk_client):
+    def test_debug_logging(self, mock_sdk_client: MagicMock) -> None:
         """Test debug logging functionality."""
         config = self.valid_config.copy()
 
@@ -430,7 +433,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_path_normalization_in_fetch(self, mock_sdk_client):
+    def test_path_normalization_in_fetch(self, mock_sdk_client: MagicMock) -> None:
         """Test path normalization during fetch."""
         mock_client_instance = Mock()
         mock_secrets = Mock()
@@ -454,7 +457,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_empty_secrets_response(self, mock_sdk_client):
+    def test_empty_secrets_response(self, mock_sdk_client: MagicMock) -> None:
         """Test handling empty secrets response."""
         mock_client_instance = Mock()
         mock_secrets = Mock()
@@ -473,7 +476,7 @@ class TestInfisicalSecretManager:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "test_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_multiple_path_requests(self, mock_sdk_client):
+    def test_multiple_path_requests(self, mock_sdk_client: MagicMock) -> None:
         """Test fetching secrets from multiple paths."""
         mock_client_instance = Mock()
         mock_secrets = Mock()
@@ -481,7 +484,7 @@ class TestInfisicalSecretManager:
         mock_sdk_client.return_value = mock_client_instance
 
         # Setup different responses for different paths
-        def mock_list_secrets(**kwargs):
+        def mock_list_secrets(**kwargs: Any) -> MockSecretsResponse:
             path = kwargs["secret_path"]
             if path == "/api":
                 return MockSecretsResponse([MockSecret("API_KEY", "api_value", "/api")])
@@ -516,7 +519,7 @@ class TestInfisicalSecretManagerIntegration:
 
     @patch.dict(os.environ, {"INFISICAL_CLIENT_SECRET": "integration_secret"})
     @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
-    def test_full_workflow(self, mock_sdk_client):
+    def test_full_workflow(self, mock_sdk_client: MagicMock) -> None:
         """Test complete workflow from initialization to secret fetching."""
         config = {
             "host": "https://test.infisical.com",

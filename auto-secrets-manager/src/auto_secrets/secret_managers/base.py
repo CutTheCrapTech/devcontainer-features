@@ -11,7 +11,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from ..core.config import ConfigManager
 
@@ -118,7 +118,7 @@ class SecretManagerBase(ABC):
             SecretNotFoundError: If environment or secrets not found
             SecretManagerError: For other errors
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def test_connection(self) -> ConnectionTestResult:
@@ -128,7 +128,7 @@ class SecretManagerBase(ABC):
         Returns:
             ConnectionTestResult: Result of the connection test
         """
-        pass
+        raise NotImplementedError
 
     def validate_environment(self, environment: str) -> bool:
         """
@@ -248,7 +248,7 @@ class SecretManagerBase(ABC):
 
         return default
 
-    def expand_environment_variables(self, value: str) -> str:
+    def expand_environment_variables(self, value: Union[str, int, float, bool]) -> str:
         """
         Expand environment variables in configuration values.
 
@@ -259,12 +259,12 @@ class SecretManagerBase(ABC):
             str: String with environment variables expanded
         """
         if not isinstance(value, str):
-            return value
+            return str(value)
 
         # Handle ${VAR} pattern
         pattern = re.compile(r"\$\{([^}]+)\}")
 
-        def replace_var(match):
+        def replace_var(match: re.Match[str]) -> str:
             var_name = match.group(1)
             return os.getenv(var_name, match.group(0))  # Return original if not found
 

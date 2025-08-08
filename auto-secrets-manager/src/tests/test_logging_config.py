@@ -8,15 +8,17 @@ formatters, handlers, and system information logging.
 import logging
 import os
 import tempfile
+from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
 
-from auto_secrets.logging_config import get_logger, log_system_info, setup_logging  # type: ignore
+from auto_secrets.logging_config import get_logger, log_system_info, setup_logging
 
 
 class TestLoggingFormatting:
     """Test logging formatting and output."""
 
-    def test_log_message_formatting(self, tmp_path):
+    def test_log_message_formatting(self, tmp_path: Path) -> None:
         """Test that log messages are formatted correctly."""
         log_file = tmp_path / "test.log"
         setup_logging(log_file=str(log_file))
@@ -31,7 +33,7 @@ class TestLoggingFormatting:
         assert "test_logger" in output
         assert "Test message" in output
 
-    def test_different_log_levels(self):
+    def test_different_log_levels(self) -> None:
         """Test different log levels are handled properly."""
         with tempfile.NamedTemporaryFile(mode="w+", delete=False) as temp_file:
             logger = setup_logging(log_file=temp_file.name)
@@ -63,32 +65,32 @@ class TestLoggingFormatting:
 class TestSetupLogging:
     """Test setup_logging function."""
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up logging configuration after each test."""
         # Reset logging configuration
         logging.getLogger().handlers.clear()
         logging.getLogger().setLevel(logging.WARNING)
 
-    def test_setup_logging_default(self):
+    def test_setup_logging_default(self) -> None:
         """Test default logging setup."""
         logger = setup_logging()
 
         assert isinstance(logger, logging.Logger)
         assert logger.name == "auto_secrets"
 
-    def test_setup_logging_debug(self):
+    def test_setup_logging_debug(self) -> None:
         """Test debug logging setup."""
         logger = setup_logging(log_level="DEBUG")
 
         assert logger.level == logging.DEBUG
 
-    def test_setup_logging_error_level(self):
+    def test_setup_logging_error_level(self) -> None:
         """Test error level logging setup."""
         logger = setup_logging(log_level="ERROR")
 
         assert logger.level == logging.ERROR
 
-    def test_setup_logging_with_log_file(self):
+    def test_setup_logging_with_log_file(self) -> None:
         """Test logging setup with log file."""
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             log_path = temp_file.name
@@ -110,7 +112,7 @@ class TestSetupLogging:
             # Cleanup
             os.unlink(log_path)
 
-    def test_setup_logging_file_creation_error(self):
+    def test_setup_logging_file_creation_error(self) -> None:
         """Test logging setup when file creation fails."""
         # Point to invalid directory
         invalid_path = "/invalid/path/log.txt"
@@ -121,7 +123,7 @@ class TestSetupLogging:
         # Should still return a logger
         assert isinstance(logger, logging.Logger)
 
-    def test_setup_logging_multiple_calls(self):
+    def test_setup_logging_multiple_calls(self) -> None:
         """Test that multiple setup calls work properly."""
         logger1 = setup_logging()
         logger2 = setup_logging()
@@ -130,13 +132,13 @@ class TestSetupLogging:
         assert isinstance(logger1, logging.Logger)
         assert isinstance(logger2, logging.Logger)
 
-    def test_setup_logging_custom_level(self):
+    def test_setup_logging_custom_level(self) -> None:
         """Test logging setup with custom level."""
         logger = setup_logging(log_level="WARNING")
 
         assert logger.level == logging.WARNING
 
-    def test_setup_logging_with_console_output(self):
+    def test_setup_logging_with_console_output(self) -> None:
         """Test logging setup with console output enabled."""
         logger = setup_logging(console_output=True)
 
@@ -147,38 +149,39 @@ class TestSetupLogging:
 class TestGetLogger:
     """Test get_logger function."""
 
-    def test_get_logger_default(self):
+    def test_get_logger_default(self) -> None:
         """Test getting default logger."""
         logger = get_logger()
         assert isinstance(logger, logging.Logger)
         assert logger.name == "auto_secrets"
 
-    def test_get_logger_with_name(self):
+    def test_get_logger_with_name(self) -> None:
         """Test getting logger with specific name."""
         logger = get_logger("test_module")
         assert isinstance(logger, logging.Logger)
         assert logger.name == "auto_secrets.test_module"
 
-    def test_get_logger_with_full_name(self):
+    def test_get_logger_with_full_name(self) -> None:
         """Test getting logger with full dotted name."""
         logger = get_logger("core.config")
         assert isinstance(logger, logging.Logger)
         assert logger.name == "auto_secrets.core.config"
 
-    def test_get_logger_caching(self):
+    def test_get_logger_caching(self) -> None:
         """Test that loggers are cached properly."""
         logger1 = get_logger("test")
         logger2 = get_logger("test")
         assert logger1 is logger2
 
-    def test_get_logger_hierarchy(self):
+    def test_get_logger_hierarchy(self) -> None:
         """Test logger hierarchy."""
         parent_logger = get_logger("parent")
         child_logger = get_logger("parent.child")
 
+        assert child_logger.parent is not None
         assert child_logger.parent.name == parent_logger.name
 
-    def test_get_logger_propagation(self):
+    def test_get_logger_propagation(self) -> None:
         """Test logger propagation settings."""
         logger = get_logger("test")
         assert logger.propagate is True
@@ -187,7 +190,7 @@ class TestGetLogger:
 class TestLogSystemInfo:
     """Test log_system_info function."""
 
-    def test_log_system_info_basic(self):
+    def test_log_system_info_basic(self) -> None:
         """Test basic system info logging."""
         mock_logger = Mock()
 
@@ -206,7 +209,7 @@ class TestLogSystemInfo:
 
     @patch("platform.system")
     @patch("platform.release")
-    def test_log_system_info_details(self, mock_release, mock_system):
+    def test_log_system_info_details(self, mock_release: Mock, mock_system: Mock) -> None:
         """Test detailed system info logging."""
         mock_logger = Mock()
 
@@ -218,7 +221,7 @@ class TestLogSystemInfo:
         # Verify logger was called
         assert mock_logger.info.called
 
-    def test_log_system_info_output_format(self):
+    def test_log_system_info_output_format(self) -> None:
         """Test system info logging output format."""
         mock_logger = Mock()
 
@@ -228,7 +231,7 @@ class TestLogSystemInfo:
         assert mock_logger.info.call_count > 1
 
     @patch("os.environ")
-    def test_log_system_info_environment_vars(self, mock_environ):
+    def test_log_system_info_environment_vars(self, mock_environ: Mock) -> None:
         """Test system info logging includes environment variables."""
         mock_logger = Mock()
 
@@ -245,7 +248,7 @@ class TestLogSystemInfo:
         # Should log environment info
         assert mock_logger.info.called
 
-    def test_log_system_info_error_handling(self):
+    def test_log_system_info_error_handling(self) -> None:
         """Test system info logging handles errors gracefully."""
         mock_logger = Mock()
 
@@ -261,12 +264,12 @@ class TestLogSystemInfo:
 class TestLoggingIntegration:
     """Integration tests for logging functionality."""
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up logging configuration."""
         logging.getLogger().handlers.clear()
         logging.getLogger().setLevel(logging.WARNING)
 
-    def test_end_to_end_logging(self):
+    def test_end_to_end_logging(self) -> None:
         """Test complete logging workflow."""
         with tempfile.NamedTemporaryFile(mode="w+", delete=False) as temp_file:
             log_path = temp_file.name
@@ -307,7 +310,7 @@ class TestLoggingIntegration:
             # Cleanup
             os.unlink(log_path)
 
-    def test_console_and_file_logging(self):
+    def test_console_and_file_logging(self) -> None:
         """Test that messages go to both console and file."""
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             log_path = temp_file.name
@@ -336,7 +339,7 @@ class TestLoggingIntegration:
             # Cleanup
             os.unlink(log_path)
 
-    def test_logger_hierarchy_and_propagation(self):
+    def test_logger_hierarchy_and_propagation(self) -> None:
         """Test logger hierarchy and message propagation."""
         setup_logging(log_level="DEBUG")
 
@@ -348,7 +351,7 @@ class TestLoggingIntegration:
         assert "parent" in child_logger.name
         assert "parent.child" in grandchild_logger.name
 
-    def test_different_log_levels(self):
+    def test_different_log_levels(self) -> None:
         """Test logging with different levels."""
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             log_path = temp_file.name
@@ -375,7 +378,7 @@ class TestLoggingIntegration:
             # Cleanup
             os.unlink(log_path)
 
-    def test_exception_logging(self):
+    def test_exception_logging(self) -> None:
         """Test logging exceptions with stack traces."""
         logger = setup_logging(log_level="DEBUG")
 

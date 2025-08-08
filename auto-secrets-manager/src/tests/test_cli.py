@@ -8,12 +8,12 @@ command execution, and integration with other modules.
 import os
 from io import StringIO
 from typing import Any, Dict
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from auto_secrets.cli import handle_branch_change  # type: ignore
 from auto_secrets.cli import (
     _background_refresh_secrets,
+    handle_branch_change,
     handle_cleanup,
     handle_debug_env,
     handle_exec_command,
@@ -22,8 +22,8 @@ from auto_secrets.cli import (
     handle_refresh_secrets,
     main,
 )
-from auto_secrets.core.config import ConfigError  # type: ignore
-from auto_secrets.secret_managers.base import ConnectionTestResult, SecretManagerError  # type: ignore
+from auto_secrets.core.config import ConfigError
+from auto_secrets.secret_managers.base import ConnectionTestResult, SecretManagerError
 
 
 class TestHandleBranchChange:
@@ -49,11 +49,11 @@ class TestHandleBranchChange:
     @patch("auto_secrets.cli.create_secret_manager")
     def test_handle_branch_change_new_environment(
         self,
-        mock_create_manager,
-        mock_cache_manager,
-        mock_branch_manager,
-        mock_load_config,
-    ):
+        mock_create_manager: MagicMock,
+        mock_cache_manager: MagicMock,
+        mock_branch_manager: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test handling branch change to new environment."""
         mock_load_config.return_value = self.mock_config
 
@@ -72,14 +72,14 @@ class TestHandleBranchChange:
             handle_branch_change(self.mock_args)
 
         mock_cache_instance.update_environment_cache.assert_called_once_with(
-            "production", {"key": "value"}, 'main', '/path/to/repo'
+            "production", {"key": "value"}, "main", "/path/to/repo"
         )
 
     @patch("auto_secrets.cli.ConfigManager.load_config")
     @patch("auto_secrets.cli.BranchManager")
     def test_handle_branch_change_no_mapping(
-        self, mock_branch_manager, mock_load_config
-    ):
+        self, mock_branch_manager: MagicMock, mock_load_config: MagicMock
+    ) -> None:
         """Test handling branch change with no mapping found."""
         self.mock_config["cache_base_dir"] = "/tmp"
         mock_load_config.return_value = self.mock_config
@@ -92,7 +92,7 @@ class TestHandleBranchChange:
             handle_branch_change(self.mock_args)
 
     @patch("auto_secrets.cli.ConfigManager.load_config")
-    def test_handle_branch_change_error(self, mock_load_config):
+    def test_handle_branch_change_error(self, mock_load_config: MagicMock) -> None:
         """Test handling branch change with error."""
         mock_load_config.side_effect = Exception("Config error")
 
@@ -103,7 +103,7 @@ class TestHandleBranchChange:
 class TestHandleRefreshSecrets:
     """Test handle_refresh_secrets function."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.mock_args = Mock()
         self.mock_args.environment = "production"
@@ -112,8 +112,11 @@ class TestHandleRefreshSecrets:
     @patch("auto_secrets.cli.CacheManager")
     @patch("auto_secrets.cli.create_secret_manager")
     def test_handle_refresh_secrets_specified_env(
-        self, mock_create_manager, mock_cache_manager, mock_load_config
-    ):
+        self,
+        mock_create_manager: MagicMock,
+        mock_cache_manager: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test refreshing secrets for specified environment."""
         mock_config = {"secret_manager": {"type": "infisical"}}
         mock_load_config.return_value = mock_config
@@ -134,7 +137,7 @@ class TestHandleRefreshSecrets:
 class TestHandleInspectSecrets:
     """Test handle_inspect_secrets function."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.mock_args = Mock()
         self.mock_args.environment = "production"
@@ -143,10 +146,10 @@ class TestHandleInspectSecrets:
     @patch("auto_secrets.cli.ConfigManager.load_config")
     @patch("auto_secrets.cli.CacheManager")
     def test_handle_inspect_secrets_with_cache(
-        self, mock_cache_manager, mock_load_config
-    ):
+        self, mock_cache_manager: MagicMock, mock_load_config: MagicMock
+    ) -> None:
         """Test inspecting cached secrets."""
-        mock_config = {}
+        mock_config: Dict[str, Any] = {}
         mock_load_config.return_value = mock_config
 
         mock_cache_instance = Mock()
@@ -166,10 +169,10 @@ class TestHandleInspectSecrets:
     @patch("auto_secrets.cli.ConfigManager.load_config")
     @patch("auto_secrets.cli.CacheManager")
     def test_handle_inspect_secrets_no_cache(
-        self, mock_cache_manager, mock_load_config
-    ):
+        self, mock_cache_manager: MagicMock, mock_load_config: MagicMock
+    ) -> None:
         """Test inspecting secrets with no cache."""
-        mock_config = {}
+        mock_config: Dict[str, Any] = {}
         mock_load_config.return_value = mock_config
 
         mock_cache_instance = Mock()
@@ -186,7 +189,7 @@ class TestHandleInspectSecrets:
 class TestHandleExecCommand:
     """Test handle_exec_command function."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.mock_args = Mock()
         self.mock_args.environment = "production"
@@ -196,10 +199,13 @@ class TestHandleExecCommand:
     @patch("auto_secrets.cli.CacheManager")
     @patch("subprocess.run")
     def test_handle_exec_command_success(
-        self, mock_subprocess, mock_cache_manager, mock_load_config
-    ):
+        self,
+        mock_subprocess: MagicMock,
+        mock_cache_manager: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test executing command with secrets."""
-        mock_config = {}
+        mock_config: Dict[str, Any] = {}
         mock_load_config.return_value = mock_config
 
         mock_cache_instance = Mock()
@@ -227,9 +233,11 @@ class TestHandleExecCommand:
 
     @patch("auto_secrets.cli.ConfigManager.load_config")
     @patch("auto_secrets.cli.CacheManager")
-    def test_handle_exec_command_no_secrets(self, mock_cache_manager, mock_load_config):
+    def test_handle_exec_command_no_secrets(
+        self, mock_cache_manager: MagicMock, mock_load_config: MagicMock
+    ) -> None:
         """Test executing command with no secrets available."""
-        mock_config = {}
+        mock_config: Dict[str, Any] = {}
         mock_load_config.return_value = mock_config
 
         mock_cache_instance = Mock()
@@ -243,7 +251,7 @@ class TestHandleExecCommand:
 class TestHandleExecForShell:
     """Test handle_exec_for_shell function."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.mock_args = Mock()
         self.mock_args.environment = "production"
@@ -251,11 +259,13 @@ class TestHandleExecForShell:
 
     @patch("auto_secrets.cli.ConfigManager.load_config")
     @patch("auto_secrets.cli.CacheManager")
-    def test_handle_exec_for_shell_bash(self, mock_cache_manager, mock_load_config):
+    def test_handle_exec_for_shell_bash(
+        self, mock_cache_manager: MagicMock, mock_load_config: MagicMock
+    ) -> None:
         """Test generating bash script."""
         self.mock_args.shell = "bash"
 
-        mock_config = {}
+        mock_config: Dict[str, Any] = {}
         mock_load_config.return_value = mock_config
 
         mock_cache_instance = Mock()
@@ -274,11 +284,13 @@ class TestHandleExecForShell:
 
     @patch("auto_secrets.cli.ConfigManager.load_config")
     @patch("auto_secrets.cli.CacheManager")
-    def test_handle_exec_for_shell_zsh(self, mock_cache_manager, mock_load_config):
+    def test_handle_exec_for_shell_zsh(
+        self, mock_cache_manager: MagicMock, mock_load_config: MagicMock
+    ) -> None:
         """Test generating zsh script."""
         self.mock_args.shell = "zsh"
 
-        mock_config = {}
+        mock_config: Dict[str, Any] = {}
         mock_load_config.return_value = mock_config
 
         mock_cache_instance = Mock()
@@ -300,7 +312,7 @@ class TestHandleDebugEnv:
     """Test handle_debug_env function."""
 
     @patch("auto_secrets.cli.ConfigManager.load_config")
-    def test_handle_debug_env(self, mock_load_config):
+    def test_handle_debug_env(self, mock_load_config: MagicMock) -> None:
         """Test debug environment information."""
         mock_config = {
             "secret_manager": {"type": "infisical"},
@@ -339,7 +351,7 @@ class TestHandleDebugEnv:
 class TestHandleCleanup:
     """Test handle_cleanup function."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures."""
         self.mock_args = Mock()
         self.mock_args.all = False
@@ -347,11 +359,13 @@ class TestHandleCleanup:
 
     @patch("auto_secrets.cli.ConfigManager.load_config")
     @patch("auto_secrets.cli.CacheManager")
-    def test_handle_cleanup_all(self, mock_cache_manager, mock_load_config):
+    def test_handle_cleanup_all(
+        self, mock_cache_manager: MagicMock, mock_load_config: MagicMock
+    ) -> None:
         """Test cleanup all caches."""
         self.mock_args.all = True
 
-        mock_config = {}
+        mock_config: Dict[str, Any] = {}
         mock_load_config.return_value = mock_config
 
         mock_cache_instance = Mock()
@@ -364,11 +378,13 @@ class TestHandleCleanup:
 
     @patch("auto_secrets.cli.ConfigManager.load_config")
     @patch("auto_secrets.cli.CacheManager")
-    def test_handle_cleanup_stale(self, mock_cache_manager, mock_load_config):
+    def test_handle_cleanup_stale(
+        self, mock_cache_manager: MagicMock, mock_load_config: MagicMock
+    ) -> None:
         """Test cleanup stale caches."""
         self.mock_args.stale = True
 
-        mock_config = {}
+        mock_config: Dict[str, Any] = {}
         mock_load_config.return_value = mock_config
 
         mock_cache_instance = Mock()
@@ -385,7 +401,9 @@ class TestBackgroundRefreshSecrets:
 
     @patch("auto_secrets.cli.create_secret_manager")
     @patch("auto_secrets.cli.CacheManager")
-    def test_background_refresh_success(self, mock_cache_manager, mock_create_manager):
+    def test_background_refresh_success(
+        self, mock_cache_manager: MagicMock, mock_create_manager: MagicMock
+    ) -> None:
         """Test successful background refresh."""
         environment = "production"
         config = {"secret_manager": {"type": "infisical"}}
@@ -406,10 +424,10 @@ class TestBackgroundRefreshSecrets:
         mock_manager.fetch_secrets.assert_called_once_with(environment)
 
     @patch("auto_secrets.cli.create_secret_manager")
-    def test_background_refresh_no_manager(self, mock_create_manager):
+    def test_background_refresh_no_manager(self, mock_create_manager: MagicMock) -> None:
         """Test background refresh with no secret manager."""
         environment = "production"
-        config = {}
+        config: Dict[str, Any] = {}
 
         mock_create_manager.return_value = None
 
@@ -424,8 +442,11 @@ class TestMainFunction:
     @patch("auto_secrets.cli.setup_logging")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_branch_change_command(
-        self, mock_parse_args, mock_setup_logging, mock_load_config
-    ):
+        self,
+        mock_parse_args: MagicMock,
+        mock_setup_logging: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test main function with branch-change command."""
         mock_load_config.return_value = {
             "cache_base_dir": "/tmp",
@@ -458,8 +479,11 @@ class TestMainFunction:
     @patch("auto_secrets.cli.setup_logging")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_refresh_command(
-        self, mock_parse_args, mock_setup_logging, mock_load_config
-    ):
+        self,
+        mock_parse_args: MagicMock,
+        mock_setup_logging: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test main function with refresh command."""
         mock_load_config.return_value = {
             "cache_base_dir": "/tmp",
@@ -494,8 +518,11 @@ class TestMainFunction:
     @patch("auto_secrets.cli.setup_logging")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_inspect_command(
-        self, mock_parse_args, mock_setup_logging, mock_load_config
-    ):
+        self,
+        mock_parse_args: MagicMock,
+        mock_setup_logging: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test main function with inspect command."""
         mock_load_config.return_value = {
             "cache_base_dir": "/tmp",
@@ -531,8 +558,11 @@ class TestMainFunction:
     @patch("auto_secrets.cli.setup_logging")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_exec_command(
-        self, mock_parse_args, mock_setup_logging, mock_load_config
-    ):
+        self,
+        mock_parse_args: MagicMock,
+        mock_setup_logging: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test main function with exec command."""
         mock_load_config.return_value = {
             "cache_base_dir": "/tmp",
@@ -565,8 +595,11 @@ class TestMainFunction:
     @patch("auto_secrets.cli.setup_logging")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_shell_command(
-        self, mock_parse_args, mock_setup_logging, mock_load_config
-    ):
+        self,
+        mock_parse_args: MagicMock,
+        mock_setup_logging: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test main function with shell command."""
         mock_load_config.return_value = {
             "cache_base_dir": "/tmp",
@@ -599,8 +632,11 @@ class TestMainFunction:
     @patch("auto_secrets.cli.setup_logging")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_debug_command(
-        self, mock_parse_args, mock_setup_logging, mock_load_config
-    ):
+        self,
+        mock_parse_args: MagicMock,
+        mock_setup_logging: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test main function with debug command."""
         mock_load_config.return_value = {
             "cache_base_dir": "/tmp",
@@ -631,8 +667,11 @@ class TestMainFunction:
     @patch("auto_secrets.cli.setup_logging")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_cleanup_command(
-        self, mock_parse_args, mock_setup_logging, mock_load_config
-    ):
+        self,
+        mock_parse_args: MagicMock,
+        mock_setup_logging: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test main function with cleanup command."""
         mock_load_config.return_value = {
             "cache_base_dir": "/tmp",
@@ -662,7 +701,9 @@ class TestMainFunction:
 
     @patch("auto_secrets.cli.ConfigManager.load_config")
     @patch("auto_secrets.cli.setup_logging")
-    def test_main_unknown_command(self, mock_setup_logging, mock_load_config):
+    def test_main_unknown_command(
+        self, mock_setup_logging: MagicMock, mock_load_config: MagicMock
+    ) -> None:
         """Test main function with unknown command."""
         mock_load_config.return_value = {
             "cache_base_dir": "/tmp",
@@ -698,8 +739,11 @@ class TestMainFunction:
     @patch("auto_secrets.cli.setup_logging")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_debug_logging(
-        self, mock_parse_args, mock_setup_logging, mock_load_config
-    ):
+        self,
+        mock_parse_args: MagicMock,
+        mock_setup_logging: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test main function with debug logging enabled."""
         mock_load_config.return_value = {
             "cache_base_dir": "/tmp",
@@ -732,8 +776,11 @@ class TestMainFunction:
     @patch("auto_secrets.cli.setup_logging")
     @patch("argparse.ArgumentParser.parse_args")
     def test_main_quiet_logging(
-        self, mock_parse_args, mock_setup_logging, mock_load_config
-    ):
+        self,
+        mock_parse_args: MagicMock,
+        mock_setup_logging: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test main function with quiet logging enabled."""
         mock_load_config.return_value = {
             "cache_base_dir": "/tmp",
@@ -770,11 +817,11 @@ class TestCLIIntegration:
     @patch("auto_secrets.cli.create_secret_manager")
     def test_complete_workflow(
         self,
-        mock_create_manager,
-        mock_branch_manager,
-        mock_cache_manager,
-        mock_load_config,
-    ):
+        mock_create_manager: MagicMock,
+        mock_branch_manager: MagicMock,
+        mock_cache_manager: MagicMock,
+        mock_load_config: MagicMock,
+    ) -> None:
         """Test complete CLI workflow."""
         # Setup config
         mock_config = {
@@ -811,7 +858,7 @@ class TestCLIIntegration:
         mock_manager.fetch_secrets.assert_called_with("production")
         mock_cache_instance.update_environment_cache.assert_called()
 
-    def test_error_handling_workflow(self):
+    def test_error_handling_workflow(self) -> None:
         """Test error handling across CLI functions."""
         # Test config loading error
         with patch(
