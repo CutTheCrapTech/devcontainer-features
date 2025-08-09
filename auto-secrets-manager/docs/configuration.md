@@ -367,7 +367,17 @@ Control automatic branch change detection:
 }
 ```
 
-When disabled, secrets must be manually refreshed:
+**Default: `true`** - Automatically detects branch changes via shell prompt integration.
+
+When disabled (`false`), secrets must be manually refreshed. However, **git hooks are the preferred method** for automatic branch detection as they're significantly more performant than shell-based detection.
+
+#### Why Git Hooks Are Better
+
+- **Performance**: Triggers only on actual branch changes, not every shell prompt
+- **Reliability**: Guaranteed execution when switching branches
+- **Efficiency**: No overhead (even if minimal) during regular shell operations
+
+#### Manual Refresh (when branchDetection: false)
 
 ```bash
 # Manual environment switching
@@ -375,11 +385,19 @@ auto-secrets refresh
 eval "$(auto-secrets output-env)"
 ```
 
-Alternatively, the best way to to have the secrets auto refreshed is to set this to false and use a git post checkout hook:
+#### Recommended Setup: Git Hooks
 
-```bash
-# TODO: Add the file and copy command here
+For the best performance, disable shell-based detection and use git hooks instead:
+
+```json
+{
+  "branchDetection": false
+}
 ```
+
+Then set up git hooks: **[Git Hook Setup](git-hooks.md)**
+
+> **Note:** Shell-based detection is enabled by default to avoid interfering with existing git hooks, but git hooks provide superior performance when properly configured.
 
 ### Debug Mode
 

@@ -82,7 +82,7 @@ where = ["."]
 "" = "."
 
 [tool.setuptools.package-data]
-auto_secrets = ["shell/*.sh", "shell/templates/*.sh", "py.typed"]
+auto_secrets = ["py.typed"]
 
 [tool.ruff]
 target-version = "py39"

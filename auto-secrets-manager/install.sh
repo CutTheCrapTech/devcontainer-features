@@ -114,6 +114,12 @@ chmod 755 "$INSTALL_DIR"/*.sh
 
 echo "✅ Shell integration files installed"
 
+# Copy git hooks files
+cp -r "$SOURCE_DIR/hooks/"* "$INSTALL_DIR/"
+chmod 755 "$INSTALL_DIR"/*
+
+echo "✅ Git hooks copied"
+
 # Set up shell integration based on SHELLS option
 echo "🐚 Setting up shell integration..."
 

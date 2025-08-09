@@ -1,0 +1,24 @@
+#!/bin/bash
+if [ "$3" -eq 1 ]; then
+  # This hook is run after a checkout.
+  # $1 is the ref of the previous HEAD
+  # $2 is the ref of the new HEAD
+  # $3 is a flag indicating if the checkout was a branch checkout (1) or a file checkout (0)
+  echo "post-checkout hook: Branch changed. Creating refresh flag." >&2
+
+  local current_branch
+  current_branch=$(git branch --show-current 2>/dev/null)
+
+  # Fallback for detached HEAD or older git versions
+  if [[ -z "$branch" ]]; then
+    current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+  fi
+
+  local current_repo
+  current_repo=$(git rev-parse --show-toplevel 2>/dev/null)
+
+  if command -v auto-secrets >/dev/null 2>&1; then
+  {
+    auto-secrets branch-changed --branch "$current_branch" --repopath "$current_repo" 2>/dev/null || true
+  }
+fi
