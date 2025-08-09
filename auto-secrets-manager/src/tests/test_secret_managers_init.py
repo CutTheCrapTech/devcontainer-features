@@ -52,7 +52,7 @@ class TestCreateSecretManager:
 
   @patch.dict("os.environ", {"INFISICAL_CLIENT_SECRET": "dummy-secret"})
   @patch("auto_secrets.secret_managers.SECRET_MANAGERS")
-  def test_create_infisical_manager(self, mock_registry) -> None:
+  def test_create_infisical_manager(self, mock_registry: Mock) -> None:
     """Test creating Infisical secret manager."""
     mock_manager_class = Mock()
     mock_instance = Mock()
@@ -113,7 +113,7 @@ class TestCreateSecretManager:
     assert "Available: infisical" in str(exc_info.value)
 
   @patch("auto_secrets.secret_managers.InfisicalSecretManager")
-  def test_create_manager_initialization_fails(self, mock_infisical) -> None:
+  def test_create_manager_initialization_fails(self, mock_infisical: Mock) -> None:
     """Test error handling when manager initialization fails."""
     mock_infisical.side_effect = Exception("Initialization failed")
 
@@ -126,7 +126,7 @@ class TestCreateSecretManager:
 
   @patch.dict("os.environ", {"INFISICAL_CLIENT_SECRET": "dummy-secret"})
   @patch("auto_secrets.secret_managers.SECRET_MANAGERS")
-  def test_create_manager_with_full_config(self, mock_registry) -> None:
+  def test_create_manager_with_full_config(self, mock_registry: Mock) -> None:
     """Test creating manager with complete configuration."""
     mock_manager_class = Mock()
     mock_instance = Mock()
