@@ -50,7 +50,6 @@ jobs:
           file: ./auto-secrets-manager/.test_reports/coverage.xml
           flags: unittests
           name: codecov-umbrella
-          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload test results
         if: always()
