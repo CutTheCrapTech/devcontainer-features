@@ -359,8 +359,10 @@ def _background_refresh_secrets(
 def main() -> None:
   """Main CLI entry point."""
 
-  if sys.version_info < (3, 9):    # noqa: UP036
-    print(f"❌ Auto Secrets Manager requires Python 3.9+, found Python {sys.version_info.major}.{sys.version_info.minor}")
+  if sys.version_info < (3, 9):  # noqa: UP036
+    print(
+      f"❌ Auto Secrets Manager requires Python 3.9+, found Python {sys.version_info.major}.{sys.version_info.minor}"
+    )
     print("💡 Your Python was downgraded after installation. Please use Python 3.9+ or reinstall the feature.")
     sys.exit(1)
 

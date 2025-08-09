@@ -1,393 +1,262 @@
 """
-Test suite for auto_secrets.core.config module.
+Test suite for auto_secrets.core.branch_manager module.
 
-Comprehensive tests for configuration loading, validation, and management.
+This file is MISSING from your test suite - that's why coverage is 10%!
 """
 
-import json
-import os
-from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
-from auto_secrets.core.config import ConfigError, ConfigManager
+from auto_secrets.core.branch_manager import BranchManager, BranchManagerError
 
 
-class TestLoadConfig:
-  """Test configuration loading from environment variables."""
+class TestBranchManager:
+  """Test BranchManager functionality."""
 
   def setup_method(self) -> None:
-    """Set up test environment variables."""
-    self.env_vars = {
-      "AUTO_SECRETS_SECRET_MANAGER": "infisical",
-      "AUTO_SECRETS_SHELLS": "both",
-      "AUTO_SECRETS_DEBUG": "false",
-      "AUTO_SECRETS_BRANCH_MAPPINGS": json.dumps(
-        {"main": "production", "develop": "staging", "default": "development"}
-      ),
-      "AUTO_SECRETS_SECRET_MANAGER_CONFIG": json.dumps({"client_id": "test-client-id", "client_secret": "test-secret"}),
-      "AUTO_SECRETS_AUTO_COMMANDS": json.dumps({"terraform": ["/infrastructure/**"], "kubectl": ["/kubernetes/**"]}),
-      "AUTO_SECRETS_CACHE_DIR": "/tmp/auto-secrets-test",
-      "AUTO_SECRETS_FEATURE_DIR": "/tmp/auto-secrets",
-      "AUTO_SECRETS_LOG_DIR": "/tmp/auto-secrets",
-      "AUTO_SECRETS_LOG_LEVEL": "INFO",
-      "AUTO_SECRETS_CACHE_CONFIG": json.dumps(
-        {
-          "refresh_interval": "10m",
-          "cleanup_interval": "7d",
-        }
-      ),
+    """Set up test configuration."""
+    self.config = {
+      "branch_mappings": {
+        "main": "production",
+        "develop": "staging",
+        "feature/*": "development",
+        "release/**": "staging",
+        "hotfix-*": "production",
+        "default": "development",
+      }
     }
+    self.branch_manager = BranchManager(self.config)
 
-  def test_load_valid_config(self) -> None:
-    """Test loading a complete valid configuration."""
-    with patch.dict(os.environ, self.env_vars, clear=True):
-      config = ConfigManager.load_config()
+  def test_exact_branch_match(self) -> None:
+    """Test exact branch name matching."""
+    result = self.branch_manager.map_branch_to_environment("main")
+    assert result == "production"
 
-      assert config["secret_manager"] == "infisical"
-      assert config["shells"] == "both"
-      assert config["debug"] is False
-      assert config["branch_mappings"]["main"] == "production"
-      assert config["branch_mappings"]["default"] == "development"
-      assert config["secret_manager_config"]["client_id"] == "test-client-id"
-      assert config["auto_commands"]["terraform"] == ["/infrastructure/**"]
-      assert config["cache_base_dir"] == "/tmp/auto-secrets-test"
+    result = self.branch_manager.map_branch_to_environment("develop")
+    assert result == "staging"
 
-  def test_missing_required_secret_manager(self) -> None:
-    """Test error when secret manager is missing."""
-    env_vars = self.env_vars.copy()
-    del env_vars["AUTO_SECRETS_SECRET_MANAGER"]
+  def test_pattern_matching(self) -> None:
+    """Test pattern matching for branch names."""
+    # Test feature/* pattern
+    result = self.branch_manager.map_branch_to_environment("feature/auth")
+    assert result == "development"
 
-    with patch.dict(os.environ, env_vars, clear=True):
-      with pytest.raises(ConfigError) as exc_info:
-        ConfigManager.load_config()
-      assert "AUTO_SECRETS_SECRET_MANAGER environment variable is required" in str(exc_info.value)
+    result = self.branch_manager.map_branch_to_environment("feature/ui-update")
+    assert result == "development"
 
-  def test_missing_required_shells(self) -> None:
-    """Test error when shells configuration is missing."""
-    env_vars = self.env_vars.copy()
-    del env_vars["AUTO_SECRETS_SHELLS"]
+    # Test release/** pattern
+    result = self.branch_manager.map_branch_to_environment("release/v1.0")
+    assert result == "staging"
 
-    with patch.dict(os.environ, env_vars, clear=True):
-      with pytest.raises(ConfigError) as exc_info:
-        ConfigManager.load_config()
-      assert "AUTO_SECRETS_SHELLS environment variable is required" in str(exc_info.value)
+    result = self.branch_manager.map_branch_to_environment("release/hotfix/security")
+    assert result == "staging"
 
-  def test_missing_branch_mappings(self) -> None:
-    """Test error when branch mappings are missing."""
-    env_vars = self.env_vars.copy()
-    del env_vars["AUTO_SECRETS_BRANCH_MAPPINGS"]
+    # Test hotfix-* pattern
+    result = self.branch_manager.map_branch_to_environment("hotfix-login")
+    assert result == "production"
 
-    with patch.dict(os.environ, env_vars, clear=True):
-      with pytest.raises(ConfigError) as exc_info:
-        ConfigManager.load_config()
-      assert "AUTO_SECRETS_BRANCH_MAPPINGS environment variable is required" in str(exc_info.value)
+  def test_default_fallback(self) -> None:
+    """Test fallback to default environment."""
+    result = self.branch_manager.map_branch_to_environment("unknown-branch")
+    assert result == "development"
 
-  def test_invalid_branch_mappings_json(self) -> None:
-    """Test error when branch mappings JSON is invalid."""
-    env_vars = self.env_vars.copy()
-    env_vars["AUTO_SECRETS_BRANCH_MAPPINGS"] = "invalid-json"
+  def test_special_branch_states(self) -> None:
+    """Test special branch states (detached, no-git, empty)."""
+    for special_branch in ["detached", "no-git", ""]:
+      result = self.branch_manager.map_branch_to_environment(special_branch)
+      assert result == "development"
 
-    with patch.dict(os.environ, env_vars, clear=True):
-      with pytest.raises(ConfigError) as exc_info:
-        ConfigManager.load_config()
-      assert "Invalid AUTO_SECRETS_BRANCH_MAPPINGS JSON" in str(exc_info.value)
+  def test_empty_branch_name(self) -> None:
+    """Test handling of empty branch name."""
+    with patch.object(self.branch_manager.logger, "warning") as mock_warning:
+      result = self.branch_manager.map_branch_to_environment("")
+      assert result == "development"
+      mock_warning.assert_called_once()
 
-  def test_branch_mappings_missing_default(self) -> None:
-    """Test error when branch mappings don't include default."""
-    env_vars = self.env_vars.copy()
-    env_vars["AUTO_SECRETS_BRANCH_MAPPINGS"] = json.dumps({"main": "production", "develop": "staging"})
+  def test_no_branch_mappings_configured(self) -> None:
+    """Test error when no branch mappings are configured."""
+    empty_config: dict[str, Any] = {"branch_mappings": {}}
+    branch_manager = BranchManager(empty_config)
 
-    with patch.dict(os.environ, env_vars, clear=True):
-      with pytest.raises(ConfigError) as exc_info:
-        ConfigManager.load_config()
-      assert "must include a 'default' entry" in str(exc_info.value)
+    with pytest.raises(BranchManagerError, match="No branch mappings configured"):
+      branch_manager.map_branch_to_environment("main")
 
-  def test_debug_mode_enabled(self) -> None:
-    """Test debug mode configuration."""
-    env_vars = self.env_vars.copy()
-    env_vars["AUTO_SECRETS_DEBUG"] = "true"
+  def test_get_default_environment(self) -> None:
+    """Test getting default environment."""
+    result = self.branch_manager._get_default_environment()
+    assert result == "development"
 
-    with patch.dict(os.environ, env_vars, clear=True):
-      config = ConfigManager.load_config()
-      assert config["debug"] is True
+    # Test with no default
+    no_default_config = {"branch_mappings": {"main": "prod"}}
+    branch_manager = BranchManager(no_default_config)
+    result = branch_manager._get_default_environment()
+    assert result is None
 
-  def test_default_values(self) -> None:
-    """Test that default values are applied correctly."""
-    with patch.dict(os.environ, self.env_vars, clear=True):
-      config = ConfigManager.load_config()
+  def test_branch_pattern_matching_logic(self) -> None:
+    """Test the pattern matching logic in detail."""
+    # Test patterns without wildcards (should return False)
+    assert not self.branch_manager._branch_matches_pattern("main", "main")
 
-      # Test cache config defaults
-      assert config["cache_config"]["refresh_interval"] == "10m"  # from env
+    # Test single wildcard
+    assert self.branch_manager._branch_matches_pattern("feature/auth", "feature/*")
+    assert not self.branch_manager._branch_matches_pattern("feature/sub/auth", "feature/*")
 
-  def test_invalid_json_configs(self) -> None:
-    """Test handling of invalid JSON in various config fields."""
+    # Test double wildcard
+    assert self.branch_manager._branch_matches_pattern("release/v1.0", "release/**")
+    assert self.branch_manager._branch_matches_pattern("release/hotfix/security", "release/**")
+
+    # Test question mark wildcard
+    config_with_question = {"branch_mappings": {"test-?": "testing", "default": "dev"}}
+    bm = BranchManager(config_with_question)
+    assert bm._branch_matches_pattern("test-1", "test-?")
+    assert bm._branch_matches_pattern("test-a", "test-?")
+    assert not bm._branch_matches_pattern("test-ab", "test-?")
+
+  def test_invalid_regex_pattern(self) -> None:
+    """Test handling of invalid regex patterns."""
+    with patch.object(self.branch_manager.logger, "warning") as mock_warning:
+      # Use a pattern with wildcards that creates invalid regex after conversion
+      result = self.branch_manager._branch_matches_pattern("test", "*(?P<")
+
+      # Should not raise exception (handled gracefully)
+      assert result is False
+      # Should log warning about invalid pattern
+      mock_warning.assert_called_once()
+
+      # Verify warning message contains expected content
+      call_args = mock_warning.call_args[0][0]
+      assert "Invalid regex pattern" in call_args
+      assert "*(?P<" in call_args
+
+  def test_pattern_without_wildcards_returns_early(self) -> None:
+    """Test that patterns without wildcards return False immediately."""
+    with patch.object(self.branch_manager.logger, "debug") as mock_debug:
+      # Pattern without wildcards should return False without attempting regex
+      result = self.branch_manager._branch_matches_pattern("main", "main")
+      assert result is False
+
+      # Should not attempt pattern conversion or regex matching
+      # No debug log should be called for pattern testing
+      mock_debug.assert_not_called()
+
+    # Test other patterns without wildcards
+    assert not self.branch_manager._branch_matches_pattern("develop", "develop")
+    assert not self.branch_manager._branch_matches_pattern("feature/auth", "exact-branch-name")
+    assert not self.branch_manager._branch_matches_pattern("test", "production")
+
+  def test_get_available_environments(self) -> None:
+    """Test getting list of available environments."""
+    environments = self.branch_manager.get_available_environments()
+    expected = ["development", "production", "staging"]
+    assert sorted(environments) == expected
+
+  def test_test_branch_mapping(self) -> None:
+    """Test the branch mapping test functionality."""
     test_cases = [
-      ("AUTO_SECRETS_SECRET_MANAGER_CONFIG", "invalid-json"),
-      ("AUTO_SECRETS_AUTO_COMMANDS", "not-json"),
-      ("AUTO_SECRETS_CACHE_CONFIG", "{invalid}"),
+      ("main", "production"),
+      ("develop", "staging"),
+      ("feature/auth", "development"),
+      ("unknown", "development"),
     ]
 
-    for env_var, invalid_json in test_cases:
-      env_vars = self.env_vars.copy()
-      env_vars[env_var] = invalid_json
+    results = self.branch_manager.test_branch_mapping(test_cases)
 
-      with patch.dict(os.environ, env_vars, clear=True):
-        with pytest.raises(ConfigError) as exc_info:
-          ConfigManager.load_config()
-        assert f"Invalid {env_var} JSON" in str(exc_info.value)
+    assert results["total"] == 4
+    assert results["passed"] == 4
+    assert results["failed"] == 0
+    assert all(detail["success"] for detail in results["details"])
 
-
-class TestConfigValidation:
-  """Test configuration validation."""
-
-  def test_validate_valid_config(self) -> None:
-    """Test validation of a valid configuration."""
-    config: dict[str, Any] = {
-      "secret_manager": "infisical",
-      "shells": "both",
-      "branch_mappings": {
-        "main": "production",
-        "default": "development",
-      },
-      "cache_config": {
-        "refresh_interval": "15m",
-        "cleanup_interval": "7d",
-      },
-    }
-
-    # Should not raise any exception
-    ConfigManager._validate_config(config)
-
-  def test_validate_invalid_secret_manager(self) -> None:
-    """Test validation with invalid secret manager."""
-    config: dict[str, Any] = {
-      "secret_manager": "invalid-manager",
-      "shells": "both",
-      "branch_mappings": {
-        "main": "production",
-        "default": "development",
-      },
-      "cache_config": {
-        "refresh_interval": "15m",
-        "cleanup_interval": "7d",
-      },
-    }
-
-    with pytest.raises(ConfigError) as exc_info:
-      ConfigManager._validate_config(config)
-    assert "Invalid secret manager" in str(exc_info.value)
-
-  def test_validate_invalid_shells(self) -> None:
-    """Test validation with invalid shells configuration."""
-    config: dict[str, Any] = {
-      "secret_manager": "infisical",
-      "shells": "invalid-shell",
-      "branch_mappings": {
-        "main": "production",
-        "default": "development",
-      },
-      "cache_config": {
-        "refresh_interval": "15m",
-        "cleanup_interval": "7d",
-      },
-    }
-
-    with pytest.raises(ConfigError) as exc_info:
-      ConfigManager._validate_config(config)
-    assert "Invalid shells configuration" in str(exc_info.value)
-
-  def test_validate_empty_branch_mappings(self) -> None:
-    """Test validation with empty branch mappings."""
-    config: dict[str, Any] = {
-      "secret_manager": "infisical",
-      "shells": "both",
-      "branch_mappings": {},
-      "cache_config": {
-        "refresh_interval": "10m",
-        "cleanup_interval": "7d",
-      },
-    }
-
-    with pytest.raises(ConfigError) as exc_info:
-      ConfigManager._validate_config(config)
-    assert "non-empty dictionary" in str(exc_info.value)
-
-  def test_validate_invalid_refresh_interval(self) -> None:
-    """Test validation with negative cache age."""
-    config: dict[str, Any] = {
-      "secret_manager": "infisical",
-      "shells": "both",
-      "branch_mappings": {"main": "production", "default": "development"},
-      "cache_config": {
-        "refresh_interval": "m",
-        "cleanup_interval": "7d",
-      },
-    }
-
-    with pytest.raises(ConfigError) as exc_info:
-      ConfigManager._validate_config(config)
-    assert "Invalid duration format" in str(exc_info.value)
-
-  def test_validate_invalid_cleanup_interval(self) -> None:
-    """Test validation with negative cache age."""
-    config: dict[str, Any] = {
-      "secret_manager": "infisical",
-      "shells": "both",
-      "branch_mappings": {"main": "production", "default": "development"},
-      "cache_config": {
-        "refresh_interval": "15m",
-        "cleanup_interval": "d",
-      },
-    }
-
-    with pytest.raises(ConfigError) as exc_info:
-      ConfigManager._validate_config(config)
-    assert "Invalid duration format" in str(exc_info.value)
-
-
-class TestCacheDirectories:
-  """Test cache directory management functions."""
-
-  def test_get_cache_dir_no_environment(self) -> None:
-    """Test getting base cache directory."""
-    config = {"cache_base_dir": "/tmp/test-cache"}
-
-    cache_dir = ConfigManager.get_cache_dir(config)
-    expected = Path("/tmp/test-cache")
-    assert cache_dir == expected
-
-  def test_get_cache_dir_with_environment(self) -> None:
-    """Test getting environment-specific cache directory."""
-    config = {"cache_base_dir": "/tmp/test-cache"}
-
-    cache_dir = ConfigManager.get_cache_dir(config, "production")
-    expected = Path("/tmp/test-cache/environments/production")
-    assert cache_dir == expected
-
-  @patch("pathlib.Path.mkdir")
-  def test_get_log_file_path_creates_directory(self, mock_mkdir: Any) -> None:
-    """Test that log directory is created if it doesn't exist."""
-    config = {"log_dir": "/var/log/auto-secrets"}
-
-    ConfigManager.get_log_file_path(config)
-    mock_mkdir.assert_called_once_with(parents=True, exist_ok=True, mode=0o755)
-
-
-class TestConfigTemplate:
-  """Test configuration template creation."""
-
-  def test_create_minimal_config_template(self) -> None:
-    """Test creating minimal configuration template."""
-    template = ConfigManager.create_minimal_config_template()
-
-    # Verify required fields are present
-    assert template["secret_manager"] == "infisical"
-    assert template["shells"] == "both"
-    assert template["debug"] is False
-    assert "branch_mappings" in template
-    assert "default" in template["branch_mappings"]
-    assert "secret_manager_config" in template
-    assert "auto_commands" in template
-    assert "cache_config" in template
-
-    # Verify structure is valid
-    assert isinstance(template["branch_mappings"], dict)
-    assert isinstance(template["auto_commands"], dict)
-    assert isinstance(template["cache_config"], dict)
-
-
-class TestEnvironmentNameValidation:
-  """Test environment name validation."""
-
-  def test_valid_environment_names(self) -> None:
-    """Test validation of valid environment names."""
-    valid_names = [
-      "production",
-      "staging",
-      "development",
-      "test",
-      "prod-1",
-      "staging_v2",
-      "dev-feature-123",
-      "a",  # Single character
-      "env123",
-      "test-env-name",
+  def test_test_branch_mapping_with_failures(self) -> None:
+    """Test branch mapping test with some failures."""
+    test_cases = [
+      ("main", "wrong-env"),  # This will fail
+      ("develop", "staging"),  # This will pass
     ]
 
-    for name in valid_names:
-      assert ConfigManager.is_valid_environment_name(name), f"'{name}' should be valid"
+    results = self.branch_manager.test_branch_mapping(test_cases)
 
-  def test_invalid_environment_names(self) -> None:
-    """Test validation of invalid environment names."""
-    invalid_names: list[Any] = [
-      "",  # Empty
-      None,  # None
-      123,  # Not string
-      "-production",  # Starts with hyphen
-      "staging-",  # Ends with hyphen
-      "_development",  # Starts with underscore
-      "test_",  # Ends with underscore
-      "prod@duction",  # Invalid character
-      "staging with spaces",  # Spaces
-      "a" * 65,  # Too long
-      "test/env",  # Invalid character
-      "test.env",  # Invalid character
-    ]
+    assert results["total"] == 2
+    assert results["passed"] == 1
+    assert results["failed"] == 1
 
-    for name in invalid_names:
-      assert not ConfigManager.is_valid_environment_name(name), f"'{name}' should be invalid"
+  def test_test_branch_mapping_with_exceptions(self) -> None:
+    """Test branch mapping test when exceptions occur."""
+    # Create a branch manager that will raise an exception
+    bad_config: dict[str, Any] = {"branch_mappings": {}}  # No mappings = will raise error
+    bad_manager = BranchManager(bad_config)
 
+    test_cases = [("main", "production")]
+    results = bad_manager.test_branch_mapping(test_cases)
 
-class TestConfigIntegration:
-  """Integration tests for configuration system."""
+    assert results["failed"] == 1
+    assert "ERROR:" in results["details"][0]["actual"]
 
-  def test_full_config_lifecycle(self) -> None:
-    """Test complete configuration lifecycle."""
-    # Set up environment
-    env_vars = {
-      "AUTO_SECRETS_SECRET_MANAGER": "infisical",
-      "AUTO_SECRETS_SHELLS": "zsh",
-      "AUTO_SECRETS_DEBUG": "true",
-      "AUTO_SECRETS_BRANCH_MAPPINGS": json.dumps(
-        {
-          "main": "production",
-          "develop": "staging",
-          "feature/*": "development",
-          "default": "development",
-        }
-      ),
-      "AUTO_SECRETS_SECRET_MANAGER_CONFIG": json.dumps({"project_id": "test-project", "client_id": "test-client"}),
-      "AUTO_SECRETS_CACHE_CONFIG": json.dumps(
-        {
-          "refresh_interval": "10m",
-          "cleanup_interval": "7d",
-        }
-      ),
-      "AUTO_SECRETS_CACHE_DIR": "/tmp/test-cache",
-      "AUTO_SECRETS_FEATURE_DIR": "/tmp/auto-secrets",
-      "AUTO_SECRETS_LOG_DIR": "/tmp/auto-secrets",
-      "AUTO_SECRETS_LOG_LEVEL": "INFO",
+  def test_validate_configuration_valid(self) -> None:
+    """Test configuration validation with valid config."""
+    errors = self.branch_manager.validate_configuration()
+    assert errors == []
+
+  def test_validate_configuration_no_mappings(self) -> None:
+    """Test validation with no branch mappings."""
+    empty_config: dict[str, Any] = {"branch_mappings": {}}
+    branch_manager = BranchManager(empty_config)
+
+    errors = branch_manager.validate_configuration()
+    assert "No branch mappings configured" in errors
+
+  def test_validate_configuration_no_default(self) -> None:
+    """Test validation without default mapping."""
+    no_default_config = {"branch_mappings": {"main": "production"}}
+    branch_manager = BranchManager(no_default_config)
+
+    errors = branch_manager.validate_configuration()
+    assert any("default" in error for error in errors)
+
+  def test_validate_configuration_invalid_pattern(self) -> None:
+    """Test validation with invalid regex pattern."""
+    bad_pattern_config = {
+      "branch_mappings": {
+        "[invalid": "production",  # Invalid regex
+        "default": "development",
+      }
     }
+    branch_manager = BranchManager(bad_pattern_config)
 
-    with patch.dict(os.environ, env_vars, clear=True):
-      # Load configuration
-      config = ConfigManager.load_config()
+    errors = branch_manager.validate_configuration()
+    assert any("Invalid pattern syntax" in error for error in errors)
 
-      # Verify configuration is loaded correctly
-      assert config["secret_manager"] == "infisical"
-      assert config["shells"] == "zsh"
-      assert config["debug"] is True
+  def test_validate_configuration_duplicate_environments(self) -> None:
+    """Test validation logs warning for duplicate environments."""
+    duplicate_config = {
+      "branch_mappings": {
+        "main": "production",
+        "master": "production",  # Duplicate
+        "default": "development",
+      }
+    }
+    branch_manager = BranchManager(duplicate_config)
 
-      # Test cache directory functions
-      with patch("os.getuid", return_value=1000):
-        cache_dir = ConfigManager.get_cache_dir(config)
-        env_cache_dir = ConfigManager.get_cache_dir(config, "production")
+    with patch.object(branch_manager.logger, "warning") as mock_warning:
+      branch_manager.validate_configuration()
+      mock_warning.assert_called_once()
 
-        assert cache_dir == Path("/tmp/test-cache")
-        assert env_cache_dir == Path("/tmp/test-cache/environments/production")
+  def test_repr(self) -> None:
+    """Test string representation."""
+    repr_str = repr(self.branch_manager)
+    assert "BranchManager" in repr_str
+    assert "mappings=6" in repr_str  # 5 mappings + default
+
+  def test_no_match_no_default_returns_none(self) -> None:
+    """Test that None is returned when no match and no default."""
+    no_default_config = {"branch_mappings": {"main": "production"}}
+    branch_manager = BranchManager(no_default_config)
+
+    with patch.object(branch_manager.logger, "error") as mock_error:
+      result = branch_manager.map_branch_to_environment("unknown")
+      assert result is None
+      mock_error.assert_called_once()
 
 
 if __name__ == "__main__":

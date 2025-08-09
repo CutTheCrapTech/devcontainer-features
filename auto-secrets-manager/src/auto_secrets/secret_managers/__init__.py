@@ -64,33 +64,6 @@ def create_secret_manager(config: dict[str, Any]) -> Optional[SecretManagerBase]
     raise SecretManagerError(f"Failed to initialize {manager_type} secret manager: {e}") from None
 
 
-def create_secret_manager_legacy(manager_type: str, config: dict) -> SecretManagerBase:
-  """
-  Legacy factory function for backward compatibility.
-
-  Args:
-      manager_type: Type of secret manager
-      config: Configuration dictionary for the secret manager
-
-  Returns:
-      SecretManagerBase: Initialized secret manager instance
-
-  Raises:
-      ValueError: If manager_type is not supported
-      SecretManagerError: If initialization fails
-  """
-  if manager_type not in SECRET_MANAGERS:
-    available = ", ".join(SECRET_MANAGERS.keys())
-    raise ValueError(f"Unknown secret manager: {manager_type}. Available: {available}")
-
-  manager_class = SECRET_MANAGERS[manager_type]
-
-  try:
-    return manager_class(config)
-  except Exception as e:
-    raise SecretManagerError(f"Failed to initialize {manager_type} secret manager: {e}") from None
-
-
 def get_available_managers() -> list[str]:
   """
   Get list of available secret manager types.
@@ -174,7 +147,6 @@ __all__ = [
   "InfisicalSecretManager",
   # Factory functions
   "create_secret_manager",
-  "create_secret_manager_legacy",
   # Utility functions
   "get_available_managers",
   "validate_secret_manager_config",
