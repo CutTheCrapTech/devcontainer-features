@@ -207,5 +207,4 @@ checkpoints/
 # *.ipynb
 
 # Temp - remove later
-.devcontainer/
 TODO.md
