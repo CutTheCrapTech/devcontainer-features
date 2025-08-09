@@ -139,17 +139,24 @@ initialize_environment() {
 
   if [[ "$CI_MODE" == "true" ]]; then
     pip3 install --quiet --upgrade pip
-    # CI: Test the actual installation users will get
-    pip3 install ".[dev]" # Install with dev dependencies in CI
-  else
-    pip3 install --upgrade pip
-    # Development: Use editable with dev dependencies
-    pip3 install -e ".[dev]"
+    # CI: Test the actual installation users will get if its working
+    pip3 install .
+    # Verify installation
+    if ! python3 -c "import auto_secrets" 2>/dev/null; then
+      print_error "Failed to import auto_secrets package - non editable build"
+      exit 1
+    fi
+    # Then delete build directory
+    rm -rf "$SRC_DIR/build" "$SRC_DIR/auto_secrets_manager.egg-info"
   fi
+
+  # Development: Use editable with dev dependencies
+  pip3 install --upgrade pip
+  pip3 install -e ".[dev]"
 
   # Verify installation
   if ! python3 -c "import auto_secrets" 2>/dev/null; then
-    print_error "Failed to import auto_secrets package"
+    print_error "Failed to import auto_secrets package - editable build"
     exit 1
   fi
 
@@ -185,8 +192,8 @@ run_unit_tests() {
     pytest_args+=(
       "--cov=auto_secrets"
       "--cov-report=term-missing"
-      "--cov-report=html:../reports/htmlcov"
-      "--cov-report=xml:../reports/coverage.xml"
+      "--cov-report=html:../.test_reports/htmlcov"
+      "--cov-report=xml:../.test_reports/coverage.xml"
       "--cov-branch"
     )
 
@@ -197,7 +204,7 @@ run_unit_tests() {
 
   # Add JUnit XML for CI
   if [[ "$CI_MODE" == "true" ]]; then
-    pytest_args+=("--junitxml=../reports/junit.xml")
+    pytest_args+=("--junitxml=../.test_reports/junit.xml")
   fi
 
   # Run tests
