@@ -206,5 +206,5 @@ checkpoints/
 # Jupyter notebook outputs (optional - uncomment if you want to ignore outputs)
 # *.ipynb
 
-# Temp - remove later
+# Temp files
 TODO.md

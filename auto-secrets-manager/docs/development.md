@@ -15,16 +15,16 @@ pip3 install -e src/
 
 ```bash
 # Run all tests
-./run_tests.sh
+./run_ci.sh
 
 # Run only unit tests
-./run_tests.sh --unit-only
+./run_ci.sh --unit-only
 
 # Run with coverage
-./run_tests.sh --verbose
+./run_ci.sh --verbose
 
 # CI mode
-./run_tests.sh --ci
+./run_ci.sh --ci
 ```
 
 ## Project Structure
@@ -47,15 +47,15 @@ auto-secrets-manager/
 │   │   ├── branch-detection.sh     # Core branch detection logic
 │   │   ├── bash-integration.sh     # Bash integration
 │   │   └── zsh-integration.sh      # Zsh integration
-│   ├── setup.py                     # Python setup script
-│   └── requirements.txt             # Python dependencies
-├── tests/                           # Test suite
-│   └── *                           # Tests for various components
-├── devcontainer-feature.json        # Feature definition
-├── install.sh                       # Installation script
-├── pytest.ini                       # Pytest configuration
-├── run_tests.sh                     # Test runner
-└── README.md                        # This file
+│   ├── pyproject.toml               # Python project toml
+│   └── py.typed                     # Python types
+├── tests/                            # Test suite
+│   └── *                            # Tests for various components
+├── devcontainer-feature.json         # Feature definition
+├── install.sh                        # Installation script
+├── pytest.ini                        # Pytest configuration
+├── run_ci.sh                         # Test runner
+└── README.md                         # This file
 ```
 
 ## Contributing
@@ -63,7 +63,7 @@ auto-secrets-manager/
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/amazing-feature`
 3. Make your changes
-4. Run tests: `./run_tests.sh`
+4. Run CI: `./run_ci.sh`
 5. Commit your changes: `git commit -m 'Add amazing feature'`
 6. Push to the branch: `git push origin feature/amazing-feature`
 7. Open a Pull Request

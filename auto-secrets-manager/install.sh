@@ -80,6 +80,16 @@ fi
 
 echo "✅ System dependencies installed"
 
+# Verify Python version meets requirements
+if ! python3 -c "import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)" 2>/dev/null; then
+  python_version=$(python3 --version 2>/dev/null | cut -d' ' -f2 || echo "unknown")
+  echo "❌ Python 3.9+ required, found Python $python_version"
+  echo "💡 Please use a base image with Python 3.9 or later"
+  exit 1
+fi
+
+echo "✅ Python version check passed"
+
 # Install Python package
 echo "🐍 Installing Python package..."
 

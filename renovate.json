@@ -90,16 +90,17 @@
       ]
     },
     {
-      "description": "NPM: Non-major updates",
-      "matchManagers": ["npm"],
+      "description": "Python: Non-major updates",
+      "matchManagers": ["pep621"],
       "matchUpdateTypes": ["patch", "minor"],
-      "groupName": "npm-updates",
+      "groupName": "python-non-major-updates",
       "labels": ["dependencies", "renovate", "non-major-update"]
     },
     {
-      "description": "NPM: Major updates",
-      "matchManagers": ["npm"],
+      "description": "Python: Major updates",
+      "matchManagers": ["pep621"],
       "matchUpdateTypes": ["major"],
+      "groupName": "python-major-updates",
       "labels": ["dependencies", "renovate", "major-update"]
     }
   ]

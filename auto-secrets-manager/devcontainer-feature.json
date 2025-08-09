@@ -1,6 +1,6 @@
 {
   "id": "auto-secrets-manager",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "name": "Auto Secrets Manager",
   "description": "Automatically manages environment secrets based on git branches using Infisical with Python backend and shell integration",
   "documentationURL": "https://github.com/your-org/devcontainer-features/tree/main/auto-secrets-manager",
