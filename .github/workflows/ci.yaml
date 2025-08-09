@@ -58,3 +58,4 @@ jobs:
         with:
           name: test-results-py${{ matrix.python-version }}
           path: ./auto-secrets-manager/.test_reports/
+          include-hidden-files: true
