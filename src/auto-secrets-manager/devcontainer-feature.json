@@ -73,8 +73,5 @@
   "postStartCommand": "nohup sh -c 'while true; do auto-secrets-daemon 2>&1 | tee -a /tmp/auto-secrets-daemon.log; sleep 60; done' &",
   "init": true,
   "privileged": false,
-  "installsAfter": [
-    "ghcr.io/devcontainers/features/common-utils",
-    "ghcr.io/devcontainers/features/python"
-  ]
+  "installsAfter": ["ghcr.io/devcontainers/features/python"]
 }

@@ -100,6 +100,14 @@ fi
 
 # Install the auto_secrets Python package
 cd "$SOURCE_DIR"
+echo "🔍 Package structure verification:"
+echo "  Current working directory: $(pwd)"
+echo "  Contents of current directory:"
+ls -la
+echo "  Looking for auto_secrets package:"
+ls -la auto_secrets/ 2>/dev/null || echo "❌ auto_secrets not found in current directory"
+echo "  Setuptools package discovery test:"
+python3 -c "from setuptools import find_packages; print(f'Found: {find_packages(where=\".\")}')"
 pip3 install . || {
   echo "❌ Failed to install Python package"
   exit 1

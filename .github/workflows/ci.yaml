@@ -40,14 +40,14 @@ jobs:
 
       - name: Run comprehensive CI checks
         run: |
-          cd auto-secrets-manager
+          cd src/auto-secrets-manager
           ./run_ci.sh --ci
 
       - name: Upload coverage reports
         if: matrix.python-version == '3.11'
         uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
         with:
-          file: ./auto-secrets-manager/.test_reports/coverage.xml
+          file: ./src/auto-secrets-manager/.test_reports/coverage.xml
           flags: unittests
           name: codecov-umbrella
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -57,5 +57,5 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: test-results-py${{ matrix.python-version }}
-          path: ./auto-secrets-manager/.test_reports/
+          path: ./src/auto-secrets-manager/.test_reports/
           include-hidden-files: true
