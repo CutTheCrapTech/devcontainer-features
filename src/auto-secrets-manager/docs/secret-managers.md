@@ -18,18 +18,9 @@ All secret managers follow a consistent configuration pattern:
 ```json
 {
   "secretManager": "service-name",
-  "secretManagerConfig": "{\"option1\":\"value1\",\"option2\":\"value2\"}"
+  "secretManagerConfig": "{'option1':'value1','option2':'value2'}"
 }
 ```
-
-### Configuration File Locations
-
-Credentials are loaded from these locations (in order of preference):
-
-1. **Environment variables** (ephemeral, highest priority)
-2. **RAM filesystem** (ephemeral, secure): `/dev/shm/auto-secrets/config.json`
-3. **User config** (persistent): `~/.config/auto-secrets/config.json`
-4. **System config** (persistent): `/etc/auto-secrets/config.json`
 
 ## Credential Management
 
@@ -93,7 +84,7 @@ The system searches for configuration files in these locations (in priority orde
 
    ```json
    {
-     "secretManagerConfig": "{\"host\":\"https://app.infisical.com\",\"project_id\":\"your-project-id\",\"client_id\":\"your-client-id\"}"
+     "secretManagerConfig": "{'host':'https://app.infisical.com','project_id':'your-project-id','client_id':'your-client-id'}"
    }
    ```
 
@@ -128,7 +119,7 @@ For self-hosted Infisical instances:
 
 ```json
 {
-  "secretManagerConfig": "{\"host\":\"https://infisical.yourcompany.com\",\"project_id\":\"your-project-id\",\"client_id\":\"your-client-id\"}"
+  "secretManagerConfig": "{'host':'https://infisical.yourcompany.com','project_id':'your-project-id','client_id':'your-client-id'}"
 }
 ```
 
@@ -266,7 +257,7 @@ auto-secrets debug | grep -E "(timing|duration)"
 
 ```bash
 # Check cache size
-du -sh /dev/shm/auto-secrets-$USER/
+du -sh /dev/shm/auto-secrets/
 
 # Clean old cache
 auto-secrets cleanup

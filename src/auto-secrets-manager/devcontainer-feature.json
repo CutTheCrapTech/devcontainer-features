@@ -36,7 +36,7 @@
     },
     "secretManagerConfig": {
       "type": "string",
-      "default": "{\"host\":\"https://app.infisical.com\"}",
+      "default": "{'host':'https://app.infisical.com'}",
       "description": "Secret manager configuration (project_id and client_id must be set via this option in case of infisical)"
     },
     "autoCommands": {
@@ -46,7 +46,7 @@
     },
     "cacheConfig": {
       "type": "string",
-      "default": "{\"refresh_interval\":\"15m\",\"cleanup_interval\":\"7d\"}",
+      "default": "{'refresh_interval':'15m','cleanup_interval':'7d'}",
       "description": "Cache behavior configuration"
     },
     "showEnvInPrompt": {

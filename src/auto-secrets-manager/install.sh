@@ -80,6 +80,49 @@ fi
 
 echo "✅ System dependencies installed"
 
+#
+# Transforms a single-quoted string into a standard, double-quoted JSON string.
+# Validates the result is valid JSON. Returns the clean JSON string.
+# Exits with an error and non-zero status code if validation fails.
+#
+# Usage:
+#   CLEAN_VAR=$(transform_to_json "${RAW_VAR}")
+#
+transform_to_json() {
+  local raw_string="$1"
+  local var_name="$2"
+  local json_string
+
+  # Log the input value to stdout for debugging
+  echo "    > Input:  ${var_name}: ${raw_string}" >&2
+
+  # Transform single quotes to double quotes
+  json_string=$(echo "${raw_string}" | sed "s/'/\"/g")
+
+  # Log the output value to stdout for debugging
+  echo "    > Output: ${var_name}: ${json_string}" >&2
+
+  # Validate that the result is valid JSON
+  if ! echo "${json_string}" | jq -e . >/dev/null 2>&1; then
+    echo "❌ ERROR: Input string could not be transformed into valid JSON." >&2
+    return 1
+  fi
+
+  # Echo the clean JSON string to stdout so it can be captured
+  echo "${json_string}"
+}
+
+# --- Transform and Validate Configuration ---
+# Use the function to safely process each user-provided string.
+echo "🔧 Transforming configuration from single-quote format to standard JSON..."
+
+JSON_BRANCH_MAPPING=$(transform_to_json "${BRANCH_MAPPING}" "BRANCH_MAPPING")
+JSON_SECRET_MANAGER_CONFIG=$(transform_to_json "${SECRET_MANAGER_CONFIG}" "SECRET_MANAGER_CONFIG")
+JSON_CACHE_CONFIG=$(transform_to_json "${CACHE_CONFIG}" "CACHE_CONFIG")
+JSON_AUTO_COMMANDS=$(transform_to_json "${AUTO_COMMANDS}" "AUTO_COMMANDS")
+
+echo "✅ All configurations transformed and validated successfully."
+
 # Verify Python version meets requirements
 if ! python3 -c "import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)" 2>/dev/null; then
   python_version=$(python3 --version 2>/dev/null | cut -d' ' -f2 || echo "unknown")
@@ -100,14 +143,22 @@ fi
 
 # Install the auto_secrets Python package
 cd "$SOURCE_DIR"
-echo "🔍 Package structure verification:"
-echo "  Current working directory: $(pwd)"
-echo "  Contents of current directory:"
-ls -la
-echo "  Looking for auto_secrets package:"
-ls -la auto_secrets/ 2>/dev/null || echo "❌ auto_secrets not found in current directory"
-echo "  Setuptools package discovery test:"
-python3 -c "from setuptools import find_packages; print(f'Found: {find_packages(where=\".\")}')"
+
+# Force modern setuptools that properly handles PEP 621
+echo "🚀 Upgrading build tools..."
+if ! pip3 install --upgrade --quiet "setuptools>=67.0" "wheel>=0.40" "pip>=23.0" 2>/dev/null; then
+  echo "❌ Container environment insufficient: cannot upgrade build tools"
+  echo ""
+  echo "🔧 Your base image is too old or has packaging conflicts."
+
+  # Verify the upgrade
+  echo "🔍 Build tools versions:"
+  python3 -c "import setuptools, pip; print(f'setuptools: {setuptools.__version__}'), print(f'pip: {pip.__version__}')"
+  echo ""
+
+  exit 1
+fi
+
 pip3 install . || {
   echo "❌ Failed to install Python package"
   exit 1
@@ -149,10 +200,12 @@ cat >"/etc/profile.d/auto-secrets.sh" <<EOF
 # Core configuration (using proper UPPER_SNAKE_CASE)
 export AUTO_SECRETS_SECRET_MANAGER="$SECRET_MANAGER"
 export AUTO_SECRETS_SHELLS="$SHELLS"
-export AUTO_SECRETS_BRANCH_MAPPINGS="$BRANCH_MAPPING"
-export AUTO_SECRETS_SECRET_MANAGER_CONFIG="${SECRET_MANAGER_CONFIG}"
-export AUTO_SECRETS_AUTO_COMMANDS="${AUTO_COMMANDS}"
-export AUTO_SECRETS_CACHE_CONFIG="${CACHE_CONFIG}"
+
+# Json configurations
+export AUTO_SECRETS_BRANCH_MAPPINGS='$JSON_BRANCH_MAPPING'
+export AUTO_SECRETS_SECRET_MANAGER_CONFIG='${JSON_SECRET_MANAGER_CONFIG}'
+export AUTO_SECRETS_AUTO_COMMANDS='${JSON_AUTO_COMMANDS}'
+export AUTO_SECRETS_CACHE_CONFIG='${JSON_CACHE_CONFIG}'
 
 # Feature settings
 export AUTO_SECRETS_SHOW_ENV_IN_PROMPT="${SHOW_ENV_IN_PROMPT}"
@@ -266,14 +319,6 @@ if echo '{"test": "value"}' | jq -r '.test' >/dev/null 2>&1; then
   echo "✅ jq validation passed"
 else
   echo "❌ jq validation failed"
-  exit 1
-fi
-
-# Test configuration parsing
-if echo "$BRANCH_MAPPING" | jq . >/dev/null 2>&1; then
-  echo "✅ Configuration validation passed"
-else
-  echo "❌ Configuration validation failed - invalid JSON in BRANCH_MAPPING"
   exit 1
 fi
 

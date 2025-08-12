@@ -85,7 +85,7 @@ The `branchMapping` option defines how git branches map to environments. This is
 
 ```json
 {
-  "branchMapping": "{\"main\":\"production\",\"develop\":\"staging\",\"default\":\"development\"}"
+  "branchMapping": "{'main':'production','develop':'staging','default':'development'}"
 }
 ```
 
@@ -95,7 +95,7 @@ Branch mappings support glob patterns for flexible matching:
 
 ```json
 {
-  "branchMapping": "{\"main\":\"production\",\"master\":\"production\",\"staging\":\"staging\",\"develop\":\"development\",\"dev\":\"development\",\"feature/*\":\"development\",\"feature/**\":\"development\",\"release/*\":\"staging\",\"hotfix/*\":\"production\",\"default\":\"development\"}"
+  "branchMapping": "{'main':'production','master':'production','staging':'staging','develop':'development','dev':'development','feature/*':'development','feature/**':'development','release/*':'staging','hotfix/*':'production','default':'development'}"
 }
 ```
 
@@ -122,7 +122,7 @@ The `default` mapping is **required** and handles any branches that don't match 
 
 ```json
 {
-  "branchMapping": "{\"main\":\"production\",\"default\":\"development\"}"
+  "branchMapping": "{'main':'production','default':'development'}"
 }
 ```
 
@@ -140,7 +140,7 @@ For detailed configuration options, authentication setup, and examples for each 
 
 ```json
 {
-  "secretManagerConfig": "{\"project_id\":\"your-project-id\",\"client_id\":\"your-client-id\",\"site_url\":\"https://app.infisical.com\"}"
+  "secretManagerConfig": "{'project_id':'your-project-id','client_id':'your-client-id','site_url':'https://app.infisical.com'}"
 }
 ```
 
@@ -156,7 +156,7 @@ The `autoCommands` option configures which commands automatically load secrets a
 
 ```json
 {
-  "autoCommands": "{\"terraform\":[],\"kubectl\":[],\"docker\":[],\"ansible\":[]}"
+  "autoCommands": "{'terraform':[],'kubectl':[],'docker':[],'ansible':[]}"
 }
 ```
 
@@ -166,7 +166,7 @@ Restrict secret loading to specific file paths for security and performance:
 
 ```json
 {
-  "autoCommands": "{\"terraform\":[\"/infrastructure/**\"],\"kubectl\":[\"/kubernetes/**\",\"/k8s/**\"],\"docker\":[\"/docker/**\",\"/containers/**\"],\"ansible\":[\"/playbooks/**\"]}"
+  "autoCommands": "{'terraform':['/infrastructure/**'],'kubectl':['/kubernetes/**','/k8s/**'],'docker':['/docker/**','/containers/**'],'ansible':['/playbooks/**']}"
 }
 ```
 
@@ -208,7 +208,7 @@ Filter commands to load only relevant secrets:
 
 ```json
 {
-  "autoCommands": "{\"terraform\":[\"/infrastructure/**\"],\"kubectl\":[\"/application/**\"]}"
+  "autoCommands": "{'terraform':['/infrastructure/**'],'kubectl':['/application/**']}"
 }
 ```
 
@@ -242,7 +242,7 @@ The `cacheConfig` option controls caching behavior for performance and security.
 
 ```json
 {
-  "cacheConfig": "{\"refresh_interval\":\"15m\",\"cleanup_interval\":\"7d\"}"
+  "cacheConfig": "{'refresh_interval':'15m','cleanup_interval':'7d'}"
 }
 ```
 
@@ -270,7 +270,7 @@ For rapid development with frequent secret changes:
 
 ```json
 {
-  "cacheConfig": "{\"refresh_interval\":\"5m\",\"cleanup_interval\":\"1d\"}"
+  "cacheConfig": "{'refresh_interval':'5m','cleanup_interval':'1d'}"
 }
 ```
 
@@ -280,7 +280,7 @@ For stable production environments:
 
 ```json
 {
-  "cacheConfig": "{\"refresh_interval\":\"1h\",\"cleanup_interval\":\"30d\"}"
+  "cacheConfig": "{'refresh_interval':'1h','cleanup_interval':'30d'}"
 }
 ```
 
@@ -290,7 +290,7 @@ For containers with limited resources:
 
 ```json
 {
-  "cacheConfig": "{\"refresh_interval\":\"30m\",\"cleanup_interval\":\"3d\"}"
+  "cacheConfig": "{'refresh_interval':'30m','cleanup_interval':'3d'}"
 }
 ```
 
@@ -312,8 +312,8 @@ auto-secrets cleanup --all
 
 ### Cache Storage
 
-- **Location**: `/dev/shm/auto-secrets-$USER/` (RAM filesystem)
-- **Permissions**: `0o600` (user read/write only)
+- **Location**: `/dev/shm/auto-secrets/` (RAM filesystem)
+- **Permissions**: `600` (user read/write only)
 - **Format**: JSON metadata + shell-friendly env files
 - **Size**: ~1-10KB per environment
 
@@ -443,7 +443,7 @@ chmod 600 /dev/shm/auto-secrets/config.json
 
 ```json
 {
-  "secretManagerConfig": "{\"client_secret\":\"hardcoded-secret\"}"
+  "secretManagerConfig": "{'client_secret':'hardcoded-secret'}"
 }
 ```
 
@@ -453,7 +453,7 @@ chmod 600 /dev/shm/auto-secrets/config.json
 
 ```json
 {
-  "branchMapping": "{\"main\":\"production\",\"staging\":\"staging\",\"default\":\"development\"}"
+  "branchMapping": "{'main':'production','staging':'staging','default':'development'}"
 }
 ```
 
@@ -461,7 +461,7 @@ chmod 600 /dev/shm/auto-secrets/config.json
 
 ```json
 {
-  "branchMapping": "{\"default\":\"production\"}"
+  "branchMapping": "{'default':'production'}"
 }
 ```
 
@@ -471,7 +471,7 @@ chmod 600 /dev/shm/auto-secrets/config.json
 
 ```json
 {
-  "autoCommands": "{\"terraform\":[\"/infrastructure/**\"],\"kubectl\":[\"/k8s/**\"]}"
+  "autoCommands": "{'terraform':['/infrastructure/**'],'kubectl':['/k8s/**']}"
 }
 ```
 
@@ -479,7 +479,7 @@ chmod 600 /dev/shm/auto-secrets/config.json
 
 ```json
 {
-  "autoCommands": "{\"terraform\":[\"/**\"],\"kubectl\":[\"/**\"]}"
+  "autoCommands": "{'terraform':['/**'],'kubectl':['/**']}"
 }
 ```
 
