@@ -99,6 +99,9 @@ class ConfigManager:
     # Shell integration (required)
     config["shells"] = cls._parse_env("AUTO_SECRETS_SHELLS")
 
+    # SSH agent config
+    config["ssh_agent_key_comment"] = cls._parse_env("AUTO_SECRETS_SSH_AGENT_KEY_COMMENT", "")
+
     # Debug mode
     config["debug"] = cls._parse_env("AUTO_SECRETS_DEBUG", "").lower() == "true"
 

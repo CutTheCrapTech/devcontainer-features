@@ -7,9 +7,7 @@ Provides environment-specific caching with proper staleness detection.
 """
 
 import json
-import os
 import shutil
-import tempfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -17,6 +15,7 @@ from typing import Any, Optional
 
 from ..logging_config import get_logger
 from .config import ConfigManager
+from .crypto_utils import CryptoUtils
 from .utils import CommonUtils
 
 
@@ -31,14 +30,11 @@ class CacheMetadata:
   """Metadata for cached secrets."""
 
   environment: str
-  created_at: int
   last_updated: int
   last_accessed: int
   secret_count: int
   branch: Optional[str] = None
   repo_path: Optional[str] = None
-  status: str = "ok"  # ok, stale, error
-  error_message: Optional[str] = None
   version: str = "1.0"
 
   def to_dict(self) -> dict[str, Any]:
@@ -79,6 +75,9 @@ class CacheManager:
     # Ensure cache directory exists
     self._ensure_cache_directory()
 
+    # Get crypto utils instance
+    self.crypto_utils = CryptoUtils()
+
   def _ensure_cache_directory(self) -> None:
     """Ensure cache directory exists with proper permissions."""
     try:
@@ -109,7 +108,7 @@ class CacheManager:
     environment: str,
   ) -> None:
     """
-    Merge state file atomically for branch and repo path.
+    Merge state file (branch to env mapping) atomically for branch and repo path.
 
     Args:
         branch: Branch name
@@ -128,7 +127,6 @@ class CacheManager:
 
     try:
       state_dir = self.base_dir / "state"
-      state_file = state_dir / "current_branch.json"
 
       # Ensure parent directory exists
       state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -137,19 +135,13 @@ class CacheManager:
       metadata = {f"{branch}:{repo_path}": environment}
 
       # Read existing state if it exists
-      existing_metadata = {}
-      if state_file.exists():
-        try:
-          with open(state_file) as f:
-            existing_metadata = json.load(f)
-        except json.JSONDecodeError:
-          existing_metadata = {}
+      existing_metadata = self.crypto_utils.read_dict_from_file(state_dir, "current_branch", self.config, decrypt=False)
 
       # Merge with existing metadata
       new_metadata = existing_metadata | metadata
 
-      # Write metadata atomically
-      self._write_file_atomically(state_file, new_metadata)
+      # Write metadata atomically, unencrypted.
+      self.crypto_utils.write_dict_to_file_atomically(state_dir, "current_branch", self.config, new_metadata, encrypt=False)
 
       self.logger.info(f"State for {branch} written successfully")
 
@@ -182,30 +174,27 @@ class CacheManager:
     self.logger.info(f"Updating cache for environment: {environment} ({len(secrets)} secrets)")
 
     try:
-      self._merge_state_file_atomically(branch, repo_path, environment)
       env_cache_dir = self.get_environment_cache_dir(environment)
 
       # Create metadata
       current_time = int(time.time())
       metadata = CacheMetadata(
         environment=environment,
-        created_at=current_time,
         last_updated=current_time,
         last_accessed=current_time,
         secret_count=len(secrets),
         branch=branch,
         repo_path=repo_path,
-        status="ok",
       )
 
       # Write secrets in JSON format (full data)
-      self._write_file_atomically(
-        env_cache_dir / f"{environment}.json",
+      self.crypto_utils.write_dict_to_file_atomically(
+        env_cache_dir,
+        f"{environment}",
+        self.config,
         {"metadata": metadata.to_dict(), "secrets": secrets},
+        encrypt=True
       )
-
-      # Write secrets in shell-friendly format
-      self._write_env_file_atomically(env_cache_dir / f"{environment}.env", secrets)
 
       self._merge_state_file_atomically(branch, repo_path, environment)
 
@@ -231,13 +220,12 @@ class CacheManager:
     self.logger.debug(f"Retrieving cached secrets for environment: {environment}")
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_file = env_cache_dir / f"{environment}.json"
-      if not cache_file.exists():
-        self.logger.debug(f"No cache file found for environment: {environment}")
-        return {}
-      # Read cache file
-      with open(cache_file) as f:
-        cache_data = json.load(f)
+      cache_data = self.crypto_utils.read_dict_from_file(
+        env_cache_dir,
+        f"{environment}",
+        self.config,
+        decrypt=True
+      )
 
       raw_secrets = cache_data.get("secrets", {})
 
@@ -306,13 +294,12 @@ class CacheManager:
 
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_file = env_cache_dir / f"{environment}.json"
-
-      if not cache_file.exists():
-        return True
-
-      with open(cache_file) as f:
-        cache_data = json.load(f)
+      cache_data = self.crypto_utils.read_dict_from_file(
+        env_cache_dir,
+        f"{environment}",
+        self.config,
+        decrypt=True
+      )
 
       metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
       is_stale = metadata.is_stale(max_age)
@@ -323,40 +310,6 @@ class CacheManager:
     except Exception as e:
       self.logger.warning(f"Error checking cache staleness for {environment}: {e}")
       return True  # Assume stale on error
-
-  def mark_environment_stale(self, environment: str, reason: str = "Manual") -> None:
-    """
-    Mark environment cache as stale.
-
-    Args:
-        environment: Environment name
-        reason: Reason for marking stale
-    """
-    self.logger.info(f"Marking environment {environment} as stale: {reason}")
-
-    try:
-      env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_file = env_cache_dir / f"{environment}.json"
-
-      if not cache_file.exists():
-        self.logger.debug(f"No cache to mark stale for {environment}")
-        return
-
-      # Read current cache
-      with open(cache_file) as f:
-        cache_data = json.load(f)
-
-      # Update metadata
-      metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
-      metadata.status = "stale"
-      metadata.error_message = f"Marked stale: {reason}"
-      cache_data["metadata"] = metadata.to_dict()
-
-      # Write back atomically
-      self._write_file_atomically(cache_file, cache_data)
-
-    except Exception as e:
-      self.logger.error(f"Failed to mark {environment} as stale: {e}")
 
   def cleanup_stale(self, max_age_seconds: Optional[int] = None) -> dict[str, int]:
     """
@@ -433,121 +386,20 @@ class CacheManager:
     """
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_file = env_cache_dir / f"{environment}.json"
-
-      if not cache_file.exists():
-        return None
-
-      with open(cache_file) as f:
-        cache_data = json.load(f)
+      cache_data = self.crypto_utils.read_dict_from_file(
+        env_cache_dir,
+        f"{environment}",
+        self.config,
+        decrypt=True
+      )
 
       metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
 
-      return {
-        "environment": environment,
-        "secret_count": metadata.secret_count,
-        "created_at": metadata.created_at,
-        "last_updated": metadata.last_updated,
-        "last_accessed": metadata.last_accessed,
-        "age_seconds": metadata.age_seconds(),
-        "is_stale": metadata.is_stale(self.max_age_seconds),
-        "status": metadata.status,
-        "error_message": metadata.error_message,
-        "cache_file": str(cache_file),
-      }
+      return metadata.to_dict()
 
     except Exception as e:
       self.logger.error(f"Failed to get cache info for {environment}: {e}")
       return None
-
-  def _write_file_atomically(self, target_path: Path, data: Any) -> None:
-    """
-    Write data to file atomically using temp file and rename.
-
-    Args:
-        target_path: Target file path
-        data: Data to write (will be JSON serialized)
-    """
-    temp_path = None
-    try:
-      # Ensure parent directory exists
-      target_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-
-      # Create temporary file in same directory
-      with tempfile.NamedTemporaryFile(
-        mode="w",
-        dir=target_path.parent,
-        prefix=f".{target_path.name}.",
-        suffix=".tmp",
-        delete=False,
-      ) as tmp_file:
-        json.dump(data, tmp_file, indent=2)
-        tmp_file.flush()
-        os.fsync(tmp_file.fileno())
-        temp_path = tmp_file.name
-
-      # Set proper permissions
-      os.chmod(temp_path, 0o600)
-
-      # Atomic rename
-      os.rename(temp_path, target_path)
-
-    except Exception as e:
-      # Clean up temp file if it exists
-      try:
-        if temp_path:
-          os.unlink(temp_path)
-      except OSError:
-        pass
-      raise e
-
-  def _write_env_file_atomically(self, target_path: Path, secrets: dict[str, str]) -> None:
-    """
-    Write secrets in shell-friendly .env format atomically.
-
-    Args:
-        target_path: Target file path
-        secrets: Secrets dictionary
-    """
-    temp_path = None
-    try:
-      # Ensure parent directory exists
-      target_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-
-      # Create temporary file
-      with tempfile.NamedTemporaryFile(
-        mode="w",
-        dir=target_path.parent,
-        prefix=f".{target_path.name}.",
-        suffix=".tmp",
-        delete=False,
-      ) as tmp_file:
-        tmp_file.write("# Auto-generated environment file\n")
-        tmp_file.write(f"# Generated at: {time.ctime()}\n\n")
-
-        for key, value in sorted(secrets.items()):
-          # Escape single quotes in values
-          escaped_value = value.replace("'", "'\"'\"'")
-          tmp_file.write(f"export {key}='{escaped_value}'\n")
-
-        tmp_file.flush()
-        os.fsync(tmp_file.fileno())
-        temp_path = tmp_file.name
-
-      # Set proper permissions
-      os.chmod(temp_path, 0o600)
-
-      # Atomic rename
-      os.rename(temp_path, target_path)
-
-    except Exception as e:
-      # Clean up temp file if it exists
-      try:
-        if temp_path:
-          os.unlink(temp_path)
-      except OSError:
-        pass
-      raise e
 
   def _update_access_time(self, environment: str, metadata: CacheMetadata) -> None:
     """
@@ -559,14 +411,12 @@ class CacheManager:
     """
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_file = env_cache_dir / f"{environment}.json"
-
-      if not cache_file.exists():
-        return
-
-      # Read current cache
-      with open(cache_file) as f:
-        cache_data = json.load(f)
+      cache_data = self.crypto_utils.read_dict_from_file(
+        env_cache_dir,
+        f"{environment}",
+        self.config,
+        decrypt=True
+      )
 
       # Update access time
       metadata.last_accessed = int(time.time())
@@ -574,7 +424,13 @@ class CacheManager:
 
       # Write back (non-critical, so don't fail on error)
       try:
-        self._write_file_atomically(cache_file, cache_data)
+        self.crypto_utils.write_dict_to_file_atomically(
+          env_cache_dir,
+          f"{environment}",
+          self.config,
+          cache_data,
+          encrypt=True
+        )
       except Exception as e:
         self.logger.debug(f"Failed to update access time for {environment}: {e}")
 

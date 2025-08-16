@@ -55,34 +55,45 @@ _load_secrets_for_command() {
   shift
 
   # Remove the _with_secrets suffix if present
-  command="${command%_with_secrets}"
+  local command_to_run="${command%_with_secrets}"
 
   # Create a temporary file for secrets
   local secrets_env_file
   secrets_env_file=$(mktemp)
 
-  # Ensure cleanup on exit
+  # CRITICAL: Set a trap to ensure the secrets file is deleted when the function exits,
+  # for any reason (success, error, or interrupt).
   # shellcheck disable=SC2064
-  trap "rm -f '$secrets_env_file'" EXIT
+  trap "rm -f '$secrets_env_file'" RETURN EXIT INT TERM
+
+  cached_branch=$(_auto_secrets_get_cached_data "${AUTO_SECRETS_CACHE_DIR}/state/current_branch.branch")
+  cached_repo=$(_auto_secrets_get_cached_data "${AUTO_SECRETS_CACHE_DIR}/state/current_branch.repo")
 
   # Call Python to handle all the logic and write secrets to temp file
-  if _call_auto_secrets exec --command="$command" --output-env="$secrets_env_file" 2>/dev/null; then
-    # Source the secrets file if it exists and has content
+  if _call_auto_secrets output-env --command="$command_to_run" --branch="$cached_branch" --repo="$cached_repo" >"$secrets_env_file" 2>/dev/null; then
+    # Check if the secrets file was actually populated with content.
     if [[ -s "$secrets_env_file" ]]; then
-      # shellcheck disable=SC1090
-      source "$secrets_env_file"
       if [[ "${AUTO_SECRETS_DEBUG}" == "true" ]]; then
-        echo "Secrets loaded for command: $command"
+        echo "Secrets found for '$command_to_run'. Executing in a subshell with secrets."
       fi
+      # Execute the command in a subshell.
+      # This isolates the environment variables to only this command.
+      (
+        # Source the file inside the subshell
+        # shellcheck disable=SC1090
+        . "$secrets_env_file"
+        # Replace the subshell process with the user's command
+        exec "$command_to_run" "$@"
+      )
+      return $? # Return the exit code of the subshell/command
     fi
   fi
 
-  # Clean up temp file
-  rm -f "$secrets_env_file"
-  trap - EXIT
-
-  # Execute the original command with secrets loaded
-  exec "$command" "$@"
+  # If the Python script failed or produced no secrets, run the original command as is.
+  if [[ "${AUTO_SECRETS_DEBUG}" == "true" ]]; then
+    echo "No secrets found or an error occurred. Executing '$command_to_run' normally."
+  fi
+  exec "$command_to_run" "$@"
 }
 
 _setup_auto_commands

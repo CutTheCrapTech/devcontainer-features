@@ -30,13 +30,36 @@ SECRET_MANAGERS = {
 }
 
 
+def set_secret(config: dict[str, Any]):
+  """
+  Factory function to set secret manager secrets.
+
+  Args:
+      config: Unified configuration dictionary containing:
+          - secret_manager_config: Manager-specific configuration
+
+  Returns:
+      SecretManagerBase: Initialized secret manager instance or None if not configured
+
+  Raises:
+      ValueError: If manager_type is not supported
+      SecretManagerError: If initialization fails
+  """
+
+  try:
+    sm_class = create_secret_manager(config)
+    assert sm_class is not None, "No secret manager configured"
+    sm_class.set_secret()
+  except Exception as e:
+    raise SecretManagerError(f"Failed to set_secret: {e}") from None
+
+
 def create_secret_manager(config: dict[str, Any]) -> Optional[SecretManagerBase]:
   """
   Factory function to create secret manager instances from unified config.
 
   Args:
       config: Unified configuration dictionary containing:
-          - secret_manager: Type of secret manager
           - secret_manager_config: Manager-specific configuration
 
   Returns:

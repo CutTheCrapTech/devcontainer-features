@@ -68,9 +68,14 @@
       "type": "boolean",
       "default": true,
       "description": "Enable branch detection - Disable if you setup git postcheckout hook"
+    },
+    "sshAgentKeyComment": {
+      "type": "string",
+      "default": "",
+      "description": "SSH agent key for seemless biometric based enccyption - Set to empty string if ssh agent is disabled"
     }
   },
-  "postStartCommand": "nohup sh -c 'while true; do auto-secrets-daemon 2>&1 | tee -a /tmp/auto-secrets-daemon.log; sleep 60; done' &",
+  "postStartCommand": "nohup sh -c 'while true; do source /etc/profile.d/auto-secrets.sh; auto-secrets-supervisor 2>&1 | tee -a /tmp/auto-secrets-supervisor-startup.log; sleep 60; done' &",
   "init": true,
   "privileged": false,
   "installsAfter": ["ghcr.io/devcontainers/features/python"]

@@ -338,7 +338,7 @@ class TestCacheManager:
       secrets = {"API_KEY": "secret123", "DB_PASSWORD": "dbpass456"}
 
       with (
-        patch.object(manager, "_write_file_atomically") as mock_write_file,
+        patch.object(manager, "_write_json_file_atomically") as mock_write_file,
         patch.object(manager, "_write_env_file_atomically") as mock_write_env,
       ):
         manager.update_environment_cache("production", secrets, branch="main", repo_path="/repo")
@@ -369,7 +369,7 @@ class TestCacheManager:
       secrets = {"API_KEY": "secret123"}
 
       with (
-        patch.object(manager, "_write_file_atomically") as mock_write_file,
+        patch.object(manager, "_write_json_file_atomically") as mock_write_file,
         patch("time.time", return_value=1234567890),
       ):
         manager.update_environment_cache("production", secrets, branch="main", repo_path="/repo")
@@ -795,7 +795,7 @@ class TestCacheManager:
 
       assert result and result.get("secret_count") == 2
 
-  def test_write_file_atomically_success(self) -> None:
+  def test_write_json_file_atomically_success(self) -> None:
     """Test atomic file writing success."""
     config = self._get_temp_config()
     manager = CacheManager(config)
@@ -804,12 +804,12 @@ class TestCacheManager:
       target_file = Path(temp_dir) / "test.json"
       content = {"test": "data"}
 
-      manager._write_file_atomically(target_file, content)
+      manager._write_json_file_atomically(target_file, content)
 
       assert target_file.exists()
       assert json.loads(target_file.read_text()) == content
 
-  def test_write_file_atomically_failure(self) -> None:
+  def test_write_json_file_atomically_failure(self) -> None:
     """Test atomic file writing failure."""
     config = self._get_temp_config()
     manager = CacheManager(config)
@@ -818,7 +818,7 @@ class TestCacheManager:
     content = {"test": "data"}
 
     with pytest.raises(OSError):
-      manager._write_file_atomically(invalid_path, content)
+      manager._write_json_file_atomically(invalid_path, content)
 
   def test_write_env_file_atomically_success(self) -> None:
     """Test atomic environment file writing."""
@@ -1294,7 +1294,7 @@ class TestMergeStateFileAtomically:
       manager = CacheManager(self.test_config)
 
       with (
-        patch.object(manager, "_write_file_atomically") as mock_write_file,
+        patch.object(manager, "_write_json_file_atomically") as mock_write_file,
         patch.object(manager, "_write_env_file_atomically") as mock_write_env,
       ):
         manager.update_environment_cache("production", secrets={"a": "b"})
@@ -1319,7 +1319,7 @@ class TestMergeStateFileAtomically:
       manager = CacheManager(self.test_config)
 
       with (
-        patch.object(manager, "_write_file_atomically") as mock_write_file,
+        patch.object(manager, "_write_json_file_atomically") as mock_write_file,
         patch.object(manager, "_write_env_file_atomically") as mock_write_env,
       ):
         manager.update_environment_cache("production", secrets={"a": "b"})
@@ -1362,7 +1362,7 @@ class TestMergeStateFileAtomically:
       manager = CacheManager(self.test_config)
 
       with (
-        patch.object(manager, "_write_file_atomically") as mock_write_file,
+        patch.object(manager, "_write_json_file_atomically") as mock_write_file,
         patch.object(manager, "_write_env_file_atomically") as mock_write_env,
       ):
         manager.update_environment_cache("production", secrets={"a": "b"})
@@ -1387,7 +1387,7 @@ class TestMergeStateFileAtomically:
       manager = CacheManager(self.test_config)
 
       with (
-        patch.object(manager, "_write_file_atomically") as mock_write_file,
+        patch.object(manager, "_write_json_file_atomically") as mock_write_file,
         patch.object(manager, "_write_env_file_atomically") as mock_write_env,
       ):
         manager.update_environment_cache("production", secrets={"a": "b"})
@@ -1493,7 +1493,7 @@ class TestMergeStateFileAtomically:
       manager = CacheManager(self.test_config)
 
       with (
-        patch.object(manager, "_write_file_atomically", side_effect=OSError("Disk full")),
+        patch.object(manager, "_write_json_file_atomically", side_effect=OSError("Disk full")),
         pytest.raises(CacheError, match="State write failed"),
       ):
         manager._merge_state_file_atomically("main", "/repo/path", "production")

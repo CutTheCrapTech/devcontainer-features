@@ -16,8 +16,9 @@ from typing import Optional
 from .core.branch_manager import BranchManager
 from .core.cache_manager import CacheManager
 from .core.config import ConfigManager
+from .core.key_retriever import KeyRetriever
 from .logging_config import get_logger, log_system_info, setup_logging
-from .secret_managers import create_secret_manager
+from .secret_managers import create_secret_manager, set_secret
 
 
 def handle_branch_change(args: argparse.Namespace) -> None:
@@ -25,13 +26,13 @@ def handle_branch_change(args: argparse.Namespace) -> None:
   logger = get_logger("cli.branch_change")
 
   try:
-    logger.debug(f"Branch change detected: {args.branch} in {args.repo_path}")
+    logger.debug(f"Branch change detected: {args.branch} in {args.repopath}")
 
     config = ConfigManager.load_config()
     branch_manager = BranchManager(config)
 
     branch = args.branch
-    repo_path = args.repo_path
+    repo_path = args.repopath
 
     # Map branch to environment
     environment = branch_manager.map_branch_to_environment(branch, repo_path)
@@ -161,6 +162,10 @@ def handle_exec_command(args: argparse.Namespace) -> None:
 
     # Execute command
     try:
+      # Prompt for SSH agent biometric if configured
+      ssh_agent_key_comment: Optional[str] = config.get("ssh_agent_key_comment")
+      KeyRetriever(ssh_agent_key_comment, logger).prompt_ssh_agent_biometric()
+      # Execute the command
       result = subprocess.run(args.command, env=env, shell=False)
       sys.exit(result.returncode)
     except FileNotFoundError:
@@ -173,7 +178,7 @@ def handle_exec_command(args: argparse.Namespace) -> None:
     sys.exit(1)
 
 
-def handle_exec_for_shell(args: argparse.Namespace) -> None:
+def handle_output_env(args: argparse.Namespace) -> None:
   """Generate shell script for sourcing environment variables."""
   logger = get_logger("cli.exec_shell")
 
@@ -181,17 +186,26 @@ def handle_exec_for_shell(args: argparse.Namespace) -> None:
     config = ConfigManager.load_config()
     cache_manager = CacheManager(config)
 
-    # Determine environment
-    if args.environment:
-      environment = args.environment
-    else:
-      logger.error("No current environment found. Use --environment to specify.")
+    # Determine branch
+    if not (args.branch or args.repopath or args.command):
+      logger.error("Branch, repopath and command are required.")
       sys.exit(1)
 
-    logger.debug(f"Generating shell environment for: {environment}")
+    branch = args.branch
+    repo_path = args.repopath
+    command = args.command
 
+    # TODO: get paths for command
+    branch_manager = BranchManager(config)
+    environment = branch_manager.map_branch_to_environment(branch, repo_path)
+
+    if not environment:
+      logger.error("Could not get environment.")
+      sys.exit(1)
+
+    paths = config.get("auto_commands", {}).get(command, [])
     # Get cached secrets
-    secrets = cache_manager.get_cached_secrets(environment, args.paths)
+    secrets = cache_manager.get_cached_secrets(environment, paths)
 
     if not secrets:
       logger.debug(f"No cached secrets found for environment: {environment}")
@@ -319,6 +333,19 @@ def handle_cleanup(args: argparse.Namespace) -> None:
     sys.exit(1)
 
 
+def set_sm_secret(args: argparse.Namespace) -> None:
+  """Clean up cache and temporary files."""
+  logger = get_logger("cli.set_secret")
+
+  try:
+    config = ConfigManager.load_config()
+    set_secret(config)
+  except Exception as e:
+    logger.error(f"Error during set_secret: {e}", exc_info=True)
+    print(f"❌ set_secret failed: {e}", file=sys.stderr)
+    sys.exit(1)
+
+
 def _background_refresh_secrets(
   environment: Optional[str],
   config: dict,
@@ -422,9 +449,10 @@ def main() -> None:
 
   # Output environment for shell sourcing
   output_env_parser = subparsers.add_parser("output-env", help="Output environment variables for shell sourcing")
-  output_env_parser.add_argument("--environment", help="Specific environment to use")
-  output_env_parser.add_argument("--paths", nargs="*", help="Specific secret paths to load")
-  output_env_parser.set_defaults(func=handle_exec_for_shell)
+  output_env_parser.add_argument("--branch", help="Current branch")
+  output_env_parser.add_argument("--repopath", help="Repository path")
+  output_env_parser.add_argument("--command", help="Command to fetch secrets for")
+  output_env_parser.set_defaults(func=handle_output_env)
 
   # Debug command
   debug_parser = subparsers.add_parser("debug", help="Show debug information")
@@ -434,6 +462,10 @@ def main() -> None:
   cleanup_parser = subparsers.add_parser("cleanup", help="Clean up cache files")
   cleanup_parser.add_argument("--all", action="store_true", help="Clean up all cache files")
   cleanup_parser.set_defaults(func=handle_cleanup)
+
+  # Set secret command
+  cleanup_parser = subparsers.add_parser("set-sm-secret", help="Set SM secret")
+  cleanup_parser.set_defaults(func=set_sm_secret)
 
   # Parse arguments
   args = parser.parse_args()

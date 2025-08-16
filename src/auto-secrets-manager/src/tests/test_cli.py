@@ -18,8 +18,8 @@ from auto_secrets.cli import (
   handle_cleanup,
   handle_debug_env,
   handle_exec_command,
-  handle_exec_for_shell,
   handle_inspect_secrets,
+  handle_output_env,
   handle_refresh_secrets,
   main,
 )
@@ -242,7 +242,7 @@ class TestHandleExecCommand:
 
 
 class TestHandleExecForShell:
-  """Test handle_exec_for_shell function."""
+  """Test handle_output_env function."""
 
   def setup_method(self) -> None:
     """Set up test fixtures."""
@@ -252,7 +252,7 @@ class TestHandleExecForShell:
 
   @patch("auto_secrets.cli.ConfigManager.load_config")
   @patch("auto_secrets.cli.CacheManager")
-  def test_handle_exec_for_shell_bash(self, mock_cache_manager: MagicMock, mock_load_config: MagicMock) -> None:
+  def test_handle_output_env_bash(self, mock_cache_manager: MagicMock, mock_load_config: MagicMock) -> None:
     """Test generating bash script."""
     self.mock_args.shell = "bash"
 
@@ -267,7 +267,7 @@ class TestHandleExecForShell:
     mock_cache_manager.return_value = mock_cache_instance
 
     with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-      handle_exec_for_shell(self.mock_args)
+      handle_output_env(self.mock_args)
 
       output = mock_stdout.getvalue()
       assert 'export API_KEY="secret123"' in output
@@ -275,7 +275,7 @@ class TestHandleExecForShell:
 
   @patch("auto_secrets.cli.ConfigManager.load_config")
   @patch("auto_secrets.cli.CacheManager")
-  def test_handle_exec_for_shell_zsh(self, mock_cache_manager: MagicMock, mock_load_config: MagicMock) -> None:
+  def test_handle_output_env_zsh(self, mock_cache_manager: MagicMock, mock_load_config: MagicMock) -> None:
     """Test generating zsh script."""
     self.mock_args.shell = "zsh"
 
@@ -290,7 +290,7 @@ class TestHandleExecForShell:
     mock_cache_manager.return_value = mock_cache_instance
 
     with patch("sys.stdout", new_callable=StringIO) as mock_stdout:
-      handle_exec_for_shell(self.mock_args)
+      handle_output_env(self.mock_args)
 
       output = mock_stdout.getvalue()
       assert 'export API_KEY="secret123"' in output
@@ -605,7 +605,7 @@ class TestMainFunction:
     mock_parse_args.return_value = mock_args
 
     with (
-      patch("auto_secrets.cli.handle_exec_for_shell") as mock_handle,
+      patch("auto_secrets.cli.handle_output_env") as mock_handle,
       patch.dict(
         os.environ,
         {

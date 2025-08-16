@@ -5,7 +5,6 @@ Abstract base class defining the interface for all secret manager implementation
 Provides common functionality and error handling patterns.
 """
 
-import json
 import os
 import re
 from abc import ABC, abstractmethod
@@ -13,7 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Union
 
-from ..core.config import ConfigManager
+from ..core.crypto_utils import CryptoUtils
+from ..logging_config import get_logger
 
 
 class SecretManagerError(Exception):
@@ -84,7 +84,8 @@ class SecretManagerBase(ABC):
     """
     self.config = config
     self.debug = config.get("debug", False)
-    self._config_file_cache: Optional[dict[str, Any]] = None
+    self.logger = get_logger("cache_manager")
+    self.crypto_utils = CryptoUtils()
     self._validate_config()
 
   def _validate_config(self) -> None:
@@ -97,6 +98,45 @@ class SecretManagerBase(ABC):
     """
     if not isinstance(self.config, dict):
       raise ConfigurationError("Configuration must be a dictionary")
+
+  def _get_secret_json(self) -> dict[str, str]:
+      """
+      Prompts the user for the Infisical Client Secret and returns it
+      as a JSON string.
+
+      This implementation uses getpass to ensure the secret is not echoed
+      to the terminal, and it handles empty input or user cancellation.
+
+      Returns:
+          str: A dictionary in the format:
+               '{"INFISICAL_CLIENT_SECRET": "<secret_value>"}'
+
+      Raises:
+          SecretManagerError / NotImplementedError: If no input is provided or the user cancels.
+      """
+      raise NotImplementedError(
+          "This method should be implemented in subclasses to handle secret input."
+      )
+
+  def set_secret(self) -> None:
+    """
+    Sets the secret manager password / secret.
+    Override in subclasses for manager-specific validation.
+
+    Raises:
+        SecretManagerError
+    """
+    try:
+      input = self._get_secret_json()
+      self.crypto_utils.write_dict_to_file_atomically(
+        Path("/etc/auto-secrets"),
+        "sm-config",
+        self.config,
+        input,
+        encrypt=True
+      )
+    except Exception as e:
+      raise SecretManagerError(f"Failed to set_secret: {e}") from None
 
   @abstractmethod
   def fetch_secrets(self, environment: str, paths: Optional[list[str]] = None) -> dict[str, str]:
@@ -268,7 +308,7 @@ class SecretManagerBase(ABC):
         message: Debug message to log
     """
     if self.debug:
-      print(f"DEBUG [{self.__class__.__name__}]: {message}")
+      self.logger.debug(f"DEBUG [{self.__class__.__name__}]: {message}")
 
   def log_error(self, message: str) -> None:
     """
@@ -277,7 +317,7 @@ class SecretManagerBase(ABC):
     Args:
         message: Error message to log
     """
-    print(f"ERROR [{self.__class__.__name__}]: {message}")
+    self.logger.error(f"ERROR [{self.__class__.__name__}]: {message}")
 
   def format_error_message(self, operation: str, error: Exception) -> str:
     """
@@ -329,61 +369,27 @@ class SecretManagerBase(ABC):
 
     return clean_key.upper()
 
-  def _find_config_file(self) -> Optional[Path]:
-    """
-    Find the configuration file in secure locations only.
-
-    Returns:
-        Path to config file if found, None otherwise
-    """
-    cache_dir = ConfigManager.get_cache_dir(self.config)
-    locations = [
-      cache_dir / "config.json",
-      Path.home() / ".config" / "auto-secrets" / "config.json",
-      Path("/etc/auto-secrets/config.json"),
-    ]
-
-    for location in locations:
-      if location.exists() and location.is_file():
-        self.log_debug(f"Found config file: {location}")
-        return location
-
-    return None
-
   def _load_config_file(self) -> dict[str, Any]:
     """
     Load and cache the configuration file.
     Returns:
         Configuration dictionary from file, empty dict if no file found
     """
-    if self._config_file_cache is not None:
-      return self._config_file_cache
-    config_path = self._find_config_file()
-    if config_path is None:
-      self._config_file_cache = {}
-      return self._config_file_cache
-
     try:
-      with open(config_path, encoding="utf-8") as f:
-        config_data = json.load(f)
-
-      if not isinstance(config_data, dict):
-        raise ConfigurationError(f"Config file must contain a JSON object: {config_path}")
-
-      self._config_file_cache = config_data
+      config_data = self.crypto_utils.read_dict_from_file(
+        Path("/etc/auto-secrets"),
+        "sm-config",
+        self.config,
+        decrypt=True
+      )
       self.log_debug(f"Loaded config file with {len(config_data)} keys")
-      return self._config_file_cache
-
-    except json.JSONDecodeError as e:
-      raise ConfigurationError(f"Invalid JSON in config file {config_path}: {e}") from None
+      return config_data
     except Exception as e:
-      raise ConfigurationError(f"Failed to read config file {config_path}: {e}") from None
+      raise ConfigurationError(f"Failed to read config file: {e}") from None
 
   def get_secret_value(self, key: str, required: bool = False) -> Optional[str]:
     """
-    Get a secret value from secure sources in order of precedence:
-    1. Environment variable
-    2. Configuration file
+    Get a secret value from a configuration file
     Args:
         key: Environment variable name (e.g., "INFISICAL_CLIENT_SECRET")
         required: Whether the value is required
@@ -392,12 +398,7 @@ class SecretManagerBase(ABC):
     Raises:
         ConfigurationError: If required value is missing
     """
-    # 1. Check environment variable first
-    env_value = os.getenv(key)
-    if env_value:
-      self.log_debug(f"Found {key} in environment variables")
-      return env_value
-    # 2. Check configuration file
+    # Check configuration file
     try:
       config_file = self._load_config_file()
       if key in config_file:

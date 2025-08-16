@@ -32,6 +32,8 @@ The Auto Secrets Manager distinguishes between **secrets** (sensitive) and **con
 
 - `INFISICAL_CLIENT_SECRET` - The only actual secret credential
 
+**Note:** The bash/zsh integration scripts will automatically prompt you for setting the secrets if not present at startup.
+
 **Configuration (non-sensitive - can be committed):**
 
 - `client_id` - Service token identifier
@@ -39,32 +41,7 @@ The Auto Secrets Manager distinguishes between **secrets** (sensitive) and **con
 - `host` - Service URL
 - All other configuration options
 
-### Configuration File Locations
-
-The system searches for configuration files in these locations (in priority order):
-
-1. **Environment variables** (ephemeral, highest priority)
-2. `/dev/shm/auto-secrets/config.json` (RAM filesystem - ephemeral and cleared on reboot, more secure than environment variables)
-3. `~/.config/auto-secrets/config.json` (User config directory - persistent across sessions)
-4. `/etc/auto-secrets/config.json` (System-wide config - persistent across sessions)
-
-### Sample Configuration Files
-
-**For Infisical:**
-
-```json
-{
-  "INFISICAL_CLIENT_SECRET": "your-secret-here"
-}
-```
-
-**For Vault (planned):**
-
-```json
-{
-  "VAULT_TOKEN": "your-vault-token"
-}
-```
+**Note:** Similar for others secret managers.
 
 ## Infisical
 
@@ -88,20 +65,7 @@ The system searches for configuration files in these locations (in priority orde
    }
    ```
 
-3. **Provide secret credential** (never commit):
-
-   ```bash
-   # Environment variable (recommended for development)
-   export INFISICAL_CLIENT_SECRET="your-client-secret"
-   ```
-
-   Or use a configuration file:
-
-   ```json
-   {
-     "INFISICAL_CLIENT_SECRET": "your-client-secret"
-   }
-   ```
+3. **[Provide secret credential at startup](#credential-management)** (never commit)
 
 ### Configuration Options
 

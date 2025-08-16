@@ -24,6 +24,7 @@ SHOW_ENV_IN_PROMPT="${SHOWENVINPROMPT:-false}"
 MARK_HISTORY="${MARKHISTORY:-false}"
 DEBUG="${DEBUG:-false}"
 BRANCH_DETECTION="${BRANCHDETECTION:-true}"
+SSH_AGENT_KEY_COMMENT="${SSHAGENTKEYCOMMENT}"
 # No Defaults here
 BRANCH_MAPPING="${BRANCHMAPPING:-'{}'}"
 AUTO_COMMANDS="${AUTOCOMMANDS:-'{}'}"
@@ -172,6 +173,36 @@ fi
 
 echo "✅ Python package installed"
 
+echo "🛡️ Generating Key Master security configuration..."
+
+# 1. Define the external configuration directory and file path.
+EXTERNAL_CONFIG_DIR="/etc/auto-secrets"
+EXTERNAL_CONFIG_FILE="$EXTERNAL_CONFIG_DIR/trusted_paths.json"
+
+mkdir -p "$EXTERNAL_CONFIG_DIR"
+
+# 2. Get the absolute, canonical paths to the trusted executables.
+#    This happens AFTER 'pip install' so the paths are final.
+TRUSTED_CLI_PATH=$(realpath "$(which auto-secrets)")
+PACKAGE_ROOT_DIR=$(python3 -c "import auto_secrets, os; print(os.path.dirname(auto_secrets.__file__))")
+
+echo "   - Writing configuration to: $EXTERNAL_CONFIG_FILE"
+echo "   - Trusted CLI Path: $TRUSTED_CLI_PATH"
+
+# 3. Create a JSON file with the trusted paths.
+#    Using jq is more robust than manually crafting JSON with cat/heredoc.
+jq -n \
+  --argjson paths "[\"$TRUSTED_CLI_PATH\"]" \
+  '{trusted_paths: $paths}' >"$EXTERNAL_CONFIG_FILE"
+
+# 4. Set secure permissions on the generated config file and directory.
+#    Only root should be able to write to this configuration.
+chown root:root "$EXTERNAL_CONFIG_DIR" "$EXTERNAL_CONFIG_FILE"
+chmod 755 "$EXTERNAL_CONFIG_DIR"
+chmod 644 "$EXTERNAL_CONFIG_FILE"
+
+echo "✅ Key Master security configuration generated successfully."
+
 # Create installation directory
 echo "📁 Setting up installation directory..."
 mkdir -p "$INSTALL_DIR"
@@ -212,12 +243,14 @@ export AUTO_SECRETS_SHOW_ENV_IN_PROMPT="${SHOW_ENV_IN_PROMPT}"
 export AUTO_SECRETS_MARK_HISTORY="${MARK_HISTORY}"
 export AUTO_SECRETS_DEBUG="${DEBUG}"
 export AUTO_SECRETS_BRANCH_DETECTION="${BRANCH_DETECTION}"
+export AUTO_SECRETS_SSH_AGENT_KEY_COMMENT="${SSH_AGENT_KEY_COMMENT}"
 
 # Paths and directories
 export AUTO_SECRETS_FEATURE_DIR="$INSTALL_DIR"
 export AUTO_SECRETS_CACHE_DIR="/dev/shm/auto-secrets"
 export AUTO_SECRETS_LOG_DIR="/var/log/auto-secrets"
 export AUTO_SECRETS_LOG_LEVEL="INFO"
+export AUTO_SECRETS_SM_SECRET_LOC="/etc/auto-secrets/"
 
 # Create log directory with proper permissions
 if [[ -w /var/log ]]; then
@@ -243,6 +276,9 @@ if [[ "$SHELLS" == "zsh" ]] || [[ "$SHELLS" == "both" ]]; then
     echo "if [[ -f '$INSTALL_DIR/auto-commands.sh' ]]; then" >>/etc/zsh/zshrc
     echo "    source '$INSTALL_DIR/auto-commands.sh'" >>/etc/zsh/zshrc
     echo "fi" >>/etc/zsh/zshrc
+    echo "if [[ -f '$INSTALL_DIR/secret-writer.sh' ]]; then" >>/etc/zsh/zshrc
+    echo "    source '$INSTALL_DIR/secret-writer.sh'" >>/etc/zsh/zshrc
+    echo "fi" >>/etc/zsh/zshrc
   fi
 
   # Also add to global zshrc location
@@ -264,6 +300,9 @@ if [[ "$SHELLS" == "bash" ]] || [[ "$SHELLS" == "both" ]]; then
     echo "fi" >>/etc/bash.bashrc
     echo "if [[ -f '$INSTALL_DIR/auto-commands.sh' ]]; then" >>/etc/bash.bashrc
     echo "    source '$INSTALL_DIR/auto-commands.sh'" >>/etc/bash.bashrc
+    echo "fi" >>/etc/bash.bashrc
+    echo "if [[ -f '$INSTALL_DIR/secret-writer.sh' ]]; then" >>/etc/bash.bashrc
+    echo "    source '$INSTALL_DIR/secret-writer.sh'" >>/etc/bash.bashrc
     echo "fi" >>/etc/bash.bashrc
   fi
 
@@ -337,6 +376,7 @@ echo "  Environment in prompt: ${SHOW_ENV_IN_PROMPT}"
 echo "  History marking: ${MARK_HISTORY}"
 echo "  Debug mode: ${DEBUG}"
 echo "  BRANCH_DETECTION: ${BRANCH_DETECTION}"
+echo "  SSH_AGENT_KEY_COMMENT: ${SSH_AGENT_KEY_COMMENT}"
 echo ""
 echo "💡 Next steps:"
 echo "  1. Restart your shell or run: source /etc/profile.d/auto-secrets.sh"
