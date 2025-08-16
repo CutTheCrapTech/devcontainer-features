@@ -53,7 +53,7 @@ class SecretsDaemon:
       ProcessUtils.set_parent_death_signal(self.logger)
 
       self._acquire_smk()
-      self._derive_session_encryption_key() # Derive the key once at startup
+      self._derive_session_encryption_key()  # Derive the key once at startup
       self.config["encryption_key"] = self.smk
 
       # Initialize components
@@ -76,28 +76,28 @@ class SecretsDaemon:
       raise
 
   def _acquire_smk(self) -> None:
-      """Acquire the Session Master Key from the inherited file descriptor."""
-      self.logger.info("Acquiring Session Master Key from file descriptor...")
-      smk_fd_str = os.environ.get("AUTO_SECRETS_SMK_FD")
-      if not smk_fd_str:
-          raise RuntimeError("AUTO_SECRETS_SMK_FD environment variable not set. Cannot start.")
+    """Acquire the Session Master Key from the inherited file descriptor."""
+    self.logger.info("Acquiring Session Master Key from file descriptor...")
+    smk_fd_str = os.environ.get("AUTO_SECRETS_SMK_FD")
+    if not smk_fd_str:
+      raise RuntimeError("AUTO_SECRETS_SMK_FD environment variable not set. Cannot start.")
 
-      try:
-          smk_fd = int(smk_fd_str)
-          with os.fdopen(smk_fd, "rb") as f:
-              self.smk = f.read()
-          if not self.smk:
-              raise ValueError("Failed to read key from file descriptor (empty).")
-          self.logger.info("Successfully acquired Session Master Key.")
-      except (ValueError, OSError) as e:
-          self.logger.error(f"Failed to process SMK file descriptor {smk_fd_str}: {e}")
-          raise
+    try:
+      smk_fd = int(smk_fd_str)
+      with os.fdopen(smk_fd, "rb") as f:
+        self.smk = f.read()
+      if not self.smk:
+        raise ValueError("Failed to read key from file descriptor (empty).")
+      self.logger.info("Successfully acquired Session Master Key.")
+    except (ValueError, OSError) as e:
+      self.logger.error(f"Failed to process SMK file descriptor {smk_fd_str}: {e}")
+      raise
 
   def _derive_session_encryption_key(self) -> None:
     """Derives the SEK using the shared utility class."""
     self.logger.info("Deriving the master Session Encryption Key...")
     if not self.smk:
-        raise RuntimeError("Cannot derive key, SMK is not loaded.")
+      raise RuntimeError("Cannot derive key, SMK is not loaded.")
 
     self.session_encryption_key = CryptoUtils(smk=self.smk, logger=self.logger).derive_session_encryption_key()
     self.logger.info("Session Encryption Key derived successfully.")

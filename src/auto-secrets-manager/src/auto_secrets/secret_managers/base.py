@@ -100,23 +100,21 @@ class SecretManagerBase(ABC):
       raise ConfigurationError("Configuration must be a dictionary")
 
   def _get_secret_json(self) -> dict[str, str]:
-      """
-      Prompts the user for the Infisical Client Secret and returns it
-      as a JSON string.
+    """
+    Prompts the user for the Infisical Client Secret and returns it
+    as a JSON string.
 
-      This implementation uses getpass to ensure the secret is not echoed
-      to the terminal, and it handles empty input or user cancellation.
+    This implementation uses getpass to ensure the secret is not echoed
+    to the terminal, and it handles empty input or user cancellation.
 
-      Returns:
-          str: A dictionary in the format:
-               '{"INFISICAL_CLIENT_SECRET": "<secret_value>"}'
+    Returns:
+        str: A dictionary in the format:
+             '{"INFISICAL_CLIENT_SECRET": "<secret_value>"}'
 
-      Raises:
-          SecretManagerError / NotImplementedError: If no input is provided or the user cancels.
-      """
-      raise NotImplementedError(
-          "This method should be implemented in subclasses to handle secret input."
-      )
+    Raises:
+        SecretManagerError / NotImplementedError: If no input is provided or the user cancels.
+    """
+    raise NotImplementedError("This method should be implemented in subclasses to handle secret input.")
 
   def set_secret(self) -> None:
     """
@@ -129,11 +127,7 @@ class SecretManagerBase(ABC):
     try:
       input = self._get_secret_json()
       self.crypto_utils.write_dict_to_file_atomically(
-        Path("/etc/auto-secrets"),
-        "sm-config",
-        self.config,
-        input,
-        encrypt=True
+        Path("/etc/auto-secrets"), "sm-config", self.config, input, encrypt=True
       )
     except Exception as e:
       raise SecretManagerError(f"Failed to set_secret: {e}") from None
@@ -377,10 +371,7 @@ class SecretManagerBase(ABC):
     """
     try:
       config_data = self.crypto_utils.read_dict_from_file(
-        Path("/etc/auto-secrets"),
-        "sm-config",
-        self.config,
-        decrypt=True
+        Path("/etc/auto-secrets"), "sm-config", self.config, decrypt=True
       )
       self.log_debug(f"Loaded config file with {len(config_data)} keys")
       return config_data

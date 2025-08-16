@@ -141,7 +141,9 @@ class CacheManager:
       new_metadata = existing_metadata | metadata
 
       # Write metadata atomically, unencrypted.
-      self.crypto_utils.write_dict_to_file_atomically(state_dir, "current_branch", self.config, new_metadata, encrypt=False)
+      self.crypto_utils.write_dict_to_file_atomically(
+        state_dir, "current_branch", self.config, new_metadata, encrypt=False
+      )
 
       self.logger.info(f"State for {branch} written successfully")
 
@@ -189,11 +191,7 @@ class CacheManager:
 
       # Write secrets in JSON format (full data)
       self.crypto_utils.write_dict_to_file_atomically(
-        env_cache_dir,
-        f"{environment}",
-        self.config,
-        {"metadata": metadata.to_dict(), "secrets": secrets},
-        encrypt=True
+        env_cache_dir, f"{environment}", self.config, {"metadata": metadata.to_dict(), "secrets": secrets}, encrypt=True
       )
 
       self._merge_state_file_atomically(branch, repo_path, environment)
@@ -220,12 +218,7 @@ class CacheManager:
     self.logger.debug(f"Retrieving cached secrets for environment: {environment}")
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_data = self.crypto_utils.read_dict_from_file(
-        env_cache_dir,
-        f"{environment}",
-        self.config,
-        decrypt=True
-      )
+      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", self.config, decrypt=True)
 
       raw_secrets = cache_data.get("secrets", {})
 
@@ -294,12 +287,7 @@ class CacheManager:
 
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_data = self.crypto_utils.read_dict_from_file(
-        env_cache_dir,
-        f"{environment}",
-        self.config,
-        decrypt=True
-      )
+      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", self.config, decrypt=True)
 
       metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
       is_stale = metadata.is_stale(max_age)
@@ -386,12 +374,7 @@ class CacheManager:
     """
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_data = self.crypto_utils.read_dict_from_file(
-        env_cache_dir,
-        f"{environment}",
-        self.config,
-        decrypt=True
-      )
+      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", self.config, decrypt=True)
 
       metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
 
@@ -411,12 +394,7 @@ class CacheManager:
     """
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_data = self.crypto_utils.read_dict_from_file(
-        env_cache_dir,
-        f"{environment}",
-        self.config,
-        decrypt=True
-      )
+      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", self.config, decrypt=True)
 
       # Update access time
       metadata.last_accessed = int(time.time())
@@ -425,11 +403,7 @@ class CacheManager:
       # Write back (non-critical, so don't fail on error)
       try:
         self.crypto_utils.write_dict_to_file_atomically(
-          env_cache_dir,
-          f"{environment}",
-          self.config,
-          cache_data,
-          encrypt=True
+          env_cache_dir, f"{environment}", self.config, cache_data, encrypt=True
         )
       except Exception as e:
         self.logger.debug(f"Failed to update access time for {environment}: {e}")

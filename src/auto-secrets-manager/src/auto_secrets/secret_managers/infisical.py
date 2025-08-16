@@ -41,39 +41,39 @@ class InfisicalSecretManager(SecretManagerBase):
     self._parse_config(config)
 
   def _get_secret_json(self) -> dict[str, str]:
-      """
-      Prompts the user for the Infisical Client Secret and returns it
-      as a JSON string.
+    """
+    Prompts the user for the Infisical Client Secret and returns it
+    as a JSON string.
 
-      This implementation uses getpass to ensure the secret is not echoed
-      to the terminal, and it handles empty input or user cancellation.
+    This implementation uses getpass to ensure the secret is not echoed
+    to the terminal, and it handles empty input or user cancellation.
 
-      Returns:
-          str: A dictionary in the format:
-               '{"INFISICAL_CLIENT_SECRET": "<secret_value>"}'
+    Returns:
+        str: A dictionary in the format:
+             '{"INFISICAL_CLIENT_SECRET": "<secret_value>"}'
 
-      Raises:
-          SecretManagerError: If no input is provided or the user cancels.
-      """
-      try:
-          # Use getpass for securely prompting for the secret without screen echo.
-          client_secret = getpass.getpass("Enter your Infisical Client Secret: ")
+    Raises:
+        SecretManagerError: If no input is provided or the user cancels.
+    """
+    try:
+      # Use getpass for securely prompting for the secret without screen echo.
+      client_secret = getpass.getpass("Enter your Infisical Client Secret: ")
 
-          # Validate that the user actually entered something.
-          if not client_secret:
-              raise SecretManagerError("Infisical Client Secret cannot be empty.")
+      # Validate that the user actually entered something.
+      if not client_secret:
+        raise SecretManagerError("Infisical Client Secret cannot be empty.")
 
-          # Construct the dictionary with the required key.
-          secret_data = {"INFISICAL_CLIENT_SECRET": client_secret}
+      # Construct the dictionary with the required key.
+      secret_data = {"INFISICAL_CLIENT_SECRET": client_secret}
 
-          # Serialize the dictionary to a JSON string and return it.
-          return secret_data
+      # Serialize the dictionary to a JSON string and return it.
+      return secret_data
 
-      except (EOFError, KeyboardInterrupt):
-          # Handle cases where the user aborts the input (e.g., Ctrl+D, Ctrl+C).
-          # We print a newline to ensure the next shell prompt is on a clean line.
-          print()
-          raise SecretManagerError("User cancelled secret input.") from None
+    except (EOFError, KeyboardInterrupt):
+      # Handle cases where the user aborts the input (e.g., Ctrl+D, Ctrl+C).
+      # We print a newline to ensure the next shell prompt is on a clean line.
+      print()
+      raise SecretManagerError("User cancelled secret input.") from None
 
   def _parse_config(self, config: dict[str, Any]) -> None:
     """Parse Infisical-specific configuration from JSON."""

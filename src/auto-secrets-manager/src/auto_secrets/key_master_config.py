@@ -1,5 +1,3 @@
-# auto_secrets/key_master_config.py
-
 """
 Key Master Configuration Loader.
 
@@ -18,20 +16,16 @@ _TRUSTED_PATHS_CONFIG_FILE = Path("/etc/auto-secrets/trusted_paths.json")
 LEGITIMATE_CLI_PATHS: list[str] = []
 
 if _TRUSTED_PATHS_CONFIG_FILE.exists():
-    try:
-        # Load the configuration data from the external file.
-        config_data = json.loads(_TRUSTED_PATHS_CONFIG_FILE.read_text())
+  try:
+    # Load the configuration data from the external file.
+    config_data = json.loads(_TRUSTED_PATHS_CONFIG_FILE.read_text())
 
-        # We expect a list of strings. Validate the structure.
-        paths = config_data.get("trusted_paths")
-        if isinstance(paths, list) and all(isinstance(p, str) for p in paths):
-            LEGITIMATE_CLI_PATHS = paths
-        else:
-            # Use logging for when the file is present but malformed.
-            logging.getLogger(__name__).error(
-                f"Config file at {_TRUSTED_PATHS_CONFIG_FILE} is malformed."
-            )
-    except (json.JSONDecodeError, OSError) as e:
-        logging.getLogger(__name__).error(
-            f"Failed to load trusted paths config from {_TRUSTED_PATHS_CONFIG_FILE}: {e}"
-        )
+    # We expect a list of strings. Validate the structure.
+    paths = config_data.get("trusted_paths")
+    if isinstance(paths, list) and all(isinstance(p, str) for p in paths):
+      LEGITIMATE_CLI_PATHS = paths
+    else:
+      # Use logging for when the file is present but malformed.
+      logging.getLogger(__name__).error(f"Config file at {_TRUSTED_PATHS_CONFIG_FILE} is malformed.")
+  except (json.JSONDecodeError, OSError) as e:
+    logging.getLogger(__name__).error(f"Failed to load trusted paths config from {_TRUSTED_PATHS_CONFIG_FILE}: {e}")
