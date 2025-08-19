@@ -148,6 +148,16 @@ For detailed configuration options, authentication setup, and examples for each 
 
 **Never include sensitive credentials like `client_secret` in `secretManagerConfig`**. Always provide them through environment variables or configuration files for security.
 
+## All Secret Manager Paths
+
+The `allSMPaths` option provides all paths from which to fetch secrets from secret manager as a JSON string.
+
+### Basic Example
+
+```
+['/', '/infrastructure', '/infrastructure/terraform']
+```
+
 ## Auto Commands
 
 The `autoCommands` option configures which commands automatically load secrets and optionally filters by file paths.

@@ -89,6 +89,7 @@ class SecretManagerBaseConfig:
   """Configuration for selecting the active secret manager."""
 
   secret_manager: str = field(default_factory=str)
+  all_paths: list = field(default_factory=list)
 
   def __post_init__(self):
     """Initialize from environment variables after dataclass creation."""
@@ -97,8 +98,14 @@ class SecretManagerBaseConfig:
       raise SecretManagerBaseConfigError(f"secret_manager cannot be empty {secret_manager}")
     if secret_manager not in SECRET_MANAGERS:
       raise SecretManagerBaseConfigError(f"secret_manager {secret_manager} must be one of: {SECRET_MANAGERS.keys()}")
-
     self.secret_manager = secret_manager
+
+    all_paths = os.getenv("AUTO_SECRETS_ALL_SM_PATHS")
+    all_paths_list = CommonUtils.parse_json("AUTO_SECRETS_ALL_PATHS", all_paths)
+    if not all_paths_list or not isinstance(all_paths_list, list):
+      self.all_paths = ["/"]
+    # Check for valid paths
+    self.all_paths = all_paths_list
 
 
 class SecretManagerBase(ABC):
@@ -125,6 +132,8 @@ class SecretManagerBase(ABC):
     """
     self.logger = log_manager.get_logger(name="secret_managers", component="base")
     self.crypto_utils = crypto_utils
+    config = SecretManagerBaseConfig()
+    self.all_paths = config.all_paths
 
   def get_available_managers(self) -> list[str]:
     """
@@ -173,10 +182,10 @@ class SecretManagerBase(ABC):
     Fetch secrets for the given environment.
 
     Args:
-        environment: Environment name (e.g., "production", "staging")
+      environment: Environment name (e.g., "production", "staging")
 
     Returns:
-        dict: Dictionary of secret key-value pairs
+      dict: Dictionary of secret key-value pairs
 
     Raises:
         AuthenticationError: If authentication fails

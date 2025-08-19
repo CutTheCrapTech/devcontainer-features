@@ -175,45 +175,46 @@ class InfisicalSecretManager(SecretManagerBase):
       # Get secrets from root path and all subpaths if paths are specified
       all_secrets = {}
 
-      # root path
-      secret_path = "/"
+      for path in self.all_paths:
+        # Normalize path
+        secret_path = path if path.startswith("/") else f"/{path}"
 
-      try:
-        secrets_response = client.secrets.list_secrets(
-          project_id=self.project_id,
-          environment_slug=environment,
-          secret_path=secret_path,
-          expand_secret_references=True,
-          include_imports=True,
-          recursive=True,
-        )
+        try:
+          secrets_response = client.secrets.list_secrets(
+            project_id=self.project_id,
+            environment_slug=environment,
+            secret_path=secret_path,
+            expand_secret_references=True,
+            include_imports=True,
+            recursive=True,
+          )
 
-        # Convert response to key-value pairs
-        for secret in secrets_response.secrets:
-          key = secret.secretKey
-          value = secret.secretValue
-          secret_path = secret.secretPath
+          # Convert response to key-value pairs
+          for secret in secrets_response.secrets:
+            key = secret.secretKey
+            value = secret.secretValue
+            secret_path = secret.secretPath
 
-          if key and value is not None:
-            # Create full path key
-            full_key = f"{secret_path.rstrip('/')}/{key}" if secret_path and secret_path != "/" else f"/{key}"
+            if key and value is not None:
+              # Create full path key
+              full_key = f"{secret_path.rstrip('/')}/{key}" if secret_path and secret_path != "/" else f"/{key}"
 
-            all_secrets[full_key] = value
+              all_secrets[full_key] = value
 
-      except Exception as e:
-        error_msg = str(e).lower()
-        if "unauthorized" in error_msg or "forbidden" in error_msg:
-          raise AuthenticationError(
-            f"Insufficient permissions for environment '{environment}' or path '{secret_path}'"
-          ) from None
-        elif "network" in error_msg or "timeout" in error_msg:
-          raise NetworkError(f"Network error fetching secrets from path '{secret_path}': {e}") from None
-        else:
-          raise SecretManagerError(f"Failed to fetch secrets from path '{secret_path}': {e}") from None
+        except Exception as e:
+          error_msg = str(e).lower()
+          if "unauthorized" in error_msg or "forbidden" in error_msg:
+            raise AuthenticationError(
+              f"Insufficient permissions for environment '{environment}' or path '{secret_path}'"
+            ) from None
+          elif "network" in error_msg or "timeout" in error_msg:
+            raise NetworkError(f"Network error fetching secrets from path '{secret_path}': {e}") from None
+          else:
+            raise SecretManagerError(f"Failed to fetch secrets from path '{secret_path}': {e}") from None
 
       # If no secrets found and we were looking for specific paths, that might be an error
-      if not all_secrets:
-        self.logger.debug(f"No secrets found in environment {environment}")
+      if not all_secrets and self.all_paths:
+        self.logger.debug(f"No secrets found for paths {self.all_paths} in environment {environment}")
 
       self.logger.debug(f"Successfully fetched {len(all_secrets)} secrets from Infisical")
       return all_secrets

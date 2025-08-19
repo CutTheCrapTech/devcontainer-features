@@ -19,6 +19,7 @@ INSTALL_DIR="/usr/local/share/auto-secrets"
 SECRET_MANAGER="${SECRETMANAGER:-infisical}"
 SHELLS="${SHELLS:-both}"
 SECRET_MANAGER_CONFIG="${SECRETMANAGERCONFIG:-'{"host":"https://app.infisical.com"}'}"
+ALL_SM_PATHS="${ALLSMPATHS:-'["/"]'}"
 CACHE_CONFIG=${CACHECONFIG:-'{"refresh_interval":"15m","cleanup_interval":"7d"}'}
 SHOW_ENV_IN_PROMPT="${SHOWENVINPROMPT:-false}"
 MARK_HISTORY="${MARKHISTORY:-false}"
@@ -119,6 +120,7 @@ echo "🔧 Transforming configuration from single-quote format to standard JSON.
 
 JSON_BRANCH_MAPPING=$(transform_to_json "${BRANCH_MAPPING}" "BRANCH_MAPPING")
 JSON_SECRET_MANAGER_CONFIG=$(transform_to_json "${SECRET_MANAGER_CONFIG}" "SECRET_MANAGER_CONFIG")
+JSON_ALL_SM_PATHS=$(transform_to_json "${ALL_SM_PATHS}" "ALL_SM_PATHS")
 JSON_CACHE_CONFIG=$(transform_to_json "${CACHE_CONFIG}" "CACHE_CONFIG")
 JSON_AUTO_COMMANDS=$(transform_to_json "${AUTO_COMMANDS}" "AUTO_COMMANDS")
 
@@ -234,6 +236,7 @@ export AUTO_SECRETS_SHELLS="$SHELLS"
 # Json configurations
 export AUTO_SECRETS_BRANCH_MAPPINGS='$JSON_BRANCH_MAPPING'
 export AUTO_SECRETS_SECRET_MANAGER_CONFIG='${JSON_SECRET_MANAGER_CONFIG}'
+export AUTO_SECRETS_ALL_SM_PATHS='${JSON_ALL_SM_PATHS}'
 export AUTO_SECRETS_AUTO_COMMANDS='${JSON_AUTO_COMMANDS}'
 export AUTO_SECRETS_CACHE_CONFIG='${JSON_CACHE_CONFIG}'
 

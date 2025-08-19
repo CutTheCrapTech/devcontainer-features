@@ -39,6 +39,11 @@
       "default": "{'host':'https://app.infisical.com'}",
       "description": "Secret manager configuration (project_id and client_id must be set via this option in case of infisical)"
     },
+    "allSMPaths": {
+      "type": "string",
+      "default": "['/']",
+      "description": "All paths to fetch secrets from"
+    },
     "autoCommands": {
       "type": "string",
       "default": "{}",
