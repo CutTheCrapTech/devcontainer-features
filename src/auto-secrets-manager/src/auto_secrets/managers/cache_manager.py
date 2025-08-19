@@ -7,22 +7,100 @@ Provides environment-specific caching with proper staleness detection.
 """
 
 import json
+import os
+import re
 import shutil
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from ..logging_config import get_logger
-from .config import ConfigManager
-from .crypto_utils import CryptoUtils
-from .utils import CommonUtils
+from ..core.common_utils import CommonUtils
+from ..core.crypto_utils import CryptoUtils
+from .common_config import CommonConfig
+from .log_manager import AutoSecretsLogger
+
+
+class CacheConfigError(Exception):
+  """Cacheconfig-related errors."""
+
+  pass
 
 
 class CacheError(Exception):
   """Cache-related errors."""
 
   pass
+
+
+@dataclass
+class CacheConfig:
+  """Cache configuration settings."""
+
+  refresh_interval: int = 900  # Default to 15 minutes
+  cleanup_interval: int = 604800  # Default to 7 days
+  auto_commands: dict[str, list[str]] = field(default_factory=dict)
+  pattern_cache: dict[str, re.Pattern] = field(default_factory=dict)
+
+  def __post_init__(self):
+    """Initialize from environment variables after dataclass creation."""
+    cache_config = os.getenv("AUTO_SECRETS_CACHE_CONFIG", "{}")
+    cache_config_dict = CommonUtils.parse_json("AUTO_SECRETS_CACHE_CONFIG", cache_config)
+
+    auto_commands = os.getenv("AUTO_SECRETS_AUTO_COMMANDS", "{}")
+    auto_commands_dict = CommonUtils.parse_json("AUTO_SECRETS_AUTO_COMMANDS", auto_commands)
+
+    if "refresh_interval" not in cache_config_dict:
+      raise CacheConfigError("Missing 'refresh_interval' in AUTO_SECRETS_CACHE_CONFIG")
+    if "cleanup_interval" not in cache_config_dict:
+      raise CacheConfigError("Missing 'cleanup_interval' in AUTO_SECRETS_CACHE_CONFIG")
+
+    self.refresh_interval = self.parse_duration(cache_config_dict.get("refresh_interval"))
+    self.cleanup_interval = self.parse_duration(cache_config_dict.get("cleanup_interval"))
+
+    if not isinstance(self.auto_commands, dict):
+      raise CacheConfigError(f"auto_commands must be a dict, got {type(self.auto_commands)}")
+
+    for key, value in auto_commands.items():
+      if not isinstance(key, str):
+        raise CacheConfigError(f"auto_commands keys must be strings, got {type(key)} for key {key}")
+      CommonUtils.is_valid_name(key)
+      if not isinstance(value, list):
+        raise CacheConfigError(f"auto_commands values must be lists, got {type(value)} for key {key}")
+      for item in value:
+        if not isinstance(item, str):
+          raise CacheConfigError(f"auto_commands list items must be strings, got {type(item)} in key {key}")
+        self.pattern_cache[key] = CommonUtils.convert_pattern_to_regex(key)
+    self.auto_commands = auto_commands_dict
+
+  def parse_duration(self, duration_str: str) -> int:
+    """
+    Parse duration string to seconds.
+
+    Args:
+        duration_str: Duration string like "5m", "1h", "30s"
+
+    Returns:
+        int: Duration in seconds
+
+    Raises:
+        CacheConfigError: If duration format is invalid
+    """
+    if not duration_str:
+      raise CacheConfigError(f"Invalid duration format: {duration_str}")
+
+    duration_str = duration_str.strip().lower()
+    match = re.match(r"^(\d+)([smhd]?)$", duration_str)
+
+    if not match:
+      raise CacheConfigError(f"Invalid duration format: {duration_str}")
+
+    number, unit = match.groups()
+    number = int(number)
+
+    multipliers = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
+
+    return number * multipliers.get(unit, 1)
 
 
 @dataclass
@@ -63,43 +141,44 @@ class CacheManager:
   race conditions and corruption. No file locking is needed.
   """
 
-  def __init__(self, config: dict[str, Any]) -> None:
-    self.config = config
-    self.logger = get_logger("cache_manager")
-    self.cache_dir = ConfigManager.get_cache_dir(config)
-    self.base_dir = ConfigManager.get_base_dir(config)
+  def __init__(self, log_manager: AutoSecretsLogger, crypto_utils: CryptoUtils) -> None:
+    self.logger = log_manager.get_logger(name="cache_manager", component="cache_manager")
 
-    refresh_interval = config.get("cache_config", {}).get("refresh_interval", "15m")
-    self.max_age_seconds = CommonUtils.parse_duration(refresh_interval)
+    cache_config = CacheConfig()
+    self.max_age_seconds = cache_config.refresh_interval
+    self.cleanup_interval = cache_config.cleanup_interval
+    self.auto_commands = cache_config.auto_commands
+    self.path_pattern_cache = cache_config.pattern_cache
+
+    common_config = CommonConfig()
+    self.base_dir = common_config.get_base_dir()
+
+    self.crypto_utils = crypto_utils
 
     # Ensure cache directory exists
     self._ensure_cache_directory()
 
-    # Get crypto utils instance
-    self.crypto_utils = CryptoUtils()
-
   def _ensure_cache_directory(self) -> None:
     """Ensure cache directory exists with proper permissions."""
     try:
-      self.cache_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
       self.base_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
       # Create environment subdirectory
-      env_dir = self.cache_dir / "environments"
+      env_dir = self.base_dir / "environments"
       env_dir.mkdir(exist_ok=True, mode=0o700)
 
       # Create state subdirectory
       state_dir = self.base_dir / "state"
       state_dir.mkdir(exist_ok=True, mode=0o700)
 
-      self.logger.debug(f"Cache directories initialized: {self.cache_dir}")
+      self.logger.debug(f"Cache directories initialized: {self.base_dir}")
     except OSError as e:
       self.logger.error(f"Failed to create cache directory: {e}")
       raise CacheError(f"Cannot create cache directory: {e}") from None
 
   def get_environment_cache_dir(self, environment: str) -> Path:
     """Get cache directory for specific environment."""
-    return self.cache_dir / "environments" / environment
+    return self.base_dir / "environments" / environment
 
   def _merge_state_file_atomically(
     self,
@@ -135,15 +214,13 @@ class CacheManager:
       metadata = {f"{branch}:{repo_path}": environment}
 
       # Read existing state if it exists
-      existing_metadata = self.crypto_utils.read_dict_from_file(state_dir, "current_branch", self.config, decrypt=False)
+      existing_metadata = self.crypto_utils.read_dict_from_file(state_dir, "current_branch", decrypt=False)
 
       # Merge with existing metadata
       new_metadata = existing_metadata | metadata
 
       # Write metadata atomically, unencrypted.
-      self.crypto_utils.write_dict_to_file_atomically(
-        state_dir, "current_branch", self.config, new_metadata, encrypt=False
-      )
+      self.crypto_utils.write_dict_to_file_atomically(state_dir, "current_branch", new_metadata, encrypt=False)
 
       self.logger.info(f"State for {branch} written successfully")
 
@@ -191,7 +268,10 @@ class CacheManager:
 
       # Write secrets in JSON format (full data)
       self.crypto_utils.write_dict_to_file_atomically(
-        env_cache_dir, f"{environment}", self.config, {"metadata": metadata.to_dict(), "secrets": secrets}, encrypt=True
+        env_cache_dir,
+        f"{environment}",
+        {"metadata": metadata.to_dict(), "secrets": secrets},
+        encrypt=True,
       )
 
       self._merge_state_file_atomically(branch, repo_path, environment)
@@ -202,12 +282,27 @@ class CacheManager:
       self.logger.error(f"Failed to update cache for {environment}: {e}")
       raise CacheError(f"Cache update failed: {e}") from None
 
+  def get_auto_command_paths(self, command: str) -> list[str]:
+    """
+    Get paths for auto commands based on the command name.
+
+    Args:
+        command: Command name (e.g., "terraform", "kubectl")
+
+    Returns:
+        List[str]: List of secret paths for the command
+    """
+    if not command:
+      raise CacheError("Command name cannot be empty")
+
+    return self.auto_commands.get(command, [])
+
   def get_cached_secrets(self, environment: str, paths: Optional[list[str]] = None) -> dict[str, str]:
     """
     Get cached secrets for environment.
     Args:
         environment: Environment name
-        paths: Optional list of secret paths to filter by
+        paths: Optional list of shell-style glob patterns to filter secrets by
     Returns:
         Dict[str, str]: Cached secrets
     Raises:
@@ -218,7 +313,7 @@ class CacheManager:
     self.logger.debug(f"Retrieving cached secrets for environment: {environment}")
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", self.config, decrypt=True)
+      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", decrypt=True)
 
       raw_secrets = cache_data.get("secrets", {})
 
@@ -240,37 +335,20 @@ class CacheManager:
       if paths:
         filtered_secrets = {}
         for path in paths:
-          # Simple path matching - can be enhanced for glob patterns
-          matching_keys = [k for k in secrets if self._path_matches(k, path)]
+          if path not in self.path_pattern_cache:
+            self.logger.warning(f"Pattern not found in cache: '{path}'")
+            raise CacheError(f"Pattern not found in cache: '{path}'")
+          matching_keys = [k for k in secrets if self.path_pattern_cache[path].match(k)]
           for key in matching_keys:
             filtered_secrets[key] = secrets[key]
         secrets = filtered_secrets
       self.logger.debug(f"Retrieved {len(secrets)} cached secrets for {environment}")
       return secrets
     except (OSError, json.JSONDecodeError) as e:
-      self.logger.error(f"Failed to read cache for {environment}: {e}")
+      self.logger.error(
+        f"Failed to read cache for {environment} from file '{env_cache_dir / f'{environment}.enc.json'}' or '{env_cache_dir / f'{environment}.json'}': {e}"
+      )
       raise CacheError(f"Cannot read cache: {e}") from None
-
-  def _path_matches(self, secret_key: str, path_filter: str) -> bool:
-    """
-    Check if secret key matches path filter.
-
-    Args:
-        secret_key: Secret key to test
-        path_filter: Path pattern to match against
-
-    Returns:
-        bool: True if key matches filter
-    """
-    # Simple implementation - can be enhanced with glob patterns
-    if path_filter.endswith("**"):
-      prefix = path_filter[:-2]
-      return secret_key.startswith(prefix)
-    elif path_filter.endswith("*"):
-      prefix = path_filter[:-1]
-      return secret_key.startswith(prefix) and "/" not in secret_key[len(prefix) :]
-    else:
-      return secret_key == path_filter
 
   def is_cache_stale(self, environment: str, max_age_seconds: Optional[int] = None) -> bool:
     """
@@ -287,7 +365,7 @@ class CacheManager:
 
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", self.config, decrypt=True)
+      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", decrypt=True)
 
       metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
       is_stale = metadata.is_stale(max_age)
@@ -315,7 +393,7 @@ class CacheManager:
     self.logger.info(f"Cleaning up caches older than {max_age} seconds")
 
     try:
-      env_dir = self.cache_dir / "environments"
+      env_dir = self.base_dir / "environments"
       if not env_dir.exists():
         return {"removed": 0}
 
@@ -330,7 +408,7 @@ class CacheManager:
             cleaned_count += 1
             self.logger.debug(f"Cleaned up stale cache for {environment}")
           except OSError as e:
-            self.logger.warning(f"Failed to clean up cache for {environment}: {e}")
+            self.logger.warning(f"Failed to clean up cache directory '{env_cache_dir}' for {environment}: {e}")
 
       self.logger.info(f"Cleaned up {cleaned_count} stale cache entries")
       return {"removed": cleaned_count}
@@ -345,13 +423,13 @@ class CacheManager:
     removed_count = 0
 
     try:
-      if self.cache_dir.exists():
+      if self.base_dir.exists():
         # Count environments before removal
-        env_dir = self.cache_dir / "environments"
+        env_dir = self.base_dir / "environments"
         if env_dir.exists():
           removed_count = len([d for d in env_dir.iterdir() if d.is_dir()])
 
-        shutil.rmtree(self.cache_dir)
+        shutil.rmtree(self.base_dir)
         self.logger.info("All cache files cleaned up")
 
       # Recreate directory structure
@@ -374,7 +452,7 @@ class CacheManager:
     """
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", self.config, decrypt=True)
+      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", decrypt=True)
 
       metadata = CacheMetadata.from_dict(cache_data.get("metadata", {}))
 
@@ -394,7 +472,7 @@ class CacheManager:
     """
     try:
       env_cache_dir = self.get_environment_cache_dir(environment)
-      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", self.config, decrypt=True)
+      cache_data = self.crypto_utils.read_dict_from_file(env_cache_dir, f"{environment}", decrypt=True)
 
       # Update access time
       metadata.last_accessed = int(time.time())
@@ -402,9 +480,7 @@ class CacheManager:
 
       # Write back (non-critical, so don't fail on error)
       try:
-        self.crypto_utils.write_dict_to_file_atomically(
-          env_cache_dir, f"{environment}", self.config, cache_data, encrypt=True
-        )
+        self.crypto_utils.write_dict_to_file_atomically(env_cache_dir, f"{environment}", cache_data, encrypt=True)
       except Exception as e:
         self.logger.debug(f"Failed to update access time for {environment}: {e}")
 
@@ -419,8 +495,8 @@ class CacheManager:
         Dict[str, Any]: Cache statistics
     """
     stats: dict[str, Any] = {
-      "cache_dir": str(self.cache_dir),
-      "cache_dir_exists": self.cache_dir.exists(),
+      "cache_dir": str(self.base_dir),
+      "cache_dir_exists": self.base_dir.exists(),
       "total_environments": 0,
       "total_secrets": 0,
       "stale_environments": 0,
@@ -428,7 +504,7 @@ class CacheManager:
     }
 
     try:
-      env_dir = self.cache_dir / "environments"
+      env_dir = self.base_dir / "environments"
       if not env_dir.exists():
         return stats
 
@@ -456,4 +532,4 @@ class CacheManager:
 
   def __repr__(self) -> str:
     """String representation of CacheManager."""
-    return f"CacheManager(cache_dir={self.cache_dir}, max_age={self.max_age_seconds}s)"
+    return f"CacheManager(base_dir={self.base_dir}, max_age={self.max_age_seconds}s)"

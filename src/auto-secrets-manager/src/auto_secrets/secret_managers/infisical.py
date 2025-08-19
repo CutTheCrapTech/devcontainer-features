@@ -6,10 +6,14 @@ Handles fetching secrets from Infisical using the Python SDK.
 
 import getpass
 import os
-from typing import Any, Optional
+from dataclasses import dataclass, field
+from typing import Optional
 
 from infisical_sdk import InfisicalSDKClient  # type: ignore
 
+from ..core.common_utils import CommonUtils
+from ..core.crypto_utils import CryptoUtils
+from ..managers.log_manager import AutoSecretsLogger
 from .base import (
   AuthenticationError,
   ConnectionTestResult,
@@ -20,6 +24,45 @@ from .base import (
 )
 
 
+class InifisicalConfigError(Exception):
+  """InifisicalConfig-related errors."""
+
+  pass
+
+
+@dataclass
+class InifisicalConfig:
+  """Infisical configuration settings."""
+
+  host: str = field(default_factory=str)
+  project_id: str = field(default_factory=str)
+  client_id: str = field(default_factory=str)
+
+  def __post_init__(self):
+    """Initialize from environment variables after dataclass creation."""
+    config = os.getenv("AUTO_SECRETS_SECRET_MANAGER_CONFIG", "{}")
+    config_dict = CommonUtils.parse_json("AUTO_SECRETS_SECRET_MANAGER_CONFIG", config)
+
+    if "host" not in config_dict or not config_dict.get("host") or not isinstance(config_dict.get("host"), str):
+      raise InifisicalConfigError(f"Missing 'host' or invalid value in AUTO_SECRETS_CACHE_CONFIG - {config_dict}")
+    if (
+      "project_id" not in config_dict
+      or not config_dict.get("project_id")
+      or not isinstance(config_dict.get("project_id"), str)
+    ):
+      raise InifisicalConfigError(f"Missing 'project_id' or invalid value in AUTO_SECRETS_CACHE_CONFIG - {config_dict}")
+    if (
+      "client_id" not in config_dict
+      or not config_dict.get("client_id")
+      or not isinstance(config_dict.get("client_id"), str)
+    ):
+      raise InifisicalConfigError(f"Missing 'client_id' or invalid value in AUTO_SECRETS_CACHE_CONFIG - {config_dict}")
+
+    self.host = config_dict.get("host")
+    self.project_id = config_dict.get("project_id")
+    self.client_id = config_dict.get("client_id")
+
+
 class InfisicalSecretManager(SecretManagerBase):
   """
   Infisical secret manager implementation using Python SDK.
@@ -27,18 +70,20 @@ class InfisicalSecretManager(SecretManagerBase):
   Supports universal authentication method for automated environments.
   """
 
-  def __init__(self, config: dict[str, Any]) -> None:
-    super().__init__(config)
+  def __init__(self, log_manager: AutoSecretsLogger, crypto_utils: CryptoUtils) -> None:
+    super().__init__(log_manager, crypto_utils)
+    self.logger = log_manager.get_logger(name="secret_managers", component="infisical")
+    self.crypto_utils = crypto_utils
+
+    secret_manager_config = InifisicalConfig()
 
     self._client: Optional[InfisicalSDKClient] = None
     self._authenticated = False
 
-    self.project_id: str
-    self.client_id: str
-    self.client_secret: str
-
-    # Parse Infisical-specific config
-    self._parse_config(config)
+    self.host = secret_manager_config.host
+    self.project_id = secret_manager_config.project_id
+    self.client_id = secret_manager_config.client_id
+    self.client_secret = self.get_secret_value("INFISICAL_CLIENT_SECRET", required=True)
 
   def _get_secret_json(self) -> dict[str, str]:
     """
@@ -75,25 +120,6 @@ class InfisicalSecretManager(SecretManagerBase):
       print()
       raise SecretManagerError("User cancelled secret input.") from None
 
-  def _parse_config(self, config: dict[str, Any]) -> None:
-    """Parse Infisical-specific configuration from JSON."""
-    self.host = config.get("host", "https://app.infisical.com")
-
-    project_id = config.get("project_id") or os.getenv("INFISICAL_PROJECT_ID")
-    if not project_id:
-      raise SecretManagerError("Infisical project_id is required")
-    self.project_id = project_id
-
-    client_id = config.get("client_id") or os.getenv("INFISICAL_CLIENT_ID")
-    if not client_id:
-      raise SecretManagerError("Infisical client_id is required")
-    self.client_id = client_id
-
-    client_secret = self.get_secret_value("INFISICAL_CLIENT_SECRET", required=True)
-    if not client_secret:
-      raise SecretManagerError("Infisical client_secret is required")
-    self.client_secret = client_secret
-
   def _get_client(self) -> InfisicalSDKClient:
     """Get authenticated Infisical client."""
     if self._client is None:
@@ -118,17 +144,16 @@ class InfisicalSecretManager(SecretManagerBase):
     try:
       self._client.auth.universal_auth.login(client_id=self.client_id, client_secret=self.client_secret)
       self._authenticated = True
-      self.log_debug("Infisical authentication successful")
+      self.logger.debug("Infisical authentication successful")
     except Exception as e:
       raise AuthenticationError(f"Infisical authentication failed: {e}") from None
 
-  def fetch_secrets(self, environment: str, paths: Optional[list[str]] = None) -> dict[str, str]:
+  def fetch_secrets(self, environment: str) -> dict[str, str]:
     """
     Fetch secrets from Infisical for the given environment.
 
     Args:
         environment: Environment name (e.g., "production", "staging")
-        paths: Optional list of secret paths to filter by
 
     Returns:
         dict: Dictionary of secret key-value pairs
@@ -144,64 +169,53 @@ class InfisicalSecretManager(SecretManagerBase):
 
     client = self._get_client()
 
-    self.log_debug(f"Fetching secrets for environment: {environment}, project: {self.project_id}")
+    self.logger.debug(f"Fetching secrets for environment: {environment}, project: {self.project_id}")
 
     try:
       # Get secrets from root path and all subpaths if paths are specified
       all_secrets = {}
 
-      # Determine which paths to check
-      paths_to_check = paths if paths else ["/"]
+      # root path
+      secret_path = "/"
 
-      for path in paths_to_check:
-        # Normalize path
-        secret_path = path if path.startswith("/") else f"/{path}"
+      try:
+        secrets_response = client.secrets.list_secrets(
+          project_id=self.project_id,
+          environment_slug=environment,
+          secret_path=secret_path,
+          expand_secret_references=True,
+          include_imports=True,
+          recursive=True,
+        )
 
-        try:
-          secrets_response = client.secrets.list_secrets(
-            project_id=self.project_id,
-            environment_slug=environment,
-            secret_path=secret_path,
-            expand_secret_references=True,
-            include_imports=True,
-            recursive=True,
-          )
+        # Convert response to key-value pairs
+        for secret in secrets_response.secrets:
+          key = secret.secretKey
+          value = secret.secretValue
+          secret_path = secret.secretPath
 
-          # Convert response to key-value pairs
-          for secret in secrets_response.secrets:
-            key = secret.secretKey
-            value = secret.secretValue
-            secret_path = secret.secretPath
+          if key and value is not None:
+            # Create full path key
+            full_key = f"{secret_path.rstrip('/')}/{key}" if secret_path and secret_path != "/" else f"/{key}"
 
-            if key and value is not None:
-              # Create full path key
-              full_key = f"{secret_path.rstrip('/')}/{key}" if secret_path and secret_path != "/" else f"/{key}"
+            all_secrets[full_key] = value
 
-              all_secrets[full_key] = value
-
-        except Exception as e:
-          error_msg = str(e).lower()
-          if "not found" in error_msg or "does not exist" in error_msg:
-            # Path doesn't exist, continue with other paths
-            continue
-          elif "unauthorized" in error_msg or "forbidden" in error_msg:
-            raise AuthenticationError(
-              f"Insufficient permissions for environment '{environment}' or path '{secret_path}'"
-            ) from None
-          elif "network" in error_msg or "timeout" in error_msg:
-            raise NetworkError(f"Network error fetching secrets from path '{secret_path}': {e}") from None
-          else:
-            raise SecretManagerError(f"Failed to fetch secrets from path '{secret_path}': {e}") from None
+      except Exception as e:
+        error_msg = str(e).lower()
+        if "unauthorized" in error_msg or "forbidden" in error_msg:
+          raise AuthenticationError(
+            f"Insufficient permissions for environment '{environment}' or path '{secret_path}'"
+          ) from None
+        elif "network" in error_msg or "timeout" in error_msg:
+          raise NetworkError(f"Network error fetching secrets from path '{secret_path}': {e}") from None
+        else:
+          raise SecretManagerError(f"Failed to fetch secrets from path '{secret_path}': {e}") from None
 
       # If no secrets found and we were looking for specific paths, that might be an error
-      if not all_secrets and paths:
-        self.log_debug(f"No secrets found for paths {paths} in environment {environment}")
+      if not all_secrets:
+        self.logger.debug(f"No secrets found in environment {environment}")
 
-      # Filter by paths if specified and we got secrets from root path
-      if paths and "/" in paths_to_check:
-        all_secrets = self.filter_secrets_by_paths(all_secrets, paths)
-
-      self.log_debug(f"Successfully fetched {len(all_secrets)} secrets from Infisical")
+      self.logger.debug(f"Successfully fetched {len(all_secrets)} secrets from Infisical")
       return all_secrets
 
     except AuthenticationError:
@@ -217,7 +231,9 @@ class InfisicalSecretManager(SecretManagerBase):
       elif "environment" in error_msg and "not found" in error_msg:
         raise SecretNotFoundError(f"Environment '{environment}' not found in project '{self.project_id}'") from None
       else:
-        raise SecretManagerError(f"Failed to fetch secrets: {e}") from None
+        raise SecretManagerError(
+          f"Failed to fetch secrets for project '{self.project_id}' and environment '{environment}': {e}"
+        ) from None
 
   def test_connection(self) -> ConnectionTestResult:
     """

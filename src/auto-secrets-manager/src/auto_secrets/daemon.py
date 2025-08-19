@@ -5,7 +5,6 @@ Background daemon for proactive secret cache refresh and maintenance.
 Runs as a simple background process managed by DevContainer lifecycle.
 """
 
-import logging
 import os
 import signal
 import sys
@@ -13,64 +12,39 @@ import time
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
-from typing import Any, Optional
+from typing import Optional
 
-from .core.cache_manager import CacheManager
-from .core.config import ConfigManager
-from .core.crypto_utils import CryptoUtils
 from .core.process_utils import ProcessUtils
-from .core.utils import CommonUtils
-from .logging_config import get_logger
-from .secret_managers import SecretManagerBase, create_secret_manager
+from .managers.app_manager import AppManager
+from .managers.log_manager import AutoSecretsLogger
+
+
+class DaemonError(Exception):
+  pass
 
 
 class SecretsDaemon:
   """Background daemon for secret cache management."""
 
   def __init__(self) -> None:
-    self.config: dict[str, Any]
-    self.cache_manager: CacheManager
-    self.secret_manager: SecretManagerBase
-    self.running = False
-    self.pid_file: Optional[Path]
-    self.log_file: Path
-    self.smk: Optional[bytes] = None
-
-    logging.basicConfig(level=logging.INFO)
-    self.logger = get_logger("daemon")
-
-    self.initialize()
-
-  def initialize(self) -> None:
-    """Initialize daemon configuration and components."""
     try:
-      # Load configuration
-      self.config = ConfigManager.load_config()
-
-      # Set up logging
-      self._setup_logging()
+      self.running = False
+      self.pid_file: Optional[Path]
+      self.smk: Optional[bytes] = None
+      self.logger = AutoSecretsLogger(log_file="daemon.log").get_logger("daemon", "daemon")
 
       ProcessUtils.set_parent_death_signal(self.logger)
 
-      self._acquire_smk()
-      self._derive_session_encryption_key()  # Derive the key once at startup
-      self.config["encryption_key"] = self.smk
+      self._acquire_smk()  # Initialize AppManager after getting smk
+      self.app = AppManager(log_file="daemon.log", smk=self.smk)
+      self.crypto_utils = self.app.crypto_utils
 
-      # Initialize components
-      self.cache_manager = CacheManager(self.config)
-
-      secret_manager = create_secret_manager(self.config)
-      if not secret_manager:
-        raise ValueError("Failed to create secret manager - check configuration")
-      self.secret_manager = secret_manager
+      self.logger = self.app.get_logger("daemon", "daemon")
 
       # Set up PID file
       self._setup_pid_file()
 
-      # Initialize logger
-      self.logger = get_logger("daemon")
       self.logger.info("Daemon initialized successfully")
-
     except Exception as e:
       self.logger.error(f"Failed to initialize daemon: {e}")
       raise
@@ -80,55 +54,23 @@ class SecretsDaemon:
     self.logger.info("Acquiring Session Master Key from file descriptor...")
     smk_fd_str = os.environ.get("AUTO_SECRETS_SMK_FD")
     if not smk_fd_str:
-      raise RuntimeError("AUTO_SECRETS_SMK_FD environment variable not set. Cannot start.")
+      raise DaemonError("AUTO_SECRETS_SMK_FD environment variable not set. Cannot start.")
 
     try:
       smk_fd = int(smk_fd_str)
       with os.fdopen(smk_fd, "rb") as f:
         self.smk = f.read()
       if not self.smk:
-        raise ValueError("Failed to read key from file descriptor (empty).")
+        raise DaemonError("Failed to read key from file descriptor (empty).")
       self.logger.info("Successfully acquired Session Master Key.")
     except (ValueError, OSError) as e:
       self.logger.error(f"Failed to process SMK file descriptor {smk_fd_str}: {e}")
-      raise
-
-  def _derive_session_encryption_key(self) -> None:
-    """Derives the SEK using the shared utility class."""
-    self.logger.info("Deriving the master Session Encryption Key...")
-    if not self.smk:
-      raise RuntimeError("Cannot derive key, SMK is not loaded.")
-
-    self.session_encryption_key = CryptoUtils(smk=self.smk, logger=self.logger).derive_session_encryption_key()
-    self.logger.info("Session Encryption Key derived successfully.")
-
-  def _setup_logging(self) -> None:
-    """Set up logging for the daemon."""
-    try:
-      logs_dir = Path(self.config["log_dir"])
-
-      self.log_file = logs_dir / "daemon.log"
-
-      # Import and use the proper logging setup
-      from .logging_config import setup_logging
-
-      setup_logging(
-        log_level="DEBUG" if self.config.get("debug", False) else "INFO",
-        log_dir=str(logs_dir),
-        log_file="daemon.log",
-      )
-
-      self.logger = get_logger("daemon")
-
-    except Exception as e:
-      print(f"Failed to setup logging: {e}")
-      # Fall back to basic logging
-      self.logger = get_logger("daemon")
+      sys.exit(1)
 
   def _setup_pid_file(self) -> None:
     """Set up PID file for daemon process management."""
     try:
-      state_dir = self.cache_manager.cache_dir / "state"
+      state_dir = self.app.cache_manager.base_dir / "state"
       state_dir.mkdir(parents=True, exist_ok=True)
 
       self.pid_file = state_dir / "daemon.pid"
@@ -174,44 +116,6 @@ class SecretsDaemon:
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    # Handle SIGHUP as a reload signal
-    def reload_handler(signum: int, frame: Optional[FrameType]) -> None:
-      self.logger.info("Received SIGHUP, reloading configuration...")
-      try:
-        self.config = ConfigManager.load_config()
-        self.cache_manager = CacheManager(self.config)
-        secret_manager = create_secret_manager(self.config)
-        if not secret_manager:
-          raise ValueError("Failed to create secret manager - check configuration")
-        self.secret_manager = secret_manager
-        self.logger.info("Configuration reloaded successfully")
-      except Exception as e:
-        self.logger.error(f"Failed to reload configuration: {e}")
-
-    signal.signal(signal.SIGHUP, reload_handler)
-
-  def _get_refresh_interval(self) -> int:
-    """Get refresh interval in seconds from configuration."""
-    default_interval = 900  # 15 minutes
-
-    try:
-      interval_str = self.config.get("cache_config", {}).get("refresh_interval", "15m")
-      return CommonUtils.parse_duration(interval_str)
-    except Exception as e:
-      self.logger.warning(f"Invalid refresh interval, using default: {e}")
-      return default_interval
-
-  def _get_cleanup_interval(self) -> int:
-    """Get cleanup interval in seconds from configuration."""
-    default_interval = 900  # 15 minutes
-
-    try:
-      interval_str = self.config.get("cache_config", {}).get("cleanup_interval", "7d")
-      return CommonUtils.parse_duration(interval_str)
-    except Exception as e:
-      self.logger.warning(f"Invalid cleanup interval, using default: {e}")
-      return default_interval
-
   def _get_environments_to_refresh(self) -> list:
     """Get list of environments that need refreshing."""
     environments_to_refresh = []
@@ -219,12 +123,12 @@ class SecretsDaemon:
     try:
       # Check all environments that have stale caches
       try:
-        cache_dir = self.cache_manager.cache_dir / "environments"
+        cache_dir = self.app.cache_manager.base_dir / "environments"
 
         if cache_dir.exists():
           for cache_file in cache_dir.glob("*.env"):
             env_name = cache_file.stem
-            if self.cache_manager.is_cache_stale(env_name):
+            if self.app.cache_manager.is_cache_stale(env_name):
               environments_to_refresh.append(env_name)
 
       except Exception as e:
@@ -241,15 +145,15 @@ class SecretsDaemon:
       self.logger.info(f"Refreshing secrets for environment: {environment}")
 
       # Test connection first
-      if not self.secret_manager.test_connection():
+      if not self.app.secret_manager.test_connection():
         self.logger.error("Connection test failed")
         return False
 
       # Fetch secrets
-      secrets = self.secret_manager.fetch_secrets(environment)
+      secrets = self.app.secret_manager.fetch_secrets(environment)
 
       # Update cache atomically
-      self.cache_manager.update_environment_cache(environment, secrets)
+      self.app.cache_manager.update_environment_cache(environment, secrets)
 
       self.logger.info(f"Successfully refreshed {len(secrets)} secrets for {environment}")
       return True
@@ -261,13 +165,11 @@ class SecretsDaemon:
   def _cleanup_old_caches(self) -> None:
     """Clean up old cache files."""
     try:
-      cache_config = self.config.get("cache_config", {})
-      cleanup_interval_str = cache_config.get("cleanup_interval", "7d")
-      cleanup_age = CommonUtils.parse_duration(cleanup_interval_str)
+      cleanup_age = self.app.cache_manager.cleanup_interval
 
       if cleanup_age > 0:
         # Simple cleanup based on file age
-        cleaned_count = self.cache_manager.cleanup_stale(max_age_seconds=cleanup_age)
+        cleaned_count = self.app.cache_manager.cleanup_stale(max_age_seconds=cleanup_age)
         self.logger.info(f"Cleaned up {cleaned_count} stale cache entries")
 
     except Exception as e:
@@ -289,7 +191,7 @@ class SecretsDaemon:
       self._setup_signal_handlers()
 
       self.running = True
-      refresh_interval = self._get_refresh_interval()
+      refresh_interval = self.app.cache_manager.max_age_seconds
 
       self.logger.info(f"Daemon started with refresh interval: {refresh_interval}s")
 

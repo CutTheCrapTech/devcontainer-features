@@ -1,28 +1,43 @@
 import ctypes
-import logging
 import os
-from os import MFD_CLOEXEC, memfd_create  # type: ignore[attr-defined]
-from typing import Optional
 
 import paramiko
+
+from ..managers.common_config import CommonConfig
+from ..managers.log_manager import AutoSecretsLogger
+
+try:
+  from os import MFD_CLOEXEC, memfd_create  # type: ignore[attr-defined]
+
+  HAS_MEMFD = True
+except (ImportError, AttributeError):
+  # Fallback constants for non-Linux systems
+  MFD_CLOEXEC = 0x0001  # Define the constant value
+  HAS_MEMFD = False
+
+  def memfd_create(name: bytes, flags: int) -> int:
+    """Fallback memfd_create for non-Linux systems."""
+    raise OSError("memfd_create is only available on Linux systems")
+
+
+class KeyRetrieverError(Exception):
+  pass
 
 
 class KeyRetriever:
   """Handles the secure acquisition of the Session Master Key (SMK)."""
 
-  def __init__(self, ssh_agent_key_comment: Optional[str], logger: Optional[logging.Logger] = None):
+  def __init__(self, log_manager: AutoSecretsLogger):
     """
     Initializes the KeyRetriever.
 
     Args:
-        ssh_agent_key_comment: The specific key comment to search for in the SSH agent.
-        logger: An optional logger instance. If not provided, a new one is created.
+      log_manager: The logger manager instance.
     """
-    self.logger = logger or logging.getLogger(__name__)
+    self.logger = log_manager.get_logger(name="key_retriever", component="key_retriever")
 
-    if not ssh_agent_key_comment:
-      raise ValueError("ssh_agent_key_comment cannot be empty.")
-    self.ssh_agent_key_comment = ssh_agent_key_comment
+    common_config = CommonConfig()
+    self.ssh_agent_key_comment = common_config.ssh_agent_key_comment
 
   def derive_smk_from_ssh_agent(self) -> int:
     """
@@ -32,7 +47,7 @@ class KeyRetriever:
     agent = paramiko.Agent()
     keys = agent.get_keys()
     if not keys:
-      raise RuntimeError("No keys found in the SSH agent.")
+      raise KeyRetrieverError("No keys found in the SSH agent.")
 
     target_key = next(
       (key for key in keys if key.comment == self.ssh_agent_key_comment),
@@ -40,7 +55,7 @@ class KeyRetriever:
     )
 
     if not target_key:
-      raise RuntimeError(f"Could not find key with comment '{self.ssh_agent_key_comment}' in SSH agent.")
+      raise KeyRetrieverError(f"Could not find key with comment '{self.ssh_agent_key_comment}' in SSH agent.")
 
     self.logger.info(f"Found target key: {target_key.get_name()} ({target_key.comment})")
     self.logger.info("Requesting signature from agent to derive SMK...")
@@ -49,8 +64,10 @@ class KeyRetriever:
     try:
       signature = target_key.sign_ssh_data(target_key, challenge)
     except Exception as e:
-      self.logger.error("Failed to get signature from agent. User may have canceled.")
-      raise RuntimeError("Agent signing operation failed or was canceled.") from e
+      self.logger.error(
+        f"Failed to get signature from agent for key comment '{self.ssh_agent_key_comment}'. User may have canceled."
+      )
+      raise KeyRetrieverError("Agent signing operation failed or was canceled.") from e
 
     self.logger.info("Signature received successfully.")
     session_key = bytes(signature)
@@ -81,4 +98,4 @@ class KeyRetriever:
         agent.get_keys()
     except Exception as e:
       self.logger.error(f"Failed to prompt SSH agent for biometric authentication: {e}")
-      raise RuntimeError("SSH agent biometric prompt failed.") from e
+      raise KeyRetrieverError("SSH agent biometric prompt failed.") from e

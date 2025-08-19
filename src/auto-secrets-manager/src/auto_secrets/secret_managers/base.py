@@ -6,14 +6,24 @@ Provides common functionality and error handling patterns.
 """
 
 import os
-import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
+from ..core.common_utils import CommonUtils
 from ..core.crypto_utils import CryptoUtils
-from ..logging_config import get_logger
+from ..managers.log_manager import AutoSecretsLogger
+from .infisical import InfisicalSecretManager
+
+SECRET_MANAGERS = {
+  "infisical": InfisicalSecretManager,
+  # Future secret managers can be added here:
+  # "vault": VaultSecretManager,
+  # "aws": AWSSecretsManagerSecretManager,
+  # "azure": AzureKeyVaultSecretManager,
+  # "gcp": GCPSecretManagerSecretManager,
+}
 
 
 class SecretManagerError(Exception):
@@ -68,6 +78,29 @@ class ConnectionTestResult:
   authenticated: bool = False
 
 
+class SecretManagerBaseConfigError(Exception):
+  """SecretManagerBaseConfig-related errors."""
+
+  pass
+
+
+@dataclass
+class SecretManagerBaseConfig:
+  """Configuration for selecting the active secret manager."""
+
+  secret_manager: str = field(default_factory=str)
+
+  def __post_init__(self):
+    """Initialize from environment variables after dataclass creation."""
+    secret_manager = os.getenv("AUTO_SECRETS_SECRET_MANAGER")
+    if not secret_manager:
+      raise SecretManagerBaseConfigError(f"secret_manager cannot be empty {secret_manager}")
+    if secret_manager not in SECRET_MANAGERS:
+      raise SecretManagerBaseConfigError(f"secret_manager {secret_manager} must be one of: {SECRET_MANAGERS.keys()}")
+
+    self.secret_manager = secret_manager
+
+
 class SecretManagerBase(ABC):
   """
   Abstract base class for all secret manager implementations.
@@ -75,44 +108,48 @@ class SecretManagerBase(ABC):
   All secret managers must inherit from this class and implement the required methods.
   """
 
-  def __init__(self, config: dict[str, Any]) -> None:
+  @classmethod
+  def create(cls, log_manager: AutoSecretsLogger, crypto_utils: CryptoUtils) -> "SecretManagerBase":
+    """Factory method to create appropriate secret manager."""
+    config = SecretManagerBaseConfig()
+    manager_class = SECRET_MANAGERS[config.secret_manager]
+    return manager_class(log_manager, crypto_utils)
+
+  def __init__(self, log_manager: AutoSecretsLogger, crypto_utils: CryptoUtils) -> None:
     """
-    Initialize the secret manager with configuration.
+    Initialize the secret manager.
 
     Args:
-        config: Configuration dictionary containing manager-specific settings
+      log_manager: The logger manager instance.
+      crypto_utils: The cryptography utility instance.
     """
-    self.config = config
-    self.debug = config.get("debug", False)
-    self.logger = get_logger("cache_manager")
-    self.crypto_utils = CryptoUtils()
-    self._validate_config()
+    self.logger = log_manager.get_logger(name="secret_managers", component="base")
+    self.crypto_utils = crypto_utils
 
-  def _validate_config(self) -> None:
+  def get_available_managers(self) -> list[str]:
     """
-    Validate the configuration.
-    Override in subclasses for manager-specific validation.
+    Get list of available secret manager types.
 
-    Raises:
-        ConfigurationError: If configuration is invalid
+    Returns:
+        List[str]: List of available secret manager type strings
     """
-    if not isinstance(self.config, dict):
-      raise ConfigurationError("Configuration must be a dictionary")
+    return list(SECRET_MANAGERS.keys())
 
   def _get_secret_json(self) -> dict[str, str]:
     """
-    Prompts the user for the Infisical Client Secret and returns it
-    as a JSON string.
+    Prompts the user for the primary secret (e.g., API Key, Client Secret, Infisical client secret)
+    and returns it as a dictionary.
 
-    This implementation uses getpass to ensure the secret is not echoed
-    to the terminal, and it handles empty input or user cancellation.
+    This method should be implemented by subclasses to handle the specific secrets required by the secret manager.
+    It should use getpass to ensure the secret is not echoed to the terminal.
 
     Returns:
-        str: A dictionary in the format:
-             '{"INFISICAL_CLIENT_SECRET": "<secret_value>"}'
+        str: A dictionary containing the secrets:
+             '{"INFISICAL_CLIENT_SECRET": "<secret_value>", "SECRET_KEY": "<value>"}'
 
     Raises:
-        SecretManagerError / NotImplementedError: If no input is provided or the user cancels.
+        SecretManagerError: If no input is provided or the user cancels.
+        NotImplementedError: If the subclass does not implement this method.
     """
     raise NotImplementedError("This method should be implemented in subclasses to handle secret input.")
 
@@ -126,20 +163,17 @@ class SecretManagerBase(ABC):
     """
     try:
       input = self._get_secret_json()
-      self.crypto_utils.write_dict_to_file_atomically(
-        Path("/etc/auto-secrets"), "sm-config", self.config, input, encrypt=True
-      )
+      self.crypto_utils.write_dict_to_file_atomically(Path("/etc/auto-secrets"), "sm-config", input, encrypt=True)
     except Exception as e:
       raise SecretManagerError(f"Failed to set_secret: {e}") from None
 
   @abstractmethod
-  def fetch_secrets(self, environment: str, paths: Optional[list[str]] = None) -> dict[str, str]:
+  def fetch_secrets(self, environment: str) -> dict[str, str]:
     """
-    Fetch secrets for the given environment and optional paths.
+    Fetch secrets for the given environment.
 
     Args:
         environment: Environment name (e.g., "production", "staging")
-        paths: Optional list of secret paths to filter by
 
     Returns:
         dict: Dictionary of secret key-value pairs
@@ -172,196 +206,7 @@ class SecretManagerBase(ABC):
     Returns:
         bool: True if environment name is valid
     """
-    if not environment or len(environment) > 64:
-      return False
-
-    # Must be alphanumeric with hyphens/underscores, can't start/end with -/_
-    if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$", environment):
-      # Special case for single character names
-      return bool(len(environment) == 1 and re.match(r"^[a-zA-Z0-9]$", environment))
-
-    return True
-
-  def filter_secrets_by_paths(self, secrets: dict[str, str], paths: list[str]) -> dict[str, str]:
-    """
-    Filter secrets by path patterns.
-
-    Args:
-        secrets: Dictionary of all secrets
-        paths: List of path patterns to match
-
-    Returns:
-        dict: Filtered secrets dictionary
-    """
-    if not paths:
-      return secrets
-
-    filtered = {}
-    for key, value in secrets.items():
-      for path_pattern in paths:
-        if self._matches_path_pattern(key, path_pattern):
-          filtered[key] = value
-          break
-
-    return filtered
-
-  def _matches_path_pattern(self, secret_key: str, pattern: str) -> bool:
-    """
-    Check if secret key matches a path pattern.
-
-    Supports patterns like:
-    - /infrastructure/** (recursive)
-    - /infrastructure/* (non-recursive)
-    - /infrastructure/specific_secret (exact)
-
-    Args:
-        secret_key: Secret key to test
-        pattern: Pattern to match against
-
-    Returns:
-        bool: True if key matches pattern
-    """
-    # Normalize paths (ensure leading slash)
-    if not secret_key.startswith("/"):
-      secret_key = "/" + secret_key
-    if not pattern.startswith("/"):
-      pattern = "/" + pattern
-    pattern = pattern.strip()
-
-    # Handle different pattern types
-    if pattern.endswith("/**"):
-      # Recursive: /infrastructure/** matches /infrastructure/anything/deeper
-      base_path = pattern[:-3]  # Remove /**
-      return secret_key.startswith(base_path + "/")
-    elif pattern.endswith("/*"):
-      # Non-recursive: /infrastructure/* matches /infrastructure/something
-      # but not /infrastructure/something/deeper
-      base_path = pattern[:-2]  # Remove /*
-      remaining = secret_key[len(base_path) :] if secret_key.startswith(base_path) else ""
-      return remaining.startswith("/") and "/" not in remaining[1:]
-    else:
-      # Exact match
-      return secret_key == pattern
-
-  def get_config_value(self, key: str, default: Any = None, required: bool = False) -> Any:
-    """
-    Get configuration value with optional default and validation.
-
-    Args:
-        key: Configuration key
-        default: Default value if key not found
-        required: Whether the key is required
-
-    Returns:
-        Configuration value
-
-    Raises:
-        ConfigurationError: If required key is missing
-    """
-    if key in self.config:
-      return self.config[key]
-
-    # Check environment variables (uppercase with underscores)
-    env_key = key.upper().replace("-", "_")
-    env_value = os.getenv(env_key)
-    if env_value is not None:
-      return env_value
-
-    if required and default is None:
-      raise ConfigurationError(f"Required configuration key missing: {key}")
-
-    return default
-
-  def expand_environment_variables(self, value: Union[str, int, float, bool, list, dict]) -> str:
-    """
-    Expand environment variables in configuration values.
-
-    Args:
-        value: String that may contain ${VAR} patterns
-
-    Returns:
-        str: String with environment variables expanded
-    """
-    if not isinstance(value, str):
-      return str(value)
-
-    # Handle ${VAR} pattern
-    pattern = re.compile(r"\$\{([^}]+)\}")
-
-    def replace_var(match: re.Match[str]) -> str:
-      var_name = match.group(1)
-      return os.getenv(var_name, match.group(0))  # Return original if not found
-
-    return pattern.sub(replace_var, value)
-
-  def log_debug(self, message: str) -> None:
-    """
-    Log debug message if debug mode is enabled.
-
-    Args:
-        message: Debug message to log
-    """
-    if self.debug:
-      self.logger.debug(f"DEBUG [{self.__class__.__name__}]: {message}")
-
-  def log_error(self, message: str) -> None:
-    """
-    Log error message.
-
-    Args:
-        message: Error message to log
-    """
-    self.logger.error(f"ERROR [{self.__class__.__name__}]: {message}")
-
-  def format_error_message(self, operation: str, error: Exception) -> str:
-    """
-    Format a standardized error message.
-
-    Args:
-        operation: Operation that failed
-        error: Exception that occurred
-
-    Returns:
-        str: Formatted error message
-    """
-    return f"{operation} failed: {type(error).__name__}: {error}"
-
-  def create_secret_path(self, environment: str, secret_name: str) -> str:
-    """
-    Create a standard secret path for the given environment and secret name.
-    Override in subclasses for manager-specific path formats.
-
-    Args:
-        environment: Environment name
-        secret_name: Secret name
-
-    Returns:
-        str: Formatted secret path
-    """
-    return f"/{environment}/{secret_name}"
-
-  def sanitize_secret_key(self, key: str) -> str:
-    """
-    Sanitize secret key for use as environment variable.
-
-    Args:
-        key: Original secret key
-
-    Returns:
-        str: Sanitized key suitable for environment variable
-    """
-    # Remove leading slash and replace remaining slashes with underscores
-    clean_key = key.lstrip("/")
-    clean_key = clean_key.replace("/", "_")
-
-    # Ensure valid environment variable name (alphanumeric + underscore)
-    clean_key = re.sub(r"[^a-zA-Z0-9_]", "_", clean_key)
-
-    # Ensure it starts with letter or underscore
-    if clean_key and clean_key[0].isdigit():
-      clean_key = "_" + clean_key
-
-    return clean_key.upper()
+    return CommonUtils.is_valid_name(environment)
 
   def _load_config_file(self) -> dict[str, Any]:
     """
@@ -370,10 +215,8 @@ class SecretManagerBase(ABC):
         Configuration dictionary from file, empty dict if no file found
     """
     try:
-      config_data = self.crypto_utils.read_dict_from_file(
-        Path("/etc/auto-secrets"), "sm-config", self.config, decrypt=True
-      )
-      self.log_debug(f"Loaded config file with {len(config_data)} keys")
+      config_data = self.crypto_utils.read_dict_from_file(Path("/etc/auto-secrets"), "sm-config", decrypt=True)
+      self.logger.debug(f"Loaded config file with {len(config_data)} keys")
       return config_data
     except Exception as e:
       raise ConfigurationError(f"Failed to read config file: {e}") from None
@@ -393,15 +236,15 @@ class SecretManagerBase(ABC):
     try:
       config_file = self._load_config_file()
       if key in config_file:
-        self.log_debug(f"Found {key} in config file")
+        self.logger.debug(f"Found {key} in config file")
         return str(config_file[key])
     except ConfigurationError:
       # Log but don't fail - config file is optional
-      self.log_debug(f"Could not load config file for {key}")
+      self.logger.debug(f"Could not load config file for {key}")
     if required:
       raise ConfigurationError(f"Required secret '{key}' not found in environment variables or config file")
     return None
 
   def __repr__(self) -> str:
     """String representation of the secret manager."""
-    return f"{self.__class__.__name__}(config_keys={list(self.config.keys())})"
+    return f"{self.__class__.__name__}"

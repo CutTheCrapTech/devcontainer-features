@@ -98,7 +98,7 @@ transform_to_json() {
   echo "    > Input:  ${var_name}: ${raw_string}" >&2
 
   # Transform single quotes to double quotes
-  json_string=$(echo "${raw_string}" | sed "s/'/\"/g")
+  json_string="${raw_string//\'/\"}"
 
   # Log the output value to stdout for debugging
   echo "    > Output: ${var_name}: ${json_string}" >&2
@@ -184,7 +184,6 @@ mkdir -p "$EXTERNAL_CONFIG_DIR"
 # 2. Get the absolute, canonical paths to the trusted executables.
 #    This happens AFTER 'pip install' so the paths are final.
 TRUSTED_CLI_PATH=$(realpath "$(which auto-secrets)")
-PACKAGE_ROOT_DIR=$(python3 -c "import auto_secrets, os; print(os.path.dirname(auto_secrets.__file__))")
 
 echo "   - Writing configuration to: $EXTERNAL_CONFIG_FILE"
 echo "   - Trusted CLI Path: $TRUSTED_CLI_PATH"
@@ -247,8 +246,8 @@ export AUTO_SECRETS_SSH_AGENT_KEY_COMMENT="${SSH_AGENT_KEY_COMMENT}"
 
 # Paths and directories
 export AUTO_SECRETS_FEATURE_DIR="$INSTALL_DIR"
-export AUTO_SECRETS_CACHE_DIR="/dev/shm/auto-secrets"
-export AUTO_SECRETS_LOG_DIR="/var/log/auto-secrets"
+export AUTO_SECRETS_CACHE_DIR="/dev/shm/auto-secrets/"
+export AUTO_SECRETS_LOG_DIR="/var/log/auto-secrets/"
 export AUTO_SECRETS_LOG_LEVEL="INFO"
 export AUTO_SECRETS_SM_SECRET_LOC="/etc/auto-secrets/"
 

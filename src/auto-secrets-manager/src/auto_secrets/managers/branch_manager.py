@@ -5,16 +5,69 @@ Handles git branch detection and branch-to-environment mapping.
 Provides pattern matching for branch names and proper logging.
 """
 
+import os
 import re
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ..logging_config import get_logger
+from ..core.common_utils import CommonUtils
+from .log_manager import AutoSecretsLogger
+
+
+class BranchConfigError(Exception):
+  """Branch config related errors."""
+
+  pass
 
 
 class BranchManagerError(Exception):
   """Branch manager related errors."""
 
   pass
+
+
+@dataclass
+class BranchConfig:
+  """
+  Data class for branch configuration.
+
+  Attributes:
+      mappings (dict): Dictionary mapping branch names to environment names.
+  """
+
+  mappings: dict[str, str] = field(default_factory=dict)
+  pattern_cache: dict[str, re.Pattern] = field(default_factory=dict)
+
+  def __post_init__(self):
+    """Validate branch mappings after initialization."""
+    self.mappings = CommonUtils.parse_json(
+      "AUTO_SECRETS_BRANCH_MAPPINGS", os.getenv("AUTO_SECRETS_BRANCH_MAPPINGS", "{}")
+    )
+
+    if not isinstance(self.mappings, dict):
+      raise BranchConfigError("Branch mappings must be a dictionary")
+
+    if "default" not in self.mappings:
+      raise BranchConfigError("Branch mappings must contain a 'default' key")
+
+    # Validation of keys and values
+    for key, value in self.mappings.items():
+      # Validate all keys and values are strings
+      if not isinstance(key, str) or not isinstance(value, str):
+        raise BranchConfigError(f"Branch mapping keys and values must be strings: {key} -> {value}")
+
+      # Validate none of keys and values can be empty
+      if not key.strip() or not value.strip():
+        raise BranchConfigError(f"Branch mapping keys and values cannot be empty: '{key}' -> '{value}'")
+
+      self.pattern_cache[key] = CommonUtils.convert_pattern_to_regex(key)
+
+      if not CommonUtils.is_valid_name(value):
+        raise BranchConfigError(f"Invalid environment name: '{value}'")
+
+  @classmethod
+  def from_dict(cls, data: dict[str, str]) -> "BranchConfig":
+    return cls(mappings=data)
 
 
 class BranchManager:
@@ -25,9 +78,11 @@ class BranchManager:
   for performance optimization.
   """
 
-  def __init__(self, config: dict[str, Any]) -> None:
-    self.config = config
-    self.logger = get_logger("branch_manager")
+  def __init__(self, log_manager: AutoSecretsLogger) -> None:
+    self.logger = log_manager.get_logger(name="branch_manager", component="branch_manager")
+    branch_config = BranchConfig()
+    self.branch_mappings = branch_config.mappings
+    self.branch_pattern_cache = branch_config.pattern_cache
 
   def map_branch_to_environment(self, branch: str, repo_path: Optional[str] = None) -> Optional[str]:
     """
@@ -49,8 +104,7 @@ class BranchManager:
 
     self.logger.debug(f"Mapping branch '{branch}' to environment")
 
-    branch_mappings: dict[str, str] = self.config.get("branch_mappings", {})
-    if not branch_mappings:
+    if not self.branch_mappings:
       raise BranchManagerError("No branch mappings configured")
 
     # Handle special cases first
@@ -59,13 +113,13 @@ class BranchManager:
       return self._get_default_environment()
 
     # Check for exact match first (fast path)
-    if branch in branch_mappings:
-      environment = branch_mappings[branch]
+    if branch in self.branch_mappings:
+      environment = self.branch_mappings.get(branch)
       self.logger.info(f"Exact match: {branch} -> {environment}")
       return environment
 
     # Check for pattern matches
-    for pattern, environment in branch_mappings.items():
+    for pattern, environment in self.branch_mappings.items():
       if pattern == "default":
         continue  # Skip default, handle separately
 
@@ -84,9 +138,8 @@ class BranchManager:
 
   def _get_default_environment(self) -> Optional[str]:
     """Get the default environment from configuration."""
-    branch_mappings = self.config.get("branch_mappings", {})
-    if isinstance(branch_mappings, dict):
-      default_env = branch_mappings.get("default")
+    if isinstance(self.branch_mappings, dict):
+      default_env = self.branch_mappings.get("default")
       return default_env if isinstance(default_env, str) else None
     return None
 
@@ -109,32 +162,17 @@ class BranchManager:
     # Skip patterns without wildcards
     if "*" not in pattern and "?" not in pattern:
       return False
-
     self.logger.debug(f"Testing pattern '{pattern}' against branch '{branch_name}'")
-
     try:
-      # Convert shell-style pattern to regex
-      regex_pattern = pattern
-
-      # Replace wildcards with regex equivalents
-      # ** matches anything including /
-      regex_pattern = regex_pattern.replace("**", "___DOUBLE_STAR___")
-      # * matches anything except /
-      regex_pattern = regex_pattern.replace("*", "[^/]*")
-      # Restore **
-      regex_pattern = regex_pattern.replace("___DOUBLE_STAR___", ".*")
-      # ? matches single character
-      regex_pattern = regex_pattern.replace("?", ".")
-
-      # Anchor the pattern
-      regex_pattern = f"^{regex_pattern}$"
-
-      match_result = bool(re.match(regex_pattern, branch_name))
-      self.logger.debug(f"Pattern '{pattern}' -> regex '{regex_pattern}' -> {match_result}")
+      # Add safety check for pattern cache
+      if pattern not in self.branch_pattern_cache:
+        self.logger.warning(f"Pattern not found in cache: '{pattern}'")
+        return False
+      match_result = bool(self.branch_pattern_cache[pattern].match(branch_name))
+      self.logger.debug(f"Pattern '{pattern}' -> branch '{branch_name}' -> {match_result}")
       return match_result
-
     except re.error as e:
-      self.logger.warning(f"Invalid regex pattern '{pattern}': {e}")
+      self.logger.warning(f"Invalid regex pattern '{pattern}' when matching against branch {branch_name}: {e}")
       return False
 
   def get_available_environments(self) -> list[str]:
@@ -144,8 +182,7 @@ class BranchManager:
     Returns:
         List[str]: List of environment names
     """
-    branch_mappings: dict[str, str] = self.config.get("branch_mappings", {})
-    environments = set(branch_mappings.values())
+    environments = set(self.branch_mappings.values())
     # Remove 'default' if it's used as a key
     environments.discard("default")
     return sorted(environments)
@@ -208,17 +245,15 @@ class BranchManager:
         List[str]: List of validation errors (empty if valid)
     """
     errors = []
-    branch_mappings: dict[str, str] = self.config.get("branch_mappings", {})
-
-    if not branch_mappings:
+    if not self.branch_mappings:
       errors.append("No branch mappings configured")
       return errors
 
-    if "default" not in branch_mappings:
+    if "default" not in self.branch_mappings:
       errors.append("No 'default' environment mapping configured")
 
     # Check for invalid pattern syntax
-    for pattern in branch_mappings:
+    for pattern in self.branch_mappings:
       if pattern == "default":
         continue
 
@@ -230,7 +265,7 @@ class BranchManager:
         errors.append(f"Invalid pattern syntax: {pattern}")
 
     # Check for duplicate environment names (might be intentional, so just warn)
-    environments = list(branch_mappings.values())
+    environments = list(self.branch_mappings.values())
     duplicates = {env for env in environments if environments.count(env) > 1}
     if duplicates:
       self.logger.warning(f"Duplicate environment mappings: {duplicates}")
@@ -239,4 +274,4 @@ class BranchManager:
 
   def __repr__(self) -> str:
     """String representation of BranchManager."""
-    return f"BranchManager(mappings={len(self.config.get('branch_mappings', {}))})"
+    return f"BranchManager(mappings={len(self.branch_mappings)})"

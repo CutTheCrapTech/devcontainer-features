@@ -4,9 +4,10 @@ adhere to project conventions.
 """
 
 import ctypes
-import logging
 import signal
 import sys
+
+from ..managers.log_manager import ComponentLoggerAdapter
 
 # From <linux/prctl.h>
 PR_SET_PDEATHSIG = 1
@@ -16,7 +17,7 @@ class ProcessUtils:
   """Provides static utility methods for process management."""
 
   @staticmethod
-  def set_parent_death_signal(logger: logging.Logger) -> None:
+  def set_parent_death_signal(logger: ComponentLoggerAdapter) -> None:
     """
     On Linux, ask the kernel to send this process SIGTERM if the parent
     process dies unexpectedly.
@@ -35,7 +36,7 @@ class ProcessUtils:
     try:
       libc = ctypes.CDLL(None)
     except OSError as e:
-      logger.warning("Could not get handle to C library: %s. Parent death signal not set.", e)
+      logger.warning(f"Could not get handle to C library: {e}. Parent death signal not set.")
       return
 
     # Step 2: Find the 'prctl' function in the library.
@@ -57,4 +58,4 @@ class ProcessUtils:
       else:
         logger.info("Successfully set parent death signal (SIGTERM).")
     except Exception as e:
-      logger.error("An unexpected error occurred when calling prctl: %s", e)
+      logger.error(f"An unexpected error occurred when calling prctl: {e}")

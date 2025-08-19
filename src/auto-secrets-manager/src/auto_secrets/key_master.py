@@ -17,52 +17,43 @@ from types import FrameType
 from typing import Any, Optional
 
 # --- Project-specific imports ---
-from .core.config import ConfigManager
-from .core.crypto_utils import CryptoUtils
 from .core.process_utils import ProcessUtils
 from .key_master_config import LEGITIMATE_CLI_PATHS
-from .logging_config import get_logger, setup_logging
+from .managers.app_manager import AppManager
+from .managers.log_manager import AutoSecretsLogger
 
 
 class KeyMaster:
   """Manages the SMK and serves authenticated clients."""
 
-  # ... __init__, _initialize, _acquire_smk, _setup_socket, _setup_signal_handlers ...
-  # No changes to the methods before _is_client_authentic
-
   def __init__(self) -> None:
-    self.running = True
-    self.config: dict[str, Any]
-    self.logger: logging.Logger
-    self.socket: Optional[socket.socket] = None
-    self.socket_path: Path
-    self.smk: Optional[bytes] = None
-    # --- THE SINGLE DERIVED KEY FOR THE ENTIRE SESSION ---
-    self.session_encryption_key: Optional[bytes] = None
-
-    self._initialize()
-
-  def _initialize(self) -> None:
-    """Load config, acquire SMK, derive the SEK, and set up the socket."""
     try:
-      self.config = ConfigManager.load_config()
-      setup_logging(
-        log_level=self.config["log_level"],
-        log_dir=self.config["log_dir"],
-        log_file="key_master.log",
-      )
-      self.logger = get_logger("key_master")
+      self.running = True
+      self.socket: Optional[socket.socket] = None
+      self.socket_path: Path
+      self.smk: Optional[bytes] = None
+      self.logger = AutoSecretsLogger(log_file="daemon.log").get_logger("daemon", "daemon")
+      # --- THE SINGLE DERIVED KEY FOR THE ENTIRE SESSION ---
+      self.session_encryption_key: Optional[bytes] = None
+
       ProcessUtils.set_parent_death_signal(self.logger)
 
-      self._acquire_smk()
-      self._derive_session_encryption_key()  # Derive the key once at startup
+      self._acquire_smk()  # Initialize AppManager after getting smk
+      self.app = AppManager(log_file="key_master.log", smk=self.smk)
+      self.crypto_utils = self.app.crypto_utils
+      self.session_encryption_key = self.crypto_utils.derive_session_encryption_key()
+
+      self.logger = self.app.get_logger("key_master", "key_master")
+
       self._setup_socket()
       self._setup_signal_handlers()
 
-      self.logger.info("Key Master initialized successfully with Session Encryption Key.")
-
+      self.logger.info("Key Master initialized successfully")
     except Exception as e:
-      logging.critical(f"Key Master failed to initialize: {e}", exc_info=True)
+      if self.logger:
+        self.logger.critical(f"Key Master failed to initialize: {e}")
+      else:
+        logging.critical(f"Key Master failed to initialize: {e}", exc_info=True)
       sys.exit(1)
 
   def _acquire_smk(self) -> None:
@@ -85,7 +76,7 @@ class KeyMaster:
 
   def _setup_socket(self) -> None:
     """Create and bind the Unix domain socket."""
-    state_dir = Path(self.config["cache_dir"]) / "state"
+    state_dir = self.app.cache_manager.base_dir / "state"
     self.socket_path = state_dir / "key_master.sock"
 
     if self.socket_path.exists():
@@ -153,17 +144,15 @@ class KeyMaster:
     self.logger.info(f"Client authenticated successfully (PID: {pid}, Path: '{client_exe_path}')")
     return True
 
-  def _derive_session_encryption_key(self) -> None:
-    """Derives the SEK using the shared utility class."""
-    self.logger.info("Deriving the master Session Encryption Key...")
-    if not self.smk:
-      raise RuntimeError("Cannot derive key, SMK is not loaded.")
-
-    self.session_encryption_key = CryptoUtils(smk=self.smk, logger=self.logger).derive_session_encryption_key()
-    self.logger.info("Session Encryption Key derived successfully.")
-
   def _handle_client(self, conn: socket.socket, addr: Any) -> None:
-    """Handle a client: authenticate, and if successful, vend the SEK."""
+    """
+    Handles a new client connection.
+
+    The protocol is simple:
+      1. Authenticate the client using its process credentials.
+      2. If authentic, immediately send the Session Encryption Key (SEK).
+      3. Close the connection.
+    """
     try:
       # 1. AUTHENTICATE. This is the only gate.
       if not self._is_client_authentic(conn):

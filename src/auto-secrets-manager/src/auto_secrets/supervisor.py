@@ -18,55 +18,45 @@ from types import FrameType
 from typing import Any, Optional
 
 # --- Project-specific imports ---
-from .core.cache_manager import CacheManager
-from .core.config import ConfigManager
-from .core.key_retriever import KeyRetriever
 from .daemon import SecretsDaemon
 from .key_master import KeyMaster
-from .logging_config import get_logger, setup_logging
+from .managers.app_manager import AppManager
+from .managers.common_config import CommonConfig
+
+
+class SupervisorError(Exception):
+  pass
 
 
 class Supervisor:
   """The main supervisor process."""
 
   def __init__(self) -> None:
-    self.running = True
-    self.config: dict[str, Any]
-    self.pid_file: Optional[Path] = None
-
-    self.ssh_agent_enabled = False
-    self.ssh_agent_key_comment: Optional[str] = None
-
-    self.child_pids: dict[str, int] = {}
-    self.smk_fd: Optional[int] = None
-
-    self._initialize()
-
-  def _initialize(self) -> None:
-    """Load config, set up logging, and determine if SSH agent should be used."""
     try:
-      self.config = ConfigManager.load_config()
-      setup_logging(
-        log_level=self.config["log_level"],
-        log_dir=self.config["log_dir"],
-        log_file="supervisor.log",
-      )
-      self.logger = get_logger("supervisor")
+      self.running = True
+      self.logger = app.get_logger("cli", "cli.background_refresh")
+      self.pid_file: Optional[Path] = None
 
-      cache_manager = CacheManager(self.config)
-      self.state_dir = cache_manager.cache_dir / "state"
-      self.state_dir.mkdir(parents=True, exist_ok=True)
-
-      self.ssh_agent_key_comment = self.config.get("ssh_agent_key_comment")
+      common_config = CommonConfig()
+      self.ssh_agent_key_comment = common_config.ssh_agent_key_comment
       self.ssh_agent_enabled = bool(self.ssh_agent_key_comment)
-
       if self.ssh_agent_enabled:
         self.logger.info(f"SSH agent integration ENABLED for key comment: '{self.ssh_agent_key_comment}'")
       else:
         self.logger.info("SSH agent integration DISABLED (ssh_agent_key_comment is not set or empty)")
 
+      self.child_pids: dict[str, int] = {}
+      self.smk_fd: Optional[int] = None
+
+      self.key_retriever = app.key_retriever
+
+      self.state_dir = app.cache_manager.base_dir / "state"
+      self.state_dir.mkdir(parents=True, exist_ok=True)
     except Exception as e:
-      logging.critical(f"Supervisor failed to initialize: {e}", exc_info=True)
+      if self.logger:
+        self.logger.critical(f"Supervisor failed to initialize: {e}", exc_info=True)
+      else:
+        logging.critical(f"Supervisor failed to initialize: {e}", exc_info=True)
       sys.exit(1)
 
   def _setup_pid_file(self) -> None:
@@ -102,11 +92,10 @@ class Supervisor:
     """
     self.logger.info("Acquiring Session Master Key via KeyRetriever...")
     try:
-      assert self.ssh_agent_key_comment, "Cannot get session key: ssh_agent_key_comment is not set."
-      retriever = KeyRetriever(ssh_agent_key_comment=self.ssh_agent_key_comment, logger=self.logger)
+      retriever = self.key_retriever
       self.smk_fd = retriever.derive_smk_from_ssh_agent()
       if self.smk_fd is None:
-        raise RuntimeError("Failed to derive key from SSH agent.")
+        raise SupervisorError("Failed to derive key from SSH agent.")
       self.logger.info(f"SMK acquired in memfd descriptor: {self.smk_fd}")
     except Exception as e:
       self.logger.critical(f"Could not acquire Session Master Key: {e}", exc_info=True)
@@ -214,4 +203,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+  app = AppManager(log_file="supervisor.log")
   main()

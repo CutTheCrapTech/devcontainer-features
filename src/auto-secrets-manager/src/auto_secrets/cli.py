@@ -10,33 +10,26 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
 from typing import Optional
 
-from .core.branch_manager import BranchManager
-from .core.cache_manager import CacheManager
-from .core.config import ConfigManager
-from .core.key_retriever import KeyRetriever
-from .logging_config import get_logger, log_system_info, setup_logging
-from .secret_managers import create_secret_manager, set_secret
+from .managers.app_manager import AppManager
 
 
 def handle_branch_change(args: argparse.Namespace) -> None:
   """Handle branch change notification from shell."""
-  logger = get_logger("cli.branch_change")
+  logger = app.get_logger("cli", "cli.branch_change")
 
   try:
     logger.debug(f"Branch change detected: {args.branch} in {args.repopath}")
 
-    config = ConfigManager.load_config()
-    branch_manager = BranchManager(config)
+    branch_manager = app.branch_manager
 
     branch = args.branch
     repo_path = args.repopath
 
     # Map branch to environment
     environment = branch_manager.map_branch_to_environment(branch, repo_path)
-    _background_refresh_secrets(environment, config, branch, repo_path)
+    _refresh_secrets(environment, branch, repo_path)
 
   except Exception as e:
     logger.error(f"Error handling branch change: {e}", exc_info=True)
@@ -45,11 +38,10 @@ def handle_branch_change(args: argparse.Namespace) -> None:
 
 def handle_refresh_secrets(args: argparse.Namespace) -> None:
   """Refresh secrets for current or specified environment."""
-  logger = get_logger("cli.refresh")
+  logger = app.get_logger("cli", "cli.refresh")
 
   try:
-    config = ConfigManager.load_config()
-    _background_refresh_secrets(args.environment, config)
+    _refresh_secrets(args.environment)
 
     # Output success message
     if not args.quiet:
@@ -64,11 +56,10 @@ def handle_refresh_secrets(args: argparse.Namespace) -> None:
 
 def handle_inspect_secrets(args: argparse.Namespace) -> None:
   """Inspect cached secrets for current or specified environment."""
-  logger = get_logger("cli.inspect")
+  logger = app.get_logger("cli", "cli.inspect")
 
   try:
-    config = ConfigManager.load_config()
-    cache_manager = CacheManager(config)
+    cache_manager = app.cache_manager
 
     # Determine environment
     if args.environment:
@@ -126,11 +117,10 @@ def handle_inspect_secrets(args: argparse.Namespace) -> None:
 
 def handle_exec_command(args: argparse.Namespace) -> None:
   """Execute command with environment secrets loaded."""
-  logger = get_logger("cli.exec")
+  logger = app.get_logger("cli", "cli.exec")
 
   try:
-    config = ConfigManager.load_config()
-    cache_manager = CacheManager(config)
+    cache_manager = app.cache_manager
 
     # Determine environment
     if args.environment:
@@ -163,8 +153,7 @@ def handle_exec_command(args: argparse.Namespace) -> None:
     # Execute command
     try:
       # Prompt for SSH agent biometric if configured
-      ssh_agent_key_comment: Optional[str] = config.get("ssh_agent_key_comment")
-      KeyRetriever(ssh_agent_key_comment, logger).prompt_ssh_agent_biometric()
+      app.key_retriever.prompt_ssh_agent_biometric()
       # Execute the command
       result = subprocess.run(args.command, env=env, shell=False)
       sys.exit(result.returncode)
@@ -180,11 +169,10 @@ def handle_exec_command(args: argparse.Namespace) -> None:
 
 def handle_output_env(args: argparse.Namespace) -> None:
   """Generate shell script for sourcing environment variables."""
-  logger = get_logger("cli.exec_shell")
+  logger = app.get_logger("cli", "cli.output_env")
 
   try:
-    config = ConfigManager.load_config()
-    cache_manager = CacheManager(config)
+    cache_manager = app.cache_manager
 
     # Determine branch
     if not (args.branch or args.repopath or args.command):
@@ -195,21 +183,27 @@ def handle_output_env(args: argparse.Namespace) -> None:
     repo_path = args.repopath
     command = args.command
 
-    # TODO: get paths for command
-    branch_manager = BranchManager(config)
+    branch_manager = app.branch_manager
     environment = branch_manager.map_branch_to_environment(branch, repo_path)
 
     if not environment:
       logger.error("Could not get environment.")
       sys.exit(1)
 
-    paths = config.get("auto_commands", {}).get(command, [])
+    paths = cache_manager.get_auto_command_paths(command)
     # Get cached secrets
     secrets = cache_manager.get_cached_secrets(environment, paths)
 
     if not secrets:
       logger.debug(f"No cached secrets found for environment: {environment}")
       return
+
+    def should_prefix_terraform_var(key: str, command: str) -> bool:
+      return command in ["terraform", "tofu"] and not key.startswith("TF_VAR_")
+
+    secrets = {
+      (f"TF_VAR_{key}" if should_prefix_terraform_var(key, command) else key): value for key, value in secrets.items()
+    }
 
     # Generate shell export statements
     for key, value in secrets.items():
@@ -228,7 +222,7 @@ def handle_output_env(args: argparse.Namespace) -> None:
 
 def handle_debug_env() -> None:
   """Comprehensive environment debugging information."""
-  logger = get_logger("cli.debug")
+  logger = app.get_logger("cli", "cli.debug")
 
   try:
     print("=== Auto Secrets Manager Debug Information ===")
@@ -240,30 +234,28 @@ def handle_debug_env() -> None:
     print(f"Working Directory: {os.getcwd()}")
     print(f"User: {os.getenv('USER', 'unknown')}")
 
-    # Configuration
-    print("\n--- Configuration ---")
+    # Environment
+    print("\n--- Environment (minus sensitive values) ---")
     try:
-      config = ConfigManager.load_config()
-      config_dict = dict(config)
-      # Redact sensitive information
-      for key in config_dict:
-        if any(sensitive in key.lower() for sensitive in ["token", "secret", "key", "password"]):
-          config_dict[key] = "***REDACTED***"
-      print(json.dumps(config_dict, indent=2))
+      safe_vars = {
+        k: v
+        for k, v in os.environ.items()
+        if not any(sensitive in k.upper() for sensitive in ["PASSWORD", "SECRET", "KEY", "TOKEN"])
+      }
+      print(json.dumps(safe_vars, indent=2))
     except Exception as e:
       print(f"Error loading config: {e}")
 
     # Cache status
     print("\n--- Cache Status ---")
     try:
-      config = ConfigManager.load_config()
-      cache_manager = CacheManager(config)
-      cache_dir = cache_manager.cache_dir
-      print(f"Cache Directory: {cache_dir}")
-      print(f"Cache Directory Exists: {cache_dir.exists()}")
+      cache_manager = app.cache_manager
+      base_dir = cache_manager.base_dir
+      print(f"Cache Directory: {base_dir}")
+      print(f"Cache Directory Exists: {base_dir.exists()}")
 
-      if cache_dir.exists():
-        cache_files = list(cache_dir.glob("*.env"))
+      if base_dir.exists():
+        cache_files = list(base_dir.glob("*.env"))
         print(f"Cache Files: {len(cache_files)}")
         for cache_file in cache_files:
           env_name = cache_file.stem
@@ -276,8 +268,7 @@ def handle_debug_env() -> None:
     # Secret Manager status
     print("\n--- Secret Manager Status ---")
     try:
-      config = ConfigManager.load_config()
-      secret_manager = create_secret_manager(config)
+      secret_manager = app.secret_manager
       if secret_manager:
         print(f"Type: {type(secret_manager).__name__}")
         connection_ok = secret_manager.test_connection()
@@ -312,11 +303,10 @@ def handle_debug_env() -> None:
 
 def handle_cleanup(args: argparse.Namespace) -> None:
   """Clean up cache and temporary files."""
-  logger = get_logger("cli.cleanup")
+  logger = app.get_logger("cli", "cli.cleanup")
 
   try:
-    config = ConfigManager.load_config()
-    cache_manager = CacheManager(config)
+    cache_manager = app.cache_manager
 
     if args.all:
       logger.info("Performing full cleanup")
@@ -334,26 +324,31 @@ def handle_cleanup(args: argparse.Namespace) -> None:
 
 
 def set_sm_secret(args: argparse.Namespace) -> None:
-  """Clean up cache and temporary files."""
-  logger = get_logger("cli.set_secret")
+  """Sets the secret for the configured secret manager."""
+  logger = app.get_logger("cli", "cli.set_secret")
 
   try:
-    config = ConfigManager.load_config()
-    set_secret(config)
+    app.secret_manager.set_secret()
   except Exception as e:
     logger.error(f"Error during set_secret: {e}", exc_info=True)
     print(f"❌ set_secret failed: {e}", file=sys.stderr)
     sys.exit(1)
 
 
-def _background_refresh_secrets(
+def _refresh_secrets(
   environment: Optional[str],
-  config: dict,
   branch: Optional[str] = None,
   repo_path: Optional[str] = None,
 ) -> None:
-  """Background refresh of secrets (non-blocking)."""
-  logger = get_logger("cli.background_refresh")
+  """
+  Synchronously refreshes secrets for a given environment.
+
+  NOTE: This function is blocking and is designed to be invoked
+  as a non-blocking background process from its calling shell script branch-detection.sh
+  (e.g., using `&`) which it currently is
+  and a blocking foreground process when calling refresh-secrets.
+  """
+  logger = app.get_logger("cli", "cli.background_refresh")
 
   try:
     logger.debug(f"Starting background refresh for environment: {environment}")
@@ -362,14 +357,14 @@ def _background_refresh_secrets(
       logger.error("No environment specified for background refresh")
       sys.exit(1)
 
-    # Create secret manager
-    secret_manager = create_secret_manager(config)
+    # Get secret manager
+    secret_manager = app.secret_manager
     if not secret_manager or not secret_manager.test_connection():
       logger.warning("Secret manager not available for background refresh")
       sys.exit(1)
 
     # Fetch and cache secrets
-    cache_manager = CacheManager(config)
+    cache_manager = app.cache_manager
     secrets = secret_manager.fetch_secrets(environment)
 
     if secrets:
@@ -470,16 +465,6 @@ def main() -> None:
   # Parse arguments
   args = parser.parse_args()
 
-  # Set up logging
-  config = ConfigManager.load_config()
-  log_level = "DEBUG" if config.get("debug", False) else "INFO"
-  logs_dir = Path(config["log_dir"])
-
-  logger = setup_logging(log_level=log_level, log_dir=str(logs_dir), log_file="cli.log")
-
-  if log_level == "DEBUG":
-    log_system_info(logger)
-
   # Execute command
   if hasattr(args, "func"):
     args.func(args)
@@ -489,4 +474,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+  app = AppManager(log_file="cli.log")
   main()

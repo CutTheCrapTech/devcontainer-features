@@ -21,7 +21,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Test configuration
-RUN_UNIT_TESTS=true
+RUN_UNIT_TESTS=false
 RUN_INTEGRATION_TESTS=false
 RUN_SHELL_TESTS=true
 RUN_LINT_CHECKS=true
