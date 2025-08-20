@@ -1,4 +1,5 @@
 import re
+from typing import Any, Union
 from unittest import TestCase
 
 import pytest
@@ -9,39 +10,41 @@ from auto_secrets.core.common_utils import CommonUtils, UtilsError
 class TestCommonUtils(TestCase):
   """Test cases for CommonUtils class."""
 
-  def test_parse_json_valid_json(self):
+  def test_parse_json_valid_json(self) -> None:
     """Test parsing valid JSON strings."""
     # Simple dictionary
-    result = CommonUtils.parse_json("TEST_VAR", '{"key": "value"}')
+    result: dict[str, str] = CommonUtils.parse_json("TEST_VAR", '{"key": "value"}')
     self.assertEqual(result, {"key": "value"})
 
     # List
-    result = CommonUtils.parse_json("TEST_VAR", "[1, 2, 3]")
-    self.assertEqual(result, [1, 2, 3])
+    result_list: list[int] = CommonUtils.parse_json("TEST_VAR", "[1, 2, 3]")
+    self.assertEqual(result_list, [1, 2, 3])
 
     # String
-    result = CommonUtils.parse_json("TEST_VAR", '"hello"')
-    self.assertEqual(result, "hello")
+    result_str: str = CommonUtils.parse_json("TEST_VAR", '"hello"')
+    self.assertEqual(result_str, "hello")
 
     # Number
-    result = CommonUtils.parse_json("TEST_VAR", "42")
-    self.assertEqual(result, 42)
+    result_num: int = CommonUtils.parse_json("TEST_VAR", "42")
+    self.assertEqual(result_num, 42)
 
     # Boolean
-    result = CommonUtils.parse_json("TEST_VAR", "true")
-    self.assertEqual(result, True)
+    result_bool: bool = CommonUtils.parse_json("TEST_VAR", "true")
+    self.assertEqual(result_bool, True)
 
     # Null
-    result = CommonUtils.parse_json("TEST_VAR", "null")
-    self.assertIsNone(result)
+    result_null: None = CommonUtils.parse_json("TEST_VAR", "null")
+    self.assertIsNone(result_null)
 
     # Complex nested structure
-    complex_json = '{"users": [{"name": "John", "age": 30}, {"name": "Jane", "age": 25}]}'
-    result = CommonUtils.parse_json("TEST_VAR", complex_json)
-    expected = {"users": [{"name": "John", "age": 30}, {"name": "Jane", "age": 25}]}
-    self.assertEqual(result, expected)
+    complex_json: str = '{"users": [{"name": "John", "age": 30}, {"name": "Jane", "age": 25}]}'
+    result_complex: dict[str, list[dict[str, Union[str, int]]]] = CommonUtils.parse_json("TEST_VAR", complex_json)
+    expected: dict[str, list[dict[str, Union[str, int]]]] = {
+      "users": [{"name": "John", "age": 30}, {"name": "Jane", "age": 25}]
+    }
+    self.assertEqual(result_complex, expected)
 
-  def test_parse_json_invalid_json(self):
+  def test_parse_json_invalid_json(self) -> None:
     """Test parsing invalid JSON strings."""
     # Missing quotes
     with self.assertRaises(UtilsError) as context:
@@ -68,11 +71,11 @@ class TestCommonUtils(TestCase):
       CommonUtils.parse_json("TEST_VAR", "not json at all")
     self.assertIn("Invalid TEST_VAR JSON", str(context.exception))
 
-  def test_get_regex_from_pattern_valid_patterns(self):
+  def test_get_regex_from_pattern_valid_patterns(self) -> None:
     """Test regex conversion with valid patterns."""
     # Simple alphanumeric
-    pattern = re.compile(r"^main$")
-    result = CommonUtils.get_regex_from_pattern("main")
+    pattern: re.Pattern[str] = re.compile(r"^main$")
+    result: re.Pattern[str] = CommonUtils.get_regex_from_pattern("main")
     self.assertEqual(pattern.pattern, result.pattern)
 
     # Single wildcard
@@ -102,7 +105,7 @@ class TestCommonUtils(TestCase):
     result = CommonUtils.get_regex_from_pattern("1main")
     self.assertTrue(result.match("1main"))
 
-  def test_get_regex_from_pattern_invalid_patterns(self):
+  def test_get_regex_from_pattern_invalid_patterns(self) -> None:
     """Test regex conversion with invalid patterns."""
     # Empty string
     with self.assertRaises(UtilsError) as context:
@@ -111,16 +114,16 @@ class TestCommonUtils(TestCase):
 
     # None
     with self.assertRaises(UtilsError) as context:
-      CommonUtils.get_regex_from_pattern(None)
+      CommonUtils.get_regex_from_pattern(None)  # type: ignore[arg-type]
     self.assertIn("Branch must be a string", str(context.exception))
 
     # Non-string type
     with self.assertRaises(UtilsError) as context:
-      CommonUtils.get_regex_from_pattern(123)
+      CommonUtils.get_regex_from_pattern(123)  # type: ignore[arg-type]
     self.assertIn("Branch must be a string", str(context.exception))
 
     # Too long (> 255 characters)
-    long_pattern = "a" * 256
+    long_pattern: str = "a" * 256
     with self.assertRaises(UtilsError) as context:
       CommonUtils.get_regex_from_pattern(long_pattern)
     self.assertIn("Branch length must be > 1 and < 255", str(context.exception))
@@ -138,15 +141,15 @@ class TestCommonUtils(TestCase):
       CommonUtils.get_regex_from_pattern("/main")
     self.assertIn("Branch pattern does not start with alpha numeric", str(context.exception))
 
-  def test_get_regex_from_pattern_edge_cases(self):
+  def test_get_regex_from_pattern_edge_cases(self) -> None:
     """Test edge cases for regex pattern conversion."""
     # Single character
-    result = CommonUtils.get_regex_from_pattern("a")
+    result: re.Pattern[str] = CommonUtils.get_regex_from_pattern("a")
     self.assertTrue(result.match("a"))
     self.assertFalse(result.match("ab"))
 
     # Maximum length (255 characters)
-    max_pattern = "a" + "b" * 254
+    max_pattern: str = "a" + "b" * 254
     result = CommonUtils.get_regex_from_pattern(max_pattern)
     self.assertTrue(result.match(max_pattern))
 
@@ -154,7 +157,7 @@ class TestCommonUtils(TestCase):
     result = CommonUtils.get_regex_from_pattern("a*b?c**d")
     self.assertTrue(result.match("a123b4c/deep/path/d"))
 
-  def test_is_valid_name_valid_names(self):
+  def test_is_valid_name_valid_names(self) -> None:
     """Test valid environment/command names."""
     # Single letter
     self.assertTrue(CommonUtils.is_valid_name("a"))
@@ -177,24 +180,24 @@ class TestCommonUtils(TestCase):
     self.assertTrue(CommonUtils.is_valid_name("test_env-name"))
 
     # Maximum length (64 characters)
-    max_name = "a" + "b" * 63
+    max_name: str = "a" + "b" * 63
     self.assertTrue(CommonUtils.is_valid_name(max_name))
 
-  def test_is_valid_name_invalid_names(self):
+  def test_is_valid_name_invalid_names(self) -> None:
     """Test invalid environment/command names."""
     # Empty string
     self.assertFalse(CommonUtils.is_valid_name(""))
 
     # None
-    self.assertFalse(CommonUtils.is_valid_name(None))
+    self.assertFalse(CommonUtils.is_valid_name(None))  # type: ignore[arg-type]
 
     # Non-string type
-    self.assertFalse(CommonUtils.is_valid_name(123))
-    self.assertFalse(CommonUtils.is_valid_name([]))
-    self.assertFalse(CommonUtils.is_valid_name({}))
+    self.assertFalse(CommonUtils.is_valid_name(123))  # type: ignore[arg-type]
+    self.assertFalse(CommonUtils.is_valid_name([]))  # type: ignore[arg-type]
+    self.assertFalse(CommonUtils.is_valid_name({}))  # type: ignore[arg-type]
 
     # Too long (> 64 characters)
-    long_name = "a" * 65
+    long_name: str = "a" * 65
     self.assertFalse(CommonUtils.is_valid_name(long_name))
 
     # Doesn't start with letter
@@ -213,7 +216,7 @@ class TestCommonUtils(TestCase):
     self.assertFalse(CommonUtils.is_valid_name("test/env"))
     self.assertFalse(CommonUtils.is_valid_name("test\\env"))
 
-  def test_is_valid_name_edge_cases(self):
+  def test_is_valid_name_edge_cases(self) -> None:
     """Test edge cases for name validation."""
     # Single character edge cases
     self.assertTrue(CommonUtils.is_valid_name("A"))
@@ -240,9 +243,9 @@ class TestCommonUtils(TestCase):
     ("null", None),
   ],
 )
-def test_parse_json_parametrized(json_str, expected):
+def test_parse_json_parametrized(json_str: str, expected: Any) -> None:
   """Parametrized test for valid JSON parsing."""
-  result = CommonUtils.parse_json("TEST_VAR", json_str)
+  result: Any = CommonUtils.parse_json("TEST_VAR", json_str)
   assert result == expected
 
 
@@ -256,7 +259,7 @@ def test_parse_json_parametrized(json_str, expected):
     "not json at all",  # Invalid syntax
   ],
 )
-def test_parse_json_invalid_parametrized(invalid_json):
+def test_parse_json_invalid_parametrized(invalid_json: str) -> None:
   """Parametrized test for invalid JSON parsing."""
   with pytest.raises(UtilsError, match="Invalid TEST_VAR JSON"):
     CommonUtils.parse_json("TEST_VAR", invalid_json)
@@ -275,9 +278,9 @@ def test_parse_json_invalid_parametrized(invalid_json):
     ("test?", "test12", False),
   ],
 )
-def test_regex_pattern_matching(pattern, test_string, should_match):
+def test_regex_pattern_matching(pattern: str, test_string: str, should_match: bool) -> None:
   """Parametrized test for regex pattern matching."""
-  regex = CommonUtils.get_regex_from_pattern(pattern)
+  regex: re.Pattern[str] = CommonUtils.get_regex_from_pattern(pattern)
   if should_match:
     assert regex.match(test_string) is not None
   else:
@@ -302,7 +305,7 @@ def test_regex_pattern_matching(pattern, test_string, should_match):
     ("a" * 65, False),  # Over max length
   ],
 )
-def test_is_valid_name_parametrized(name, is_valid):
+def test_is_valid_name_parametrized(name: str, is_valid: bool) -> None:
   """Parametrized test for name validation."""
   assert CommonUtils.is_valid_name(name) == is_valid
 
