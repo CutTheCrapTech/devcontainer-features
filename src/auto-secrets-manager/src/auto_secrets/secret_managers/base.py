@@ -14,16 +14,6 @@ from typing import Any, Optional
 from ..core.common_utils import CommonUtils
 from ..core.crypto_utils import CryptoUtils
 from ..managers.log_manager import AutoSecretsLogger
-from .infisical import InfisicalSecretManager
-
-SECRET_MANAGERS = {
-  "infisical": InfisicalSecretManager,
-  # Future secret managers can be added here:
-  # "vault": VaultSecretManager,
-  # "aws": AWSSecretsManagerSecretManager,
-  # "azure": AzureKeyVaultSecretManager,
-  # "gcp": GCPSecretManagerSecretManager,
-}
 
 
 class SecretManagerError(Exception):
@@ -86,21 +76,13 @@ class SecretManagerBaseConfigError(Exception):
 
 @dataclass
 class SecretManagerBaseConfig:
-  """Configuration for selecting the active secret manager."""
+  """Configuration for getting all paths to fetch secrets from."""
 
-  secret_manager: str = field(default_factory=str)
   all_paths: list = field(default_factory=list)
 
-  def __post_init__(self):
+  def __post_init__(self) -> None:
     """Initialize from environment variables after dataclass creation."""
-    secret_manager = os.getenv("AUTO_SECRETS_SECRET_MANAGER")
-    if not secret_manager:
-      raise SecretManagerBaseConfigError(f"secret_manager cannot be empty {secret_manager}")
-    if secret_manager not in SECRET_MANAGERS:
-      raise SecretManagerBaseConfigError(f"secret_manager {secret_manager} must be one of: {SECRET_MANAGERS.keys()}")
-    self.secret_manager = secret_manager
-
-    all_paths = os.getenv("AUTO_SECRETS_ALL_SM_PATHS")
+    all_paths = os.getenv("AUTO_SECRETS_ALL_SM_PATHS", "[]")
     all_paths_list = CommonUtils.parse_json("AUTO_SECRETS_ALL_PATHS", all_paths)
     if not all_paths_list or not isinstance(all_paths_list, list):
       self.all_paths = ["/"]
@@ -115,13 +97,6 @@ class SecretManagerBase(ABC):
   All secret managers must inherit from this class and implement the required methods.
   """
 
-  @classmethod
-  def create(cls, log_manager: AutoSecretsLogger, crypto_utils: CryptoUtils) -> "SecretManagerBase":
-    """Factory method to create appropriate secret manager."""
-    config = SecretManagerBaseConfig()
-    manager_class = SECRET_MANAGERS[config.secret_manager]
-    return manager_class(log_manager, crypto_utils)
-
   def __init__(self, log_manager: AutoSecretsLogger, crypto_utils: CryptoUtils) -> None:
     """
     Initialize the secret manager.
@@ -134,15 +109,6 @@ class SecretManagerBase(ABC):
     self.crypto_utils = crypto_utils
     config = SecretManagerBaseConfig()
     self.all_paths = config.all_paths
-
-  def get_available_managers(self) -> list[str]:
-    """
-    Get list of available secret manager types.
-
-    Returns:
-        List[str]: List of available secret manager type strings
-    """
-    return list(SECRET_MANAGERS.keys())
 
   def _get_secret_json(self) -> dict[str, str]:
     """

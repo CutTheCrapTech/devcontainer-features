@@ -10,7 +10,7 @@ class CommonConfig:
   ssh_agent_key_comment: str = ""
   cache_base_dir: str = ""
 
-  def __post_init__(self):
+  def __post_init__(self) -> None:
     """Initialize from environment variables after dataclass creation."""
     # Read from environment
     self.ssh_agent_key_comment = os.getenv("AUTO_SECRETS_SSH_AGENT_KEY_COMMENT", "")

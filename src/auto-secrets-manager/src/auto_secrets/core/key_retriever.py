@@ -73,7 +73,7 @@ class KeyRetriever:
     session_key = bytes(signature)
 
     fd_name = b"session-master-key"
-    fd = memfd_create(fd_name, MFD_CLOEXEC)
+    fd: int = memfd_create(fd_name, MFD_CLOEXEC)
     if fd == -1:
       # Get the C-level errno value immediately after the syscall failed.
       error_code = ctypes.get_errno()
@@ -93,7 +93,7 @@ class KeyRetriever:
     Prompts the user for biometric authentication
     """
     try:
-      if self.ssh_agent_key_comment:
+      if self.ssh_agent_key_comment is not None and self.ssh_agent_key_comment != "":
         agent = paramiko.Agent()
         agent.get_keys()
     except Exception as e:

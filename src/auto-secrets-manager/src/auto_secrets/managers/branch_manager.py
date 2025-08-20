@@ -38,7 +38,7 @@ class BranchConfig:
   mappings: dict[str, str] = field(default_factory=dict)
   pattern_cache: dict[str, re.Pattern] = field(default_factory=dict)
 
-  def __post_init__(self):
+  def __post_init__(self) -> None:
     """Validate branch mappings after initialization."""
     self.mappings = CommonUtils.parse_json(
       "AUTO_SECRETS_BRANCH_MAPPINGS", os.getenv("AUTO_SECRETS_BRANCH_MAPPINGS", "{}")
@@ -60,7 +60,7 @@ class BranchConfig:
       if not key.strip() or not value.strip():
         raise BranchConfigError(f"Branch mapping keys and values cannot be empty: '{key}' -> '{value}'")
 
-      self.pattern_cache[key] = CommonUtils.convert_pattern_to_regex(key)
+      self.pattern_cache[key] = CommonUtils.get_regex_from_pattern(key)
 
       if not CommonUtils.is_valid_name(value):
         raise BranchConfigError(f"Invalid environment name: '{value}'")
@@ -141,7 +141,6 @@ class BranchManager:
     if isinstance(self.branch_mappings, dict):
       default_env = self.branch_mappings.get("default")
       return default_env if isinstance(default_env, str) else None
-    return None
 
   def _branch_matches_pattern(self, branch_name: str, pattern: str) -> bool:
     """

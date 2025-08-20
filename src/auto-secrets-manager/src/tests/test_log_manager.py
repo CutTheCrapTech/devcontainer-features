@@ -12,7 +12,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, Optional
 from unittest.mock import MagicMock, Mock, patch
 
 from auto_secrets.managers.log_manager import (
@@ -530,7 +530,7 @@ class TestAutoSecretsLoggerIntegration(unittest.TestCase):
       rotating_handler = None
       for handler in logger.base_logger.handlers:
         if isinstance(handler, logging.handlers.RotatingFileHandler):
-          rotating_handler = cast(logging.handlers.RotatingFileHandler, handler)
+          rotating_handler = handler
           break
 
       self.assertIsNotNone(rotating_handler)

@@ -13,7 +13,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from auto_secrets.secret_managers.base import (
-  SECRET_MANAGERS,
   AuthenticationError,
   ConfigurationError,
   ConnectionTestResult,
@@ -166,10 +165,9 @@ class TestSecretManagerBaseConfig:
     """Test SecretManagerBaseConfig initialization with valid values."""
     with patch.dict(
       os.environ,
-      {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_ALL_SM_PATHS": '["path1", "path2", "path3"]'},
+      {"AUTO_SECRETS_ALL_SM_PATHS": '["path1", "path2", "path3"]'},
     ):
       config = SecretManagerBaseConfig()
-      assert config.secret_manager == "infisical"
       assert config.all_paths == ["path1", "path2", "path3"]
 
   def test_config_missing_secret_manager(self) -> None:
@@ -241,27 +239,11 @@ class TestSecretManagerBase:
     ):
       return MockSecretManager(mock_logger, mock_crypto_utils)
 
-  def test_create_factory_method(self, mock_logger: Mock, mock_crypto_utils: Mock) -> None:
-    """Test SecretManagerBase.create factory method."""
-    with (
-      patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_ALL_SM_PATHS": "[]"}),
-      patch("auto_secrets_manager.secret_managers.base.SECRET_MANAGERS", {"infisical": MockSecretManager}),
-    ):
-      manager = SecretManagerBase.create(mock_logger, mock_crypto_utils)
-      assert isinstance(manager, MockSecretManager)
-
   def test_initialization(self, mock_secret_manager: MockSecretManager) -> None:
     """Test SecretManagerBase initialization."""
     assert mock_secret_manager.logger is not None
     assert mock_secret_manager.crypto_utils is not None
     assert mock_secret_manager.all_paths == ["/app", "/db"]
-
-  def test_get_available_managers(self, mock_secret_manager: MockSecretManager) -> None:
-    """Test get_available_managers method."""
-    managers = mock_secret_manager.get_available_managers()
-    assert isinstance(managers, list)
-    assert "infisical" in managers
-    assert all(isinstance(manager, str) for manager in managers)
 
   def test_validate_environment_valid(self, mock_secret_manager: MockSecretManager) -> None:
     """Test validate_environment with valid names."""
@@ -472,20 +454,6 @@ class TestSecretManagerExceptions:
 class TestSecretManagersRegistry:
   """Test cases for SECRET_MANAGERS registry."""
 
-  def test_secret_managers_registry_structure(self) -> None:
-    """Test that SECRET_MANAGERS registry has expected structure."""
-    assert isinstance(SECRET_MANAGERS, dict)
-    assert "infisical" in SECRET_MANAGERS
-    assert all(isinstance(key, str) for key in SECRET_MANAGERS)
-
-  def test_secret_managers_registry_classes(self) -> None:
-    """Test that registry contains valid classes."""
-    for manager_name, manager_class in SECRET_MANAGERS.items():
-      assert isinstance(manager_name, str)
-      assert isinstance(manager_class, type)
-      # Each class should be a subclass of SecretManagerBase (when imported)
-      # Note: We can't test this directly due to import structure
-
 
 class TestTypeAnnotations:
   """Test type annotations and mypy compatibility."""
@@ -536,11 +504,6 @@ class TestTypeAnnotations:
       os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical", "AUTO_SECRETS_ALL_SM_PATHS": '["path1", "path2"]'}
     ):
       manager = MockSecretManager(mock_logger, mock_crypto_utils)
-
-      # Test return types
-      managers: list[str] = manager.get_available_managers()
-      assert isinstance(managers, list)
-      assert all(isinstance(m, str) for m in managers)
 
       is_valid: bool = manager.validate_environment("test")
       assert isinstance(is_valid, bool)

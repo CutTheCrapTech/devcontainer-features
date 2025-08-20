@@ -10,12 +10,12 @@ class SingletonMeta(type):
   _instances: dict[type, Any] = {}
   _lock = threading.Lock()
 
-  def __call__(cls, *args, **kwargs):
+  def __call__(cls, *args: Any, **kwargs: Any) -> Any:
     # The __call__ method is invoked when you "call" the class, e.g., Logger().
     # We use a lock to ensure that only one thread can create the instance.
-    with cls._lock:
-      if cls not in cls._instances:
+    with SingletonMeta._lock:
+      if cls not in SingletonMeta._instances:
         # If no instance exists, create one by calling the parent's __call__.
         instance = super().__call__(*args, **kwargs)
-        cls._instances[cls] = instance
-    return cls._instances[cls]
+        SingletonMeta._instances[cls] = instance
+    return SingletonMeta._instances[cls]

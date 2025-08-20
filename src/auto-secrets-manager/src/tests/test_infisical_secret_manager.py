@@ -6,6 +6,7 @@ including initialization, configuration, authentication, secret fetching, and er
 """
 
 import os
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -946,8 +947,7 @@ class TestInfisicalSecretManagerIntegration:
       assert manager._authenticated is False
       assert manager._client is None
 
-      # Next call to _get_client should reinitialize and authenticate
-      with (
+      with (  # type: ignore[unreachable]
         patch.object(manager, "_authenticate") as mock_auth,
         patch("auto_secrets.secret_managers.infisical_secret_manager.InfisicalSDKClient") as mock_sdk_client,
       ):
@@ -1028,17 +1028,14 @@ class TestInfisicalSecretManagerErrorHandling:
     mock_config.project_id = "test-project-123"
     mock_config.client_id = "test-client-456"
     mock_config_class.return_value = mock_config
-
     with patch.object(InfisicalSecretManager, "get_secret_value", return_value="test-secret"):
       manager = InfisicalSecretManager(self.mock_logger, self.mock_crypto_utils)
-
       with patch.object(manager, "validate_environment", return_value=True):
         manager.all_paths = ["/app", "/config"]
         mock_client = Mock()
         mock_secrets = Mock()
 
-        # First path succeeds, second path fails
-        def list_secrets_side_effect(*args, **kwargs):
+        def list_secrets_side_effect(*args: Any, **kwargs: Any) -> Mock:
           secret_path = kwargs.get("secret_path")
           if secret_path == "/app":
             mock_secret = Mock()
@@ -1050,10 +1047,11 @@ class TestInfisicalSecretManagerErrorHandling:
             return mock_response
           elif secret_path == "/config":
             raise Exception("unauthorized access")
+          # Handle case where secret_path doesn't match expected values
+          return Mock()
 
         mock_secrets.list_secrets.side_effect = list_secrets_side_effect
         mock_client.secrets = mock_secrets
-
         # Should raise error for the unauthorized path
         with (
           patch.object(manager, "_get_client", return_value=mock_client),

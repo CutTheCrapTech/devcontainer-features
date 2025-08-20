@@ -21,7 +21,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Test configuration
-RUN_UNIT_TESTS=false
+RUN_UNIT_TESTS=true
 RUN_INTEGRATION_TESTS=false
 RUN_SHELL_TESTS=true
 RUN_LINT_CHECKS=true
@@ -521,18 +521,34 @@ validate_installation() {
   export AUTO_SECRETS_LOG_LEVEL="INFO"
   export AUTO_SECRETS_CACHE_CONFIG='{"refresh_interval":"15m","cleanup_interval":"7d"}'
   export AUTO_SECRETS_FEATURE_DIR="/usr/local/share/auto-secrets"
+  export AUTO_SECRETS_ALL_SM_PATHS='["/"]'
 
-  if python3 -c "from auto_secrets.core.config import ConfigManager; ConfigManager.load_config(); print('✓ Configuration loading successful')" 2>/dev/null; then
-    print_info "✓ Configuration loading successful"
-  else
-    print_error "✗ Configuration loading failed"
-    ((errors++))
-  fi
-
-  # Test core modules
-  local modules=("config" "utils" "branch_manager" "cache_manager")
+  # Test import core modules
+  local modules=("common_utils" "crypto_utils" "key_retriever" "process_utils" "singleton")
   for module in "${modules[@]}"; do
     if python3 -c "from auto_secrets.core import $module; print('✓ Module $module import successful')" 2>/dev/null; then
+      print_info "✓ Module $module import successful"
+    else
+      print_error "✗ Module $module import failed"
+      ((errors++))
+    fi
+  done
+
+  # Test import managers modules
+  local modules=("app_manager" "branch_manager" "cache_manager" "common_config" "log_manager")
+  for module in "${modules[@]}"; do
+    if python3 -c "from auto_secrets.managers import $module; print('✓ Module $module import successful')" 2>/dev/null; then
+      print_info "✓ Module $module import successful"
+    else
+      print_error "✗ Module $module import failed"
+      ((errors++))
+    fi
+  done
+
+  # Test import SM modules
+  local modules=("base" "factory" "infisical")
+  for module in "${modules[@]}"; do
+    if python3 -c "from auto_secrets.secret_managers import $module; print('✓ Module $module import successful')" 2>/dev/null; then
       print_info "✓ Module $module import successful"
     else
       print_error "✗ Module $module import failed"

@@ -1177,7 +1177,7 @@ class TestEdgeCases:
       assert supervisor_instance.running is False
 
       # Reset running state and test SIGINT
-      supervisor_instance.running = True
+      supervisor_instance.running = True  # type: ignore[unreachable]
       signal_handler(signal.SIGINT, None)
       assert supervisor_instance.running is False
 

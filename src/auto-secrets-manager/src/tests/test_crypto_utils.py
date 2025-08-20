@@ -191,20 +191,22 @@ class TestCryptoUtils:
     plaintext = "Hello, World! This is a test message."
 
     # Encrypt
-    ciphertext = crypto_utils._encrypt(plaintext)
+    assert crypto_utils.encryption_key is not None
+    ciphertext = crypto_utils._encrypt(crypto_utils.encryption_key, plaintext)
     assert isinstance(ciphertext, bytes)
     assert ciphertext != plaintext.encode("utf-8")
 
     # Decrypt
-    decrypted = crypto_utils._decrypt(ciphertext)
+    decrypted = crypto_utils._decrypt(crypto_utils.encryption_key, ciphertext)
     assert decrypted == plaintext
 
   def test_encrypt_unicode(self, crypto_utils: CryptoUtils) -> None:
     """Test encryption with unicode characters."""
     plaintext = "Hello, 世界! 🌍 Émojis and ünïcödé"
 
-    ciphertext = crypto_utils._encrypt(plaintext)
-    decrypted = crypto_utils._decrypt(ciphertext)
+    assert crypto_utils.encryption_key is not None
+    ciphertext = crypto_utils._encrypt(crypto_utils.encryption_key, plaintext)
+    decrypted = crypto_utils._decrypt(crypto_utils.encryption_key, ciphertext)
 
     assert decrypted == plaintext
 
@@ -212,20 +214,23 @@ class TestCryptoUtils:
     """Test decryption with invalid token."""
     invalid_ciphertext = b"invalid_ciphertext_data"
 
+    assert crypto_utils.encryption_key is not None
     with pytest.raises(CryptoError, match="Decryption failed. The key is invalid"):
-      crypto_utils._decrypt(invalid_ciphertext)
+      crypto_utils._decrypt(crypto_utils.encryption_key, invalid_ciphertext)
 
   def test_decrypt_tampered_data(self, crypto_utils: CryptoUtils) -> None:
     """Test decryption with tampered data."""
     plaintext = "Original message"
-    ciphertext = crypto_utils._encrypt(plaintext)
+
+    assert crypto_utils.encryption_key is not None
+    ciphertext = crypto_utils._encrypt(crypto_utils.encryption_key, plaintext)
 
     # Tamper with the ciphertext
     tampered = bytearray(ciphertext)
     tampered[-1] ^= 1  # Flip last bit
 
     with pytest.raises(CryptoError, match="Decryption failed. The key is invalid"):
-      crypto_utils._decrypt(bytes(tampered))
+      crypto_utils._decrypt(crypto_utils.encryption_key, bytes(tampered))
 
   def test_write_dict_to_file_atomically_encrypted(self, crypto_utils: CryptoUtils, temp_dir: Path) -> None:
     """Test writing dictionary to file with encryption."""

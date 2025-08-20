@@ -38,7 +38,7 @@ class InifisicalConfig:
   project_id: str = field(default_factory=str)
   client_id: str = field(default_factory=str)
 
-  def __post_init__(self):
+  def __post_init__(self) -> None:
     """Initialize from environment variables after dataclass creation."""
     config = os.getenv("AUTO_SECRETS_SECRET_MANAGER_CONFIG", "{}")
     config_dict = CommonUtils.parse_json("AUTO_SECRETS_SECRET_MANAGER_CONFIG", config)
@@ -304,6 +304,4 @@ class InfisicalSecretManager(SecretManagerBase):
   def clear_authentication_cache(self) -> None:
     """Clear cached authentication."""
     self._authenticated = False
-    if self._client:
-      # Reinitialize client to clear any cached auth
-      self._client = None
+    self._client = None

@@ -383,7 +383,7 @@ class TestMetaclassInternals(TestSingletonMeta):
       _instances: dict[type, Any] = {}
       _lock = mock_lock_class()
 
-      def __call__(cls, *args, **kwargs):
+      def __call__(cls, *args: Any, **kwargs: Any) -> Any:
         with cls._lock:
           if cls not in cls._instances:
             instance = super().__call__(*args, **kwargs)
@@ -457,7 +457,7 @@ def test_singleton_with_various_arguments(init_args: tuple, init_kwargs: dict) -
   SingletonMeta._instances.clear()
 
   class ArgumentSingleton(metaclass=SingletonMeta):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
       self.args = args
       self.kwargs = kwargs
 

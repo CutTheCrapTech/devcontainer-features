@@ -42,7 +42,7 @@ class CacheConfig:
   auto_commands: dict[str, list[str]] = field(default_factory=dict)
   pattern_cache: dict[str, re.Pattern] = field(default_factory=dict)
 
-  def __post_init__(self):
+  def __post_init__(self) -> None:
     """Initialize from environment variables after dataclass creation."""
     cache_config = os.getenv("AUTO_SECRETS_CACHE_CONFIG", "{}")
     cache_config_dict = CommonUtils.parse_json("AUTO_SECRETS_CACHE_CONFIG", cache_config)
@@ -61,7 +61,7 @@ class CacheConfig:
     if not isinstance(self.auto_commands, dict):
       raise CacheConfigError(f"auto_commands must be a dict, got {type(self.auto_commands)}")
 
-    for key, value in auto_commands.items():
+    for key, value in auto_commands_dict.items():
       if not isinstance(key, str):
         raise CacheConfigError(f"auto_commands keys must be strings, got {type(key)} for key {key}")
       CommonUtils.is_valid_name(key)
@@ -70,7 +70,7 @@ class CacheConfig:
       for item in value:
         if not isinstance(item, str):
           raise CacheConfigError(f"auto_commands list items must be strings, got {type(item)} in key {key}")
-        self.pattern_cache[key] = CommonUtils.convert_pattern_to_regex(key)
+        self.pattern_cache[key] = CommonUtils.get_regex_from_pattern(key)
     self.auto_commands = auto_commands_dict
 
   def parse_duration(self, duration_str: str) -> int:

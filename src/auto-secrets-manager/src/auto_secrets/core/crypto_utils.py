@@ -48,10 +48,14 @@ class CryptoUtils:
     # This should be read from a shared configuration.
     self._KEY_MASTER_SOCKET_PATH = os.environ.get("AUTO_SECRETS_KEYMASTER_SOCKET", "/tmp/auto-secrets-keymaster.sock")
     self.logger = log_manager.get_logger(name="crypto_utils", component="crypto_utils")
-    self.smk = smk if smk else self._get_key_from_keymaster()
-    self.encryption_key = self.derive_session_encryption_key()
     common_config = CommonConfig()
     self.ssh_agent_key_comment = common_config.ssh_agent_key_comment
+    self.smk = (
+      smk
+      if (smk is not None or self.ssh_agent_key_comment is None or self.ssh_agent_key_comment == "")
+      else self._get_key_from_keymaster()
+    )
+    self.encryption_key = self.derive_session_encryption_key() if smk else None
 
   def derive_session_encryption_key(self) -> bytes:
     """Derives the single, deterministic Session Encryption Key from the SMK."""
@@ -93,7 +97,7 @@ class CryptoUtils:
     self.logger.info("Successfully retrieved key from KeyMaster.")
     return key
 
-  def _encrypt(self, plaintext: str) -> bytes:
+  def _encrypt(self, encryption_key: bytes, plaintext: str) -> bytes:
     """
     Encrypts a plaintext string using the session encryption key.
 
@@ -107,14 +111,14 @@ class CryptoUtils:
       CryptoError: If encryption fails.
     """
     try:
-      f = Fernet(self.encryption_key)
+      f = Fernet(encryption_key)
       encrypted_data = f.encrypt(plaintext.encode("utf-8"))
       return encrypted_data
     except Exception as e:
       self.logger.error(f"Encryption failed: {e}")
       raise CryptoError(f"Encryption failed: {e}") from e
 
-  def _decrypt(self, ciphertext: bytes) -> str:
+  def _decrypt(self, encryption_key: bytes, ciphertext: bytes) -> str:
     """
     Decrypts a ciphertext byte string using the session encryption key.
 
@@ -128,7 +132,7 @@ class CryptoUtils:
       CryptoError: If decryption fails due to an invalid key or tampered ciphertext.
     """
     try:
-      f = Fernet(self.encryption_key)
+      f = Fernet(encryption_key)
       decrypted_data = f.decrypt(ciphertext)
       return decrypted_data.decode("utf-8")
     except InvalidToken:
@@ -160,12 +164,15 @@ class CryptoUtils:
     """
     temp_path = None
     try:
-      to_encrypt = encrypt and self.ssh_agent_key_comment is not None
       # Determine the filename based on the prefix and whether encryption is needed
-      filename = f"{file_prefix}.enc.json" if to_encrypt else f"{file_prefix}.json"
+      filename = f"{file_prefix}.enc.json" if (encrypt and self.encryption_key is not None) else f"{file_prefix}.json"
       content_json = json.dumps(content, indent=2)
-      content_enc: Union[str, bytes] = self._encrypt(content_json) if to_encrypt else content_json
-      mode = "wb" if to_encrypt else "w"
+      content_enc: Union[str, bytes] = (
+        self._encrypt(self.encryption_key, content_json)
+        if (encrypt and self.encryption_key is not None)
+        else content_json
+      )
+      mode = "wb" if (encrypt and self.encryption_key is not None) else "w"
       # Ensure directory exists
       target_path.mkdir(parents=True, exist_ok=True, mode=0o700)
       # Create temporary file in same directory
@@ -214,11 +221,10 @@ class CryptoUtils:
         CryptoError: If decryption or file reading fails.
     """
     try:
-      to_decrypt = decrypt and self.ssh_agent_key_comment is not None
       # Determine the filename based on the prefix and whether encryption is needed
-      filename = f"{file_prefix}.enc.json" if to_decrypt else f"{file_prefix}.json"
+      filename = f"{file_prefix}.enc.json" if (decrypt and self.encryption_key is not None) else f"{file_prefix}.json"
       file_path = target_path / filename
-      mode = "rb" if to_decrypt else "r"
+      mode = "rb" if (decrypt and self.encryption_key is not None) else "r"
 
       if not file_path.exists():
         raise CryptoError(f"File {file_path} does not exist.")
@@ -226,10 +232,12 @@ class CryptoUtils:
       with open(file_path, mode) as f:
         content = f.read()
         # Decrypt if necessary
-        if to_decrypt:
-          content = self._decrypt(content)
+        if decrypt and self.encryption_key is not None:
+          content = self._decrypt(self.encryption_key, content)
         # Parse JSON
-        return json.loads(content)
+        result = json.loads(content)
+        assert isinstance(result, dict)
+        return result
     except FileNotFoundError:
       self.logger.error(f"File not found: {file_path}")
       raise CryptoError(f"File not found: {file_path}") from None

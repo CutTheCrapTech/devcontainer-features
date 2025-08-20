@@ -157,11 +157,11 @@ class TestAppManagerProperties:
     if hasattr(SingletonMeta, "_instances"):
       SingletonMeta._instances.clear()
 
-  @patch("auto_secrets.managers.app_manager.SecretManagerBase")
+  @patch("auto_secrets.managers.app_manager.SecretManagerFactory")
   @patch("auto_secrets.managers.app_manager.CryptoUtils")
   @patch("auto_secrets.managers.app_manager.AutoSecretsLogger")
   def test_secret_manager_property_lazy_loading(
-    self, mock_logger_class: Mock, mock_crypto_class: Mock, mock_secret_manager_class: Mock
+    self, mock_logger_class: Mock, mock_crypto_class: Mock, mock_secret_manager_factory: Mock
   ) -> None:
     """Test lazy loading of secret_manager property."""
     mock_logger = Mock(spec=AutoSecretsLogger)
@@ -169,7 +169,7 @@ class TestAppManagerProperties:
     mock_crypto = Mock(spec=CryptoUtils)
     mock_crypto_class.return_value = mock_crypto
     mock_secret_manager = Mock(spec=SecretManagerBase)
-    mock_secret_manager_class.create.return_value = mock_secret_manager
+    mock_secret_manager_factory.create.return_value = mock_secret_manager
 
     app_manager = AppManager()
 
@@ -180,13 +180,13 @@ class TestAppManagerProperties:
     result = app_manager.secret_manager
     assert result is mock_secret_manager
     assert app_manager._secret_manager is mock_secret_manager
-    mock_secret_manager_class.create.assert_called_once_with(mock_logger, mock_crypto)
+    mock_secret_manager_factory.create.assert_called_once_with(mock_logger, mock_crypto)  # type: ignore[unreachable]
 
     # Second access - should return cached instance
     result2 = app_manager.secret_manager
     assert result2 is mock_secret_manager
     # create should not be called again
-    assert mock_secret_manager_class.create.call_count == 1
+    assert mock_secret_manager_factory.create.call_count == 1
 
   @patch("auto_secrets.managers.app_manager.BranchManager")
   @patch("auto_secrets.managers.app_manager.CryptoUtils")
@@ -211,7 +211,7 @@ class TestAppManagerProperties:
     result = app_manager.branch_manager
     assert result is mock_branch_manager
     assert app_manager._branch_manager is mock_branch_manager
-    mock_branch_manager_class.assert_called_once_with(mock_logger)
+    mock_branch_manager_class.assert_called_once_with(mock_logger)  # type: ignore[unreachable]
 
     # Second access - should return cached instance
     result2 = app_manager.branch_manager
@@ -242,7 +242,7 @@ class TestAppManagerProperties:
     result = app_manager.cache_manager
     assert result is mock_cache_manager
     assert app_manager._cache_manager is mock_cache_manager
-    mock_cache_manager_class.assert_called_once_with(mock_logger, mock_crypto)
+    mock_cache_manager_class.assert_called_once_with(mock_logger, mock_crypto)  # type: ignore[unreachable]
 
     # Second access - should return cached instance
     result2 = app_manager.cache_manager
@@ -273,7 +273,7 @@ class TestAppManagerProperties:
     result = app_manager.key_retriever
     assert result is mock_key_retriever
     assert app_manager._key_retriever is mock_key_retriever
-    mock_key_retriever_class.assert_called_once_with(mock_logger)
+    mock_key_retriever_class.assert_called_once_with(mock_logger)  # type: ignore[unreachable]
 
     # Second access - should return cached instance
     result2 = app_manager.key_retriever
@@ -405,14 +405,14 @@ class TestAppManagerIntegration:
   @patch("auto_secrets.managers.app_manager.KeyRetriever")
   @patch("auto_secrets.managers.app_manager.CacheManager")
   @patch("auto_secrets.managers.app_manager.BranchManager")
-  @patch("auto_secrets.managers.app_manager.SecretManagerBase")
+  @patch("auto_secrets.managers.app_manager.SecretManagerFactory")
   @patch("auto_secrets.managers.app_manager.CryptoUtils")
   @patch("auto_secrets.managers.app_manager.AutoSecretsLogger")
   def test_all_properties_access_sequence(
     self,
     mock_logger_class: Mock,
     mock_crypto_class: Mock,
-    mock_secret_manager_class: Mock,
+    mock_secret_manager_factory: Mock,
     mock_branch_manager_class: Mock,
     mock_cache_manager_class: Mock,
     mock_key_retriever_class: Mock,
@@ -424,7 +424,7 @@ class TestAppManagerIntegration:
     mock_crypto = Mock(spec=CryptoUtils)
     mock_crypto_class.return_value = mock_crypto
     mock_secret_manager = Mock(spec=SecretManagerBase)
-    mock_secret_manager_class.create.return_value = mock_secret_manager
+    mock_secret_manager_factory.create.return_value = mock_secret_manager
     mock_branch_manager = Mock(spec=BranchManager)
     mock_branch_manager_class.return_value = mock_branch_manager
     mock_cache_manager = Mock(spec=CacheManager)
@@ -447,7 +447,7 @@ class TestAppManagerIntegration:
     assert key_ret is mock_key_retriever
 
     # Verify initialization calls
-    mock_secret_manager_class.create.assert_called_once_with(mock_logger, mock_crypto)
+    mock_secret_manager_factory.create.assert_called_once_with(mock_logger, mock_crypto)
     mock_branch_manager_class.assert_called_once_with(mock_logger)
     mock_cache_manager_class.assert_called_once_with(mock_logger, mock_crypto)
     mock_key_retriever_class.assert_called_once_with(mock_logger)

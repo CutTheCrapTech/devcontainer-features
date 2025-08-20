@@ -4,6 +4,7 @@ from ..core.crypto_utils import CryptoUtils
 from ..core.key_retriever import KeyRetriever
 from ..core.singleton import SingletonMeta
 from ..secret_managers.base import SecretManagerBase
+from ..secret_managers.factory import SecretManagerFactory
 from .branch_manager import BranchManager
 from .cache_manager import CacheManager
 from .log_manager import AutoSecretsLogger, ComponentLoggerAdapter
@@ -40,7 +41,7 @@ class AppManager(metaclass=SingletonMeta):
   def secret_manager(self) -> SecretManagerBase:
     """Get fully configured SecretManager instance."""
     if self._secret_manager is None:
-      self._secret_manager = SecretManagerBase.create(self._log_manager, self.crypto_utils)
+      self._secret_manager = SecretManagerFactory.create(self._log_manager, self.crypto_utils)
     return self._secret_manager
 
   @property

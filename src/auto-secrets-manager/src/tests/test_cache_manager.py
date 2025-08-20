@@ -614,7 +614,9 @@ class TestIntegration:
       raise FileNotFoundError(f"File not found: {file_path}")
 
     with open(file_path) as f:
-      return json.load(f)
+      result = json.load(f)
+      assert isinstance(result, dict)
+      return result
 
   def _mock_write_dict(self, directory: Path, filename: str, data: dict[str, Any], encrypt: bool = False) -> None:
     """Mock implementation of write_dict_to_file_atomically."""

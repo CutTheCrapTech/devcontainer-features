@@ -9,9 +9,10 @@ import logging
 import logging.handlers
 import os
 import sys
+from collections.abc import MutableMapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -22,7 +23,7 @@ class AutoSecretsLoggerConfig:
   log_level: str
   log_file: str
 
-  def __post_init__(self):
+  def __post_init__(self) -> None:
     """Initialize from environment variables after dataclass creation."""
     # Read from environment
     self.log_dir = os.getenv("AUTO_SECRETS_LOG_DIR", self.log_dir)
@@ -36,7 +37,7 @@ class ComponentLoggerAdapter(logging.LoggerAdapter):
   This allows us to identify which part of the system generated each log message.
   """
 
-  def __init__(self, logger: logging.Logger, component: str):
+  def __init__(self, logger: logging.Logger, component: str) -> None:
     """
     Initialize the adapter with a component name.
 
@@ -47,7 +48,7 @@ class ComponentLoggerAdapter(logging.LoggerAdapter):
     super().__init__(logger, {"component": component})
     self.component = component
 
-  def process(self, msg, kwargs):
+  def process(self, msg: Any, kwargs: MutableMapping[str, Any]) -> tuple[Any, MutableMapping[str, Any]]:
     """Process the log record to include component information."""
     # Ensure component is in extra data for the formatter
     if "extra" not in kwargs:
