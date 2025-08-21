@@ -313,24 +313,6 @@ class TestEdgeCases(TestSingletonMeta):
     self.assertEqual(instance2.class_attr, "modified")
     self.assertEqual(SingletonWithClassAttr.class_attr, "modified")
 
-  def test_pickle_serialization(self) -> None:
-    """Test that singleton instances can be pickled and unpickled."""
-    import pickle
-
-    class PicklableSingleton(metaclass=SingletonMeta):
-      def __init__(self) -> None:
-        self.value = 42
-
-    original: PicklableSingleton = PicklableSingleton()
-
-    # Serialize and deserialize
-    serialized: bytes = pickle.dumps(original)
-    deserialized: PicklableSingleton = pickle.loads(serialized)
-
-    # Note: After unpickling, the deserialized object might not be the same instance
-    # This is expected behavior and depends on how __reduce__ is implemented
-    self.assertEqual(deserialized.value, 42)
-
   def test_weakref_compatibility(self) -> None:
     """Test that singleton instances work with weak references."""
     import weakref

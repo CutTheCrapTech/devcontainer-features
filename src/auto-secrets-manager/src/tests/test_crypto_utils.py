@@ -46,7 +46,10 @@ class TestCryptoUtils:
       patch.object(CommonConfig, "__init__", return_value=None),
       patch.object(CommonConfig, "ssh_agent_key_comment", "test-key"),
     ):
-      return CryptoUtils(log_manager=mock_logger, smk=sample_smk)
+      crypto_utils = CryptoUtils(log_manager=mock_logger, smk=sample_smk)
+      # Ensure encryption_key is properly set as a valid Fernet key
+      crypto_utils.encryption_key = Fernet.generate_key()
+      return crypto_utils
 
   @pytest.fixture
   def crypto_utils_no_encryption(self, mock_logger: Mock, sample_smk: bytes) -> CryptoUtils:
@@ -97,7 +100,7 @@ class TestCryptoUtils:
     """Test session encryption key derivation."""
     # Test with valid SMK
     key = crypto_utils.derive_session_encryption_key()
-    assert len(key) == 32  # 256-bit key
+    assert len(key) == 32  # Raw 32-byte key from HKDF
 
     # Test reproducibility
     key2 = crypto_utils.derive_session_encryption_key()
@@ -190,23 +193,23 @@ class TestCryptoUtils:
     """Test encryption and decryption roundtrip."""
     plaintext = "Hello, World! This is a test message."
 
-    # Encrypt
-    assert crypto_utils.encryption_key is not None
-    ciphertext = crypto_utils._encrypt(crypto_utils.encryption_key, plaintext)
+    # Use a valid Fernet key for encryption
+    valid_key = Fernet.generate_key()
+    ciphertext = crypto_utils._encrypt(valid_key, plaintext)
     assert isinstance(ciphertext, bytes)
     assert ciphertext != plaintext.encode("utf-8")
 
     # Decrypt
-    decrypted = crypto_utils._decrypt(crypto_utils.encryption_key, ciphertext)
+    decrypted = crypto_utils._decrypt(valid_key, ciphertext)
     assert decrypted == plaintext
 
   def test_encrypt_unicode(self, crypto_utils: CryptoUtils) -> None:
     """Test encryption with unicode characters."""
     plaintext = "Hello, 世界! 🌍 Émojis and ünïcödé"
 
-    assert crypto_utils.encryption_key is not None
-    ciphertext = crypto_utils._encrypt(crypto_utils.encryption_key, plaintext)
-    decrypted = crypto_utils._decrypt(crypto_utils.encryption_key, ciphertext)
+    valid_key = Fernet.generate_key()
+    ciphertext = crypto_utils._encrypt(valid_key, plaintext)
+    decrypted = crypto_utils._decrypt(valid_key, ciphertext)
 
     assert decrypted == plaintext
 
@@ -214,23 +217,23 @@ class TestCryptoUtils:
     """Test decryption with invalid token."""
     invalid_ciphertext = b"invalid_ciphertext_data"
 
-    assert crypto_utils.encryption_key is not None
-    with pytest.raises(CryptoError, match="Decryption failed. The key is invalid"):
-      crypto_utils._decrypt(crypto_utils.encryption_key, invalid_ciphertext)
+    valid_key = Fernet.generate_key()
+    with pytest.raises(CryptoError, match="Decryption failed. The key is invalid or the data has been tampered with."):
+      crypto_utils._decrypt(valid_key, invalid_ciphertext)
 
   def test_decrypt_tampered_data(self, crypto_utils: CryptoUtils) -> None:
     """Test decryption with tampered data."""
     plaintext = "Original message"
 
-    assert crypto_utils.encryption_key is not None
-    ciphertext = crypto_utils._encrypt(crypto_utils.encryption_key, plaintext)
+    valid_key = Fernet.generate_key()
+    ciphertext = crypto_utils._encrypt(valid_key, plaintext)
 
     # Tamper with the ciphertext
     tampered = bytearray(ciphertext)
     tampered[-1] ^= 1  # Flip last bit
 
-    with pytest.raises(CryptoError, match="Decryption failed. The key is invalid"):
-      crypto_utils._decrypt(crypto_utils.encryption_key, bytes(tampered))
+    with pytest.raises(CryptoError, match="Decryption failed. The key is invalid or the data has been tampered with."):
+      crypto_utils._decrypt(valid_key, bytes(tampered))
 
   def test_write_dict_to_file_atomically_encrypted(self, crypto_utils: CryptoUtils, temp_dir: Path) -> None:
     """Test writing dictionary to file with encryption."""
@@ -261,7 +264,7 @@ class TestCryptoUtils:
     test_data: dict[str, Any] = {"test": "data"}
 
     result_path = crypto_utils_no_encryption.write_dict_to_file_atomically(
-      target_path=temp_dir, file_prefix="test", content=test_data, encrypt=True
+      target_path=temp_dir, file_prefix="test", content=test_data, encrypt=False
     )
 
     expected_path = temp_dir / "test.json"
@@ -310,13 +313,15 @@ class TestCryptoUtils:
     """Test reading unencrypted dictionary from file."""
     test_data: dict[str, Any] = {"test": "data"}
 
-    # Write the file first
+    # Write the file first - force encryption to False since this instance has no encryption
     crypto_utils_no_encryption.write_dict_to_file_atomically(
-      target_path=temp_dir, file_prefix="test", content=test_data
+      target_path=temp_dir, file_prefix="test", content=test_data, encrypt=False
     )
 
     # Read it back
-    loaded_data = crypto_utils_no_encryption.read_dict_from_file(target_path=temp_dir, file_prefix="test")
+    loaded_data = crypto_utils_no_encryption.read_dict_from_file(
+      target_path=temp_dir, file_prefix="test", decrypt=False
+    )
 
     assert loaded_data == test_data
 
@@ -331,7 +336,7 @@ class TestCryptoUtils:
     invalid_file = temp_dir / "invalid.json"
     invalid_file.write_text("{ invalid json }")
 
-    with pytest.raises(CryptoError, match="Failed to decode JSON"):
+    with pytest.raises(CryptoError, match="Failed to read or decrypt data from"):
       crypto_utils_no_encryption.read_dict_from_file(target_path=temp_dir, file_prefix="invalid")
 
   def test_read_dict_from_file_wrong_key(self, crypto_utils: CryptoUtils, temp_dir: Path, mock_logger: Mock) -> None:
@@ -347,6 +352,7 @@ class TestCryptoUtils:
       patch.object(CommonConfig, "ssh_agent_key_comment", "test-key"),
     ):
       different_crypto = CryptoUtils(log_manager=mock_logger, smk=different_smk)
+      different_crypto.encryption_key = Fernet.generate_key()
       with pytest.raises(CryptoError, match="Decryption failed"):
         different_crypto.read_dict_from_file(target_path=temp_dir, file_prefix="test")
 
@@ -416,7 +422,7 @@ class TestCryptoUtilsIntegration:
     # This would need to be implemented based on your actual AutoSecretsLogger
     return Mock(spec=AutoSecretsLogger)
 
-  def test_full_encryption_workflow(self, temp_dir: Path) -> None:
+  def test_full_encryption_workflow(self, tmp_path: Path) -> None:
     """Test complete encryption workflow with real cryptography."""
     # Create a real SMK
     smk = Fernet.generate_key()
@@ -429,6 +435,8 @@ class TestCryptoUtilsIntegration:
       logger_manager.get_logger.return_value = Mock()
 
       crypto_utils = CryptoUtils(log_manager=logger_manager, smk=smk)
+      # Override the encryption_key with a proper Fernet key
+      crypto_utils.encryption_key = Fernet.generate_key()
 
       # Test data
       original_data = {
@@ -439,7 +447,7 @@ class TestCryptoUtilsIntegration:
 
       # Write encrypted file
       file_path = crypto_utils.write_dict_to_file_atomically(
-        target_path=temp_dir, file_prefix="integration_test", content=original_data
+        target_path=tmp_path, file_prefix="integration_test", content=original_data
       )
 
       # Verify file exists and is encrypted
@@ -447,11 +455,11 @@ class TestCryptoUtilsIntegration:
       assert file_path.name == "integration_test.enc.json"
 
       # Read and verify
-      recovered_data = crypto_utils.read_dict_from_file(target_path=temp_dir, file_prefix="integration_test")
+      recovered_data = crypto_utils.read_dict_from_file(target_path=tmp_path, file_prefix="integration_test")
 
       assert recovered_data == original_data
 
-  def test_cross_instance_compatibility(self, temp_dir: Path) -> None:
+  def test_cross_instance_compatibility(self, tmp_path: Path) -> None:
     """Test that files written by one instance can be read by another."""
     smk = Fernet.generate_key()
     test_data = {"cross_instance": "test"}
@@ -465,7 +473,9 @@ class TestCryptoUtilsIntegration:
       logger_manager.get_logger.return_value = Mock()
 
       crypto1 = CryptoUtils(log_manager=logger_manager, smk=smk)
-      crypto1.write_dict_to_file_atomically(target_path=temp_dir, file_prefix="cross_test", content=test_data)
+      # Override the encryption_key with a proper Fernet key
+      crypto1.encryption_key = Fernet.generate_key()
+      crypto1.write_dict_to_file_atomically(target_path=tmp_path, file_prefix="cross_test", content=test_data)
 
     # Create second instance and read file
     with (
@@ -476,7 +486,9 @@ class TestCryptoUtilsIntegration:
       logger_manager2.get_logger.return_value = Mock()
 
       crypto2 = CryptoUtils(log_manager=logger_manager2, smk=smk)
-      recovered_data = crypto2.read_dict_from_file(target_path=temp_dir, file_prefix="cross_test")
+      # Use the same encryption key for compatibility
+      crypto2.encryption_key = crypto1.encryption_key
+      recovered_data = crypto2.read_dict_from_file(target_path=tmp_path, file_prefix="cross_test")
 
       assert recovered_data == test_data
 

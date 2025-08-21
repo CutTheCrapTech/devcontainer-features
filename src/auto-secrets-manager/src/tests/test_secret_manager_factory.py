@@ -124,21 +124,20 @@ class TestSecretManagerFactory:
     """Test SecretManagerFactory.create() with Infisical secret manager."""
     with (
       patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical"}),
-      patch.object(InfisicalSecretManager, "__new__", return_value=mock_secret_manager_instance) as mock_constructor,
+      patch.dict(
+        "auto_secrets.secret_managers.factory.SECRET_MANAGERS",
+        {"infisical": Mock(return_value=mock_secret_manager_instance)},
+      ),
     ):
-      mock_constructor.return_value.__init__ = Mock(return_value=None)
-
       result = SecretManagerFactory.create(mock_log_manager, mock_crypto_utils)
-
       assert result == mock_secret_manager_instance
-      mock_constructor.assert_called_once()
 
   def test_factory_create_classmethod_signature(self) -> None:
     """Test that create method is properly defined as a classmethod."""
     assert hasattr(SecretManagerFactory.create, "__self__")
     assert SecretManagerFactory.create.__self__ is SecretManagerFactory
 
-  @patch("factory.FactoryConfig")
+  @patch("auto_secrets.secret_managers.factory.FactoryConfig")
   def test_factory_create_uses_factory_config(
     self, mock_factory_config_class: Mock, mock_log_manager: Mock, mock_crypto_utils: Mock
   ) -> None:
@@ -147,28 +146,29 @@ class TestSecretManagerFactory:
     mock_config_instance.secret_manager = "infisical"
     mock_factory_config_class.return_value = mock_config_instance
 
-    with patch.object(InfisicalSecretManager, "__new__") as mock_constructor:
-      mock_instance = Mock(spec=SecretManagerBase)
-      mock_constructor.return_value = mock_instance
-      mock_constructor.return_value.__init__ = Mock(return_value=None)
+    mock_instance = Mock(spec=SecretManagerBase)
+    mock_manager_class = Mock(return_value=mock_instance)
 
+    with patch.dict("auto_secrets.secret_managers.factory.SECRET_MANAGERS", {"infisical": mock_manager_class}):
       result = SecretManagerFactory.create(mock_log_manager, mock_crypto_utils)
 
       mock_factory_config_class.assert_called_once()
+      mock_manager_class.assert_called_once_with(mock_log_manager, mock_crypto_utils)
       assert result == mock_instance
 
   def test_factory_create_passes_correct_parameters(self, mock_log_manager: Mock, mock_crypto_utils: Mock) -> None:
     """Test that create method passes correct parameters to secret manager constructor."""
+    # Create a real instance and patch its __init__
     with (
       patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "infisical"}),
       patch.object(InfisicalSecretManager, "__init__", return_value=None) as mock_init,
     ):
-      mock_instance = Mock(spec=InfisicalSecretManager)
-      with patch.object(InfisicalSecretManager, "__new__", return_value=mock_instance):
-        result = SecretManagerFactory.create(mock_log_manager, mock_crypto_utils)
+      result = SecretManagerFactory.create(mock_log_manager, mock_crypto_utils)
 
-        mock_init.assert_called_once_with(mock_log_manager, mock_crypto_utils)
-        assert result == mock_instance
+      # Verify __init__ was called with correct parameters
+      mock_init.assert_called_once_with(mock_log_manager, mock_crypto_utils)
+      # Verify we got an InfisicalSecretManager instance
+      assert isinstance(result, InfisicalSecretManager)
 
   def test_factory_create_with_factory_config_error(self, mock_log_manager: Mock, mock_crypto_utils: Mock) -> None:
     """Test that FactoryConfigError is properly propagated from create method."""
@@ -337,26 +337,28 @@ class TestEdgeCases:
     with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "INFISICAL"}), pytest.raises(FactoryConfigError):
       FactoryConfig()
 
-  def test_factory_create_with_subclass_managers(self, mock_dependencies: dict[str, Mock]) -> None:
+  def test_factory_create_with_subclass_managers(self) -> None:
     """Test factory creation with subclassed secret managers."""
+    # Create mock dependencies directly in the test
+    mock_log_manager = Mock(spec=AutoSecretsLogger)
+    mock_crypto_utils = Mock(spec=CryptoUtils)
 
-    class CustomInfisicalManager(InfisicalSecretManager):
-      pass
+    # Create a simple mock class that acts like a secret manager
+    mock_custom_manager = Mock(spec=SecretManagerBase)
+    mock_custom_class = Mock(return_value=mock_custom_manager)
 
     # Temporarily add custom manager to registry
     original_managers = SECRET_MANAGERS.copy()
-    SECRET_MANAGERS["custom"] = CustomInfisicalManager
 
     try:
-      with (
-        patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "custom"}),
-        patch.object(CustomInfisicalManager, "__init__", return_value=None),
-      ):
-        mock_instance = Mock(spec=CustomInfisicalManager)
-        with patch.object(CustomInfisicalManager, "__new__", return_value=mock_instance):
-          result = SecretManagerFactory.create(mock_dependencies["log_manager"], mock_dependencies["crypto_utils"])
+      SECRET_MANAGERS["custom"] = mock_custom_class
 
-          assert result == mock_instance
+      with patch.dict(os.environ, {"AUTO_SECRETS_SECRET_MANAGER": "custom"}):
+        result = SecretManagerFactory.create(mock_log_manager, mock_crypto_utils)
+
+        # Verify the mock class was called with correct parameters
+        mock_custom_class.assert_called_once_with(mock_log_manager, mock_crypto_utils)
+        assert result == mock_custom_manager
     finally:
       # Restore original registry
       SECRET_MANAGERS.clear()

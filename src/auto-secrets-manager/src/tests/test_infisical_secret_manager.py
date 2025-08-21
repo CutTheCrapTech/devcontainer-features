@@ -20,14 +20,14 @@ from auto_secrets.secret_managers.base import (
   SecretNotFoundError,
 )
 from auto_secrets.secret_managers.infisical import (
+  InfisicalConfig,
+  InfisicalConfigError,
   InfisicalSecretManager,
-  InifisicalConfig,
-  InifisicalConfigError,
 )
 
 
-class TestInifisicalConfig:
-  """Test suite for InifisicalConfig dataclass."""
+class TestInfisicalConfig:
+  """Test suite for InfisicalConfig dataclass."""
 
   def setup_method(self) -> None:
     """Clean up environment variables before each test."""
@@ -39,9 +39,9 @@ class TestInifisicalConfig:
     if "AUTO_SECRETS_SECRET_MANAGER_CONFIG" in os.environ:
       del os.environ["AUTO_SECRETS_SECRET_MANAGER_CONFIG"]
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.CommonUtils.parse_json")
+  @patch("auto_secrets.secret_managers.infisical.CommonUtils.parse_json")
   def test_config_initialization_with_valid_env(self, mock_parse_json: Mock) -> None:
-    """Test InifisicalConfig initialization with valid environment config."""
+    """Test InfisicalConfig initialization with valid environment config."""
     config_dict = {
       "host": "https://infisical.example.com",
       "project_id": "test-project-123",
@@ -50,7 +50,7 @@ class TestInifisicalConfig:
     mock_parse_json.return_value = config_dict
     os.environ["AUTO_SECRETS_SECRET_MANAGER_CONFIG"] = '{"host": "https://infisical.example.com"}'
 
-    config = InifisicalConfig()
+    config = InfisicalConfig()
 
     assert config.host == "https://infisical.example.com"
     assert config.project_id == "test-project-123"
@@ -59,28 +59,28 @@ class TestInifisicalConfig:
       "AUTO_SECRETS_SECRET_MANAGER_CONFIG", '{"host": "https://infisical.example.com"}'
     )
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.CommonUtils.parse_json")
+  @patch("auto_secrets.secret_managers.infisical.CommonUtils.parse_json")
   def test_config_initialization_missing_host(self, mock_parse_json: Mock) -> None:
-    """Test InifisicalConfig initialization fails with missing host."""
+    """Test InfisicalConfig initialization fails with missing host."""
     config_dict = {"project_id": "test-project-123", "client_id": "test-client-456"}
     mock_parse_json.return_value = config_dict
     os.environ["AUTO_SECRETS_SECRET_MANAGER_CONFIG"] = "{}"
 
-    with pytest.raises(InifisicalConfigError, match="Missing 'host' or invalid value"):
-      InifisicalConfig()
+    with pytest.raises(InfisicalConfigError, match="Missing 'host' or invalid value"):
+      InfisicalConfig()
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.CommonUtils.parse_json")
+  @patch("auto_secrets.secret_managers.infisical.CommonUtils.parse_json")
   def test_config_initialization_empty_host(self, mock_parse_json: Mock) -> None:
-    """Test InifisicalConfig initialization fails with empty host."""
+    """Test InfisicalConfig initialization fails with empty host."""
     config_dict = {"host": "", "project_id": "test-project-123", "client_id": "test-client-456"}
     mock_parse_json.return_value = config_dict
 
-    with pytest.raises(InifisicalConfigError, match="Missing 'host' or invalid value"):
-      InifisicalConfig()
+    with pytest.raises(InfisicalConfigError, match="Missing 'host' or invalid value"):
+      InfisicalConfig()
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.CommonUtils.parse_json")
+  @patch("auto_secrets.secret_managers.infisical.CommonUtils.parse_json")
   def test_config_initialization_invalid_host_type(self, mock_parse_json: Mock) -> None:
-    """Test InifisicalConfig initialization fails with invalid host type."""
+    """Test InfisicalConfig initialization fails with invalid host type."""
     config_dict = {
       "host": 123,  # Invalid type
       "project_id": "test-project-123",
@@ -88,30 +88,30 @@ class TestInifisicalConfig:
     }
     mock_parse_json.return_value = config_dict
 
-    with pytest.raises(InifisicalConfigError, match="Missing 'host' or invalid value"):
-      InifisicalConfig()
+    with pytest.raises(InfisicalConfigError, match="Missing 'host' or invalid value"):
+      InfisicalConfig()
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.CommonUtils.parse_json")
+  @patch("auto_secrets.secret_managers.infisical.CommonUtils.parse_json")
   def test_config_initialization_missing_project_id(self, mock_parse_json: Mock) -> None:
-    """Test InifisicalConfig initialization fails with missing project_id."""
+    """Test InfisicalConfig initialization fails with missing project_id."""
     config_dict = {"host": "https://infisical.example.com", "client_id": "test-client-456"}
     mock_parse_json.return_value = config_dict
 
-    with pytest.raises(InifisicalConfigError, match="Missing 'project_id' or invalid value"):
-      InifisicalConfig()
+    with pytest.raises(InfisicalConfigError, match="Missing 'project_id' or invalid value"):
+      InfisicalConfig()
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.CommonUtils.parse_json")
+  @patch("auto_secrets.secret_managers.infisical.CommonUtils.parse_json")
   def test_config_initialization_missing_client_id(self, mock_parse_json: Mock) -> None:
-    """Test InifisicalConfig initialization fails with missing client_id."""
+    """Test InfisicalConfig initialization fails with missing client_id."""
     config_dict = {"host": "https://infisical.example.com", "project_id": "test-project-123"}
     mock_parse_json.return_value = config_dict
 
-    with pytest.raises(InifisicalConfigError, match="Missing 'client_id' or invalid value"):
-      InifisicalConfig()
+    with pytest.raises(InfisicalConfigError, match="Missing 'client_id' or invalid value"):
+      InfisicalConfig()
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.CommonUtils.parse_json")
+  @patch("auto_secrets.secret_managers.infisical.CommonUtils.parse_json")
   def test_config_initialization_default_env_var(self, mock_parse_json: Mock) -> None:
-    """Test InifisicalConfig uses default empty config when env var missing."""
+    """Test InfisicalConfig uses default empty config when env var missing."""
     config_dict = {
       "host": "https://infisical.example.com",
       "project_id": "test-project-123",
@@ -119,7 +119,7 @@ class TestInifisicalConfig:
     }
     mock_parse_json.return_value = config_dict
 
-    InifisicalConfig()
+    InfisicalConfig()
 
     mock_parse_json.assert_called_once_with("AUTO_SECRETS_SECRET_MANAGER_CONFIG", "{}")
 
@@ -127,7 +127,7 @@ class TestInifisicalConfig:
 class TestInfisicalSecretManagerInitialization:
   """Test suite for InfisicalSecretManager initialization."""
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_initialization_success(self, mock_config_class: Mock) -> None:
     """Test successful InfisicalSecretManager initialization."""
     # Setup mocks
@@ -156,20 +156,22 @@ class TestInfisicalSecretManagerInitialization:
       assert manager._authenticated is False
 
       # Verify logger setup
-      mock_logger.get_logger.assert_called_once_with(name="secret_managers", component="infisical")
+      assert mock_logger.get_logger.call_count == 2
+      mock_logger.get_logger.assert_any_call(name="secret_managers", component="base")
+      mock_logger.get_logger.assert_any_call(name="secret_managers", component="infisical")
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_initialization_with_config_error(self, mock_config_class: Mock) -> None:
     """Test InfisicalSecretManager initialization with config error."""
     mock_logger = Mock(spec=AutoSecretsLogger)
     mock_crypto_utils = Mock(spec=CryptoUtils)
 
-    mock_config_class.side_effect = InifisicalConfigError("Config error")
+    mock_config_class.side_effect = InfisicalConfigError("Config error")
 
-    with pytest.raises(InifisicalConfigError, match="Config error"):
+    with pytest.raises(InfisicalConfigError, match="Config error"):
       InfisicalSecretManager(mock_logger, mock_crypto_utils)
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_initialization_with_missing_client_secret(self, mock_config_class: Mock) -> None:
     """Test InfisicalSecretManager initialization with missing client secret."""
     mock_logger = Mock(spec=AutoSecretsLogger)
@@ -200,8 +202,8 @@ class TestInfisicalSecretManagerGetSecretJson:
     self.mock_logger.get_logger.return_value = self.mock_component_logger
     self.mock_crypto_utils = Mock(spec=CryptoUtils)
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.getpass.getpass")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.getpass.getpass")
   def test_get_secret_json_success(self, mock_getpass: Mock, mock_config_class: Mock) -> None:
     """Test successful secret input via getpass."""
     # Setup config mock
@@ -223,8 +225,8 @@ class TestInfisicalSecretManagerGetSecretJson:
       assert result == expected_result
       mock_getpass.assert_called_once_with("Enter your Infisical Client Secret: ")
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.getpass.getpass")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.getpass.getpass")
   def test_get_secret_json_empty_input(self, mock_getpass: Mock, mock_config_class: Mock) -> None:
     """Test _get_secret_json with empty input."""
     # Setup config mock
@@ -243,8 +245,8 @@ class TestInfisicalSecretManagerGetSecretJson:
       with pytest.raises(SecretManagerError, match="Infisical Client Secret cannot be empty"):
         manager._get_secret_json()
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.getpass.getpass")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.getpass.getpass")
   def test_get_secret_json_keyboard_interrupt(self, mock_getpass: Mock, mock_config_class: Mock) -> None:
     """Test _get_secret_json with keyboard interrupt (Ctrl+C)."""
     # Setup config mock
@@ -263,8 +265,8 @@ class TestInfisicalSecretManagerGetSecretJson:
       with pytest.raises(SecretManagerError, match="User cancelled secret input"):
         manager._get_secret_json()
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.getpass.getpass")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.getpass.getpass")
   def test_get_secret_json_eof_error(self, mock_getpass: Mock, mock_config_class: Mock) -> None:
     """Test _get_secret_json with EOF error (Ctrl+D)."""
     # Setup config mock
@@ -294,8 +296,8 @@ class TestInfisicalSecretManagerClient:
     self.mock_logger.get_logger.return_value = self.mock_component_logger
     self.mock_crypto_utils = Mock(spec=CryptoUtils)
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InfisicalSDKClient")
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_get_client_initialization(self, mock_config_class: Mock, mock_sdk_client: Mock) -> None:
     """Test client initialization in _get_client."""
     # Setup config mock
@@ -322,8 +324,8 @@ class TestInfisicalSecretManagerClient:
       mock_sdk_client.assert_called_once_with(host="https://infisical.example.com", cache_ttl=300)
       mock_auth.assert_called_once()
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InfisicalSDKClient")
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_get_client_initialization_error(self, mock_config_class: Mock, mock_sdk_client: Mock) -> None:
     """Test client initialization error in _get_client."""
     # Setup config mock
@@ -342,7 +344,7 @@ class TestInfisicalSecretManagerClient:
       with pytest.raises(SecretManagerError, match="Failed to initialize Infisical client"):
         manager._get_client()
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InfisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_get_client_cached(self, mock_config_class: Mock) -> None:
     """Test client caching in _get_client."""
     # Setup config mock
@@ -364,7 +366,7 @@ class TestInfisicalSecretManagerClient:
 
       assert result is mock_client
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_authenticate_success(self, mock_config_class: Mock) -> None:
     """Test successful authentication."""
     # Setup config mock
@@ -391,7 +393,7 @@ class TestInfisicalSecretManagerClient:
       mock_universal_auth.login.assert_called_once_with(client_id="test-client-456", client_secret="test-secret")
       self.mock_component_logger.debug.assert_called_with("Infisical authentication successful")
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_authenticate_no_client(self, mock_config_class: Mock) -> None:
     """Test authentication with no client initialized."""
     # Setup config mock
@@ -407,7 +409,7 @@ class TestInfisicalSecretManagerClient:
       with pytest.raises(SecretManagerError, match="Client not initialized"):
         manager._authenticate()
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_authenticate_failure(self, mock_config_class: Mock) -> None:
     """Test authentication failure."""
     # Setup config mock
@@ -443,7 +445,7 @@ class TestInfisicalSecretManagerFetchSecrets:
     self.mock_logger.get_logger.return_value = self.mock_component_logger
     self.mock_crypto_utils = Mock(spec=CryptoUtils)
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_fetch_secrets_success(self, mock_config_class: Mock) -> None:
     """Test successful secret fetching."""
     # Setup config mock
@@ -503,7 +505,7 @@ class TestInfisicalSecretManagerFetchSecrets:
             recursive=True,
           )
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_fetch_secrets_invalid_environment(self, mock_config_class: Mock) -> None:
     """Test fetch_secrets with invalid environment."""
     # Setup config mock
@@ -522,7 +524,7 @@ class TestInfisicalSecretManagerFetchSecrets:
       ):
         manager.fetch_secrets("invalid-env")
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_fetch_secrets_authentication_error(self, mock_config_class: Mock) -> None:
     """Test fetch_secrets with authentication error."""
     # Setup config mock
@@ -548,7 +550,7 @@ class TestInfisicalSecretManagerFetchSecrets:
         ):
           manager.fetch_secrets("production")
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_fetch_secrets_network_error(self, mock_config_class: Mock) -> None:
     """Test fetch_secrets with network error."""
     # Setup config mock
@@ -574,7 +576,7 @@ class TestInfisicalSecretManagerFetchSecrets:
         ):
           manager.fetch_secrets("production")
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_fetch_secrets_project_not_found(self, mock_config_class: Mock) -> None:
     """Test fetch_secrets with project not found error."""
     # Setup config mock
@@ -600,7 +602,7 @@ class TestInfisicalSecretManagerFetchSecrets:
         ):
           manager.fetch_secrets("production")
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_fetch_secrets_environment_not_found(self, mock_config_class: Mock) -> None:
     """Test fetch_secrets with environment not found error."""
     # Setup config mock
@@ -626,7 +628,7 @@ class TestInfisicalSecretManagerFetchSecrets:
         ):
           manager.fetch_secrets("production")
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_fetch_secrets_empty_results(self, mock_config_class: Mock) -> None:
     """Test fetch_secrets with no secrets found."""
     # Setup config mock
@@ -655,7 +657,7 @@ class TestInfisicalSecretManagerFetchSecrets:
             "No secrets found for paths ['/app'] in environment production"
           )
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_fetch_secrets_with_none_values(self, mock_config_class: Mock) -> None:
     """Test fetch_secrets filtering out secrets with None values."""
     # Setup config mock
@@ -707,7 +709,7 @@ class TestInfisicalSecretManagerTestConnection:
     self.mock_logger.get_logger.return_value = self.mock_component_logger
     self.mock_crypto_utils = Mock(spec=CryptoUtils)
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_connection_test_success(self, mock_config_class: Mock) -> None:
     """Test successful connection test."""
     # Setup config mock
@@ -739,7 +741,7 @@ class TestInfisicalSecretManagerTestConnection:
         assert result.details["host"] == "https://infisical.example.com"
         assert result.details["project_id"] == "test-project-123"
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_connection_test_authentication_failure(self, mock_config_class: Mock) -> None:
     """Test connection test with authentication failure."""
     # Setup config mock
@@ -763,7 +765,7 @@ class TestInfisicalSecretManagerTestConnection:
         assert result.details["authenticated"] is False
         assert result.details["project_access"] is False
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_connection_test_client_initialization_failure(self, mock_config_class: Mock) -> None:
     """Test connection test with client initialization failure."""
     # Setup config mock
@@ -787,7 +789,7 @@ class TestInfisicalSecretManagerTestConnection:
         assert result.details["authenticated"] is False
         assert result.details["project_access"] is False
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_connection_test_unexpected_exception(self, mock_config_class: Mock) -> None:
     """Test connection test with unexpected exception."""
     # Setup config mock
@@ -814,7 +816,7 @@ class TestInfisicalSecretManagerClearCache:
     self.mock_logger.get_logger.return_value = self.mock_component_logger
     self.mock_crypto_utils = Mock(spec=CryptoUtils)
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_clear_authentication_cache(self, mock_config_class: Mock) -> None:
     """Test clearing authentication cache."""
     # Setup config mock
@@ -838,7 +840,7 @@ class TestInfisicalSecretManagerClearCache:
       assert manager._authenticated is False
       assert manager._client is None
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_clear_authentication_cache_no_client(self, mock_config_class: Mock) -> None:
     """Test clearing authentication cache with no existing client."""
     # Setup config mock
@@ -873,8 +875,8 @@ class TestInfisicalSecretManagerIntegration:
     self.mock_logger.get_logger.return_value = self.mock_component_logger
     self.mock_crypto_utils = Mock(spec=CryptoUtils)
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InfisicalSDKClient")
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_full_workflow_success(self, mock_config_class: Mock, mock_sdk_client: Mock) -> None:
     """Test complete workflow from initialization to secret fetching."""
     # Setup config mock
@@ -922,7 +924,7 @@ class TestInfisicalSecretManagerIntegration:
         mock_sdk_client.assert_called_once_with(host="https://infisical.example.com", cache_ttl=300)
         mock_universal_auth.login.assert_called_with(client_id="test-client-456", client_secret="test-client-secret")
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_authentication_retry_after_cache_clear(self, mock_config_class: Mock) -> None:
     """Test that authentication is retried after clearing cache."""
     # Setup config mock
@@ -949,7 +951,7 @@ class TestInfisicalSecretManagerIntegration:
 
       with (  # type: ignore[unreachable]
         patch.object(manager, "_authenticate") as mock_auth,
-        patch("auto_secrets.secret_managers.infisical_secret_manager.InfisicalSDKClient") as mock_sdk_client,
+        patch("auto_secrets.secret_managers.infisical.InfisicalSDKClient") as mock_sdk_client,
       ):
         mock_new_client = Mock()
         mock_sdk_client.return_value = mock_new_client
@@ -970,7 +972,7 @@ class TestInfisicalSecretManagerTypeAnnotations:
     assert "log_manager" in init_annotations
     assert "crypto_utils" in init_annotations
     assert "return" in init_annotations
-    assert init_annotations["return"] is type(None)
+    assert init_annotations["return"] is None
 
     # Verify fetch_secrets annotations
     fetch_secrets_annotations = InfisicalSecretManager.fetch_secrets.__annotations__
@@ -984,11 +986,11 @@ class TestInfisicalSecretManagerTypeAnnotations:
     # Verify clear_authentication_cache annotations
     clear_cache_annotations = InfisicalSecretManager.clear_authentication_cache.__annotations__
     assert "return" in clear_cache_annotations
-    assert clear_cache_annotations["return"] is type(None)
+    assert clear_cache_annotations["return"] is None
 
   def test_infisical_config_annotations(self) -> None:
-    """Test InifisicalConfig dataclass annotations."""
-    annotations = InifisicalConfig.__annotations__
+    """Test InfisicalConfig dataclass annotations."""
+    annotations = InfisicalConfig.__annotations__
     assert "host" in annotations
     assert "project_id" in annotations
     assert "client_id" in annotations
@@ -1006,7 +1008,7 @@ class TestInfisicalSecretManagerTypeAnnotations:
     # _authenticate should return None
     authenticate_annotations = InfisicalSecretManager._authenticate.__annotations__
     assert "return" in authenticate_annotations
-    assert authenticate_annotations["return"] is type(None)
+    assert authenticate_annotations["return"] is None
 
 
 class TestInfisicalSecretManagerErrorHandling:
@@ -1019,7 +1021,7 @@ class TestInfisicalSecretManagerErrorHandling:
     self.mock_logger.get_logger.return_value = self.mock_component_logger
     self.mock_crypto_utils = Mock(spec=CryptoUtils)
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_multiple_path_errors_handling(self, mock_config_class: Mock) -> None:
     """Test error handling when multiple paths fail."""
     # Setup config mock
@@ -1059,7 +1061,7 @@ class TestInfisicalSecretManagerErrorHandling:
         ):
           manager.fetch_secrets("production")
 
-  @patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig")
+  @patch("auto_secrets.secret_managers.infisical.InfisicalConfig")
   def test_secret_path_normalization(self, mock_config_class: Mock) -> None:
     """Test that secret paths are properly normalized."""
     # Setup config mock
@@ -1093,7 +1095,7 @@ class TestInfisicalSecretManagerErrorHandling:
 # Fixtures for reuse across test classes
 @pytest.fixture
 def mock_infisical_config() -> Mock:
-  """Create a mock InifisicalConfig."""
+  """Create a mock InfisicalConfig."""
   config = Mock()
   config.host = "https://infisical.example.com"
   config.project_id = "test-project-123"
@@ -1118,7 +1120,7 @@ def infisical_manager_with_mocks(
   mock_logger, _ = mock_logger_setup
   mock_crypto_utils = Mock(spec=CryptoUtils)
 
-  with patch("auto_secrets.secret_managers.infisical_secret_manager.InifisicalConfig") as mock_config_class:
+  with patch("auto_secrets.secret_managers.infisical.InfisicalConfig") as mock_config_class:
     mock_config_class.return_value = mock_infisical_config
 
     with patch.object(InfisicalSecretManager, "get_secret_value", return_value="test-secret"):

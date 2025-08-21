@@ -53,14 +53,15 @@ class TestAppManagerSingleton:
 
       # First instance with specific parameters
       smk_bytes: bytes = b"test_key_123"
-      instance1 = AppManager(log_file="test.log", smk=smk_bytes)
+      instance1 = AppManager(log_file="test.log")
+      instance1.smk = smk_bytes  # Set SMK via property
 
-      # Second instance with different parameters (should be ignored)
-      instance2 = AppManager(log_file="different.log", smk=b"different_key")
+      # Second instance with different parameters (should be ignored due to singleton)
+      instance2 = AppManager(log_file="different.log")
 
       # Verify singleton behavior
       assert instance1 is instance2
-      assert instance1.smk == smk_bytes  # Original parameters preserved
+      assert instance1.smk == smk_bytes  # Original SMK preserved
 
 
 class TestAppManagerInitialization:
@@ -91,14 +92,18 @@ class TestAppManagerInitialization:
     mock_logger_class.assert_called_once_with(log_file=None)
     assert app_manager._log_manager is mock_logger
 
-    # Verify SMK is None
+    # Verify SMK is None initially
     assert app_manager.smk is None
 
-    # Verify CryptoUtils initialization
-    mock_crypto_class.assert_called_once_with(mock_logger, None)
-    assert app_manager.crypto_utils is mock_crypto
+    # Verify CryptoUtils is not initialized yet (lazy loading)
+    assert app_manager._crypto_utils is None
 
-    # Verify lazy-loaded attributes are None initially
+    # Access crypto_utils to trigger lazy loading
+    crypto_utils = app_manager.crypto_utils
+    mock_crypto_class.assert_called_once_with(mock_logger, None)
+    assert crypto_utils is mock_crypto
+
+    # Verify other lazy-loaded attributes are None initially
     assert app_manager._branch_manager is None
     assert app_manager._cache_manager is None
     assert app_manager._secret_manager is None
@@ -116,7 +121,8 @@ class TestAppManagerInitialization:
     log_file: str = "custom.log"
     smk_bytes: bytes = b"custom_master_key"
 
-    app_manager = AppManager(log_file=log_file, smk=smk_bytes)
+    app_manager = AppManager(log_file=log_file)
+    app_manager.smk = smk_bytes  # Set SMK via property
 
     # Verify logger initialization with custom log file
     mock_logger_class.assert_called_once_with(log_file=log_file)
@@ -125,9 +131,10 @@ class TestAppManagerInitialization:
     # Verify SMK is set
     assert app_manager.smk == smk_bytes
 
-    # Verify CryptoUtils initialization with SMK
+    # Access crypto_utils to trigger initialization with SMK
+    crypto_utils = app_manager.crypto_utils
     mock_crypto_class.assert_called_once_with(mock_logger, smk_bytes)
-    assert app_manager.crypto_utils is mock_crypto
+    assert crypto_utils is mock_crypto
 
   @patch("auto_secrets.managers.app_manager.CryptoUtils")
   @patch("auto_secrets.managers.app_manager.AutoSecretsLogger")
@@ -138,9 +145,13 @@ class TestAppManagerInitialization:
     mock_crypto = Mock(spec=CryptoUtils)
     mock_crypto_class.return_value = mock_crypto
 
-    app_manager = AppManager(smk=None)
+    app_manager = AppManager()
+    app_manager.smk = None  # Explicitly set to None
 
     assert app_manager.smk is None
+
+    # Access crypto_utils to trigger initialization
+    _crypto_utils = app_manager.crypto_utils
     mock_crypto_class.assert_called_once_with(mock_logger, None)
 
 
@@ -462,17 +473,19 @@ class TestAppManagerIntegration:
     mock_crypto_class.return_value = mock_crypto
 
     smk_bytes: bytes = b"test_smk"
-    app_manager = AppManager(smk=smk_bytes)
+    app_manager = AppManager()
+    app_manager.smk = smk_bytes  # Set SMK via property
 
     # Verify logger was created first
     mock_logger_class.assert_called_once_with(log_file=None)
 
-    # Verify CryptoUtils was created with logger and SMK
+    # Access crypto_utils to trigger initialization
+    crypto_utils = app_manager.crypto_utils
     mock_crypto_class.assert_called_once_with(mock_logger, smk_bytes)
 
     # Verify the instances are stored correctly
     assert app_manager._log_manager is mock_logger
-    assert app_manager.crypto_utils is mock_crypto
+    assert crypto_utils is mock_crypto
     assert app_manager.smk == smk_bytes
 
 
@@ -494,9 +507,9 @@ class TestAppManagerTypeAnnotations:
     # Verify __init__ annotations
     init_annotations = AppManager.__init__.__annotations__
     assert "log_file" in init_annotations
-    assert "smk" in init_annotations
+    # Note: smk is no longer in __init__ parameters
     assert "return" in init_annotations
-    assert init_annotations["return"] is type(None)
+    assert init_annotations["return"] is None
 
     # Verify get_logger annotations
     get_logger_annotations = AppManager.get_logger.__annotations__
@@ -512,12 +525,13 @@ class TestAppManagerTypeAnnotations:
     mock_crypto_class.return_value = Mock(spec=CryptoUtils)
 
     # Test with None values (should work with Optional typing)
-    app_manager = AppManager(log_file=None, smk=None)
+    app_manager = AppManager(log_file=None)
+    app_manager.smk = None  # Set via property
     assert app_manager.smk is None
 
     # Test with actual values
     smk_bytes: bytes = b"test_key"
-    AppManager(log_file="test.log", smk=smk_bytes)
+    app_manager.smk = smk_bytes
     # Note: Due to singleton pattern, this will still return the first instance
     # This test is primarily for type checking
 
@@ -570,12 +584,17 @@ class TestAppManagerEdgeCases:
   def test_empty_bytes_smk(self, mock_logger_class: Mock, mock_crypto_class: Mock) -> None:
     """Test initialization with empty bytes SMK."""
     mock_logger_class.return_value = Mock(spec=AutoSecretsLogger)
-    mock_crypto_class.return_value = Mock(spec=CryptoUtils)
+    mock_crypto = Mock(spec=CryptoUtils)
+    mock_crypto_class.return_value = mock_crypto
 
     empty_smk: bytes = b""
-    app_manager = AppManager(smk=empty_smk)
+    app_manager = AppManager()
+    app_manager.smk = empty_smk  # Set via property
 
     assert app_manager.smk == empty_smk
+
+    # Access crypto_utils to trigger initialization
+    _crypto_utils = app_manager.crypto_utils
     mock_crypto_class.assert_called_once_with(mock_logger_class.return_value, empty_smk)
 
   @patch("auto_secrets.managers.app_manager.CryptoUtils")

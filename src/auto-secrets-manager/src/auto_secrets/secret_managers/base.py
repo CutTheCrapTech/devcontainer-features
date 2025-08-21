@@ -86,6 +86,7 @@ class SecretManagerBaseConfig:
     all_paths_list = CommonUtils.parse_json("AUTO_SECRETS_ALL_PATHS", all_paths)
     if not all_paths_list or not isinstance(all_paths_list, list):
       self.all_paths = ["/"]
+      return
     # Check for valid paths
     self.all_paths = all_paths_list
 

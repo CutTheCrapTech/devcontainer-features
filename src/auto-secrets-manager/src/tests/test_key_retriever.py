@@ -232,21 +232,59 @@ class TestKeyRetriever:
       key_retriever.prompt_ssh_agent_biometric()
 
   def test_prompt_ssh_agent_biometric_no_comment(self, mock_logger: Mock) -> None:
-    """Test biometric prompt when ssh_agent_key_comment is None."""
+    """Test biometric prompt when ssh_agent_key_comment is None - should not call Agent."""
+    with (
+      patch.object(CommonConfig, "__init__", return_value=None),
+      patch.object(CommonConfig, "ssh_agent_key_comment", None),
+      patch("auto_secrets.core.key_retriever.paramiko.Agent") as mock_agent_class,  # Mock the import path
+    ):
+      retriever = KeyRetriever(log_manager=mock_logger)
+      # Should NOT call Agent when comment is None
+      retriever.prompt_ssh_agent_biometric()
+      mock_agent_class.assert_not_called()
+
+  def test_prompt_ssh_agent_biometric_none_comment_no_call(self, mock_logger: Mock) -> None:
+    """Test biometric prompt when ssh_agent_key_comment is None - should not call Agent."""
     with (
       patch.object(CommonConfig, "__init__", return_value=None),
       patch.object(CommonConfig, "ssh_agent_key_comment", None),
     ):
       retriever = KeyRetriever(log_manager=mock_logger)
-
       with patch("paramiko.Agent") as mock_agent_class:
-        mock_agent = Mock()
-        mock_agent_class.return_value = mock_agent
-
-        # Should still work even with None comment
+        # Should NOT call Agent when comment is None
         retriever.prompt_ssh_agent_biometric()
+        mock_agent_class.assert_not_called()
 
-        mock_agent_class.assert_called_once()
+  def test_prompt_ssh_agent_biometric_empty_comment(self, mock_logger: Mock) -> None:
+    """Test biometric prompt when ssh_agent_key_comment is empty."""
+    with (
+      patch.object(CommonConfig, "__init__", return_value=None),
+      patch.object(CommonConfig, "ssh_agent_key_comment", ""),
+      patch("auto_secrets.core.key_retriever.paramiko.Agent") as mock_agent_class,  # Mock the import path
+    ):
+      mock_agent = Mock()
+      mock_agent_class.return_value = mock_agent
+
+      retriever = KeyRetriever(log_manager=mock_logger)
+      # Should NOT call Agent when comment is empty string
+      retriever.prompt_ssh_agent_biometric()
+      mock_agent_class.assert_not_called()
+
+  def test_prompt_ssh_agent_biometric_with_comment(self, mock_logger: Mock) -> None:
+    """Test biometric prompt when ssh_agent_key_comment has a value."""
+    with (
+      patch.object(CommonConfig, "__init__", return_value=None),
+      patch.object(CommonConfig, "ssh_agent_key_comment", "test-key"),
+      patch("auto_secrets.core.key_retriever.paramiko.Agent") as mock_agent_class,  # Mock the import path
+    ):
+      mock_agent = Mock()
+      mock_agent_class.return_value = mock_agent
+
+      retriever = KeyRetriever(log_manager=mock_logger)
+      # Should call Agent when comment is set
+      retriever.prompt_ssh_agent_biometric()
+      mock_agent_class.assert_called_once()
+      mock_agent.get_keys.assert_called_once()
 
   def test_challenge_string_consistency(self, key_retriever: KeyRetriever) -> None:
     """Test that the challenge string is consistent and secure."""
@@ -437,14 +475,16 @@ class TestKeyRetrieverIntegration:
 
   def test_paramiko_agent_import(self) -> None:
     """Test that paramiko Agent can be imported and instantiated."""
-    try:
+    # Mock the Agent to avoid actual SSH agent connection
+    with patch("paramiko.Agent") as mock_agent_class:
+      mock_agent = Mock()
+      mock_agent_class.return_value = mock_agent
+
       agent = paramiko.Agent()
       # Just test that it can be created - actual functionality
       # depends on SSH agent being available
       assert agent is not None
-    except Exception:
-      # SSH agent might not be available in test environment
-      pytest.skip("SSH agent not available in test environment")
+      mock_agent_class.assert_called_once()
 
 
 if __name__ == "__main__":

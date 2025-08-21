@@ -14,7 +14,6 @@ class AppManager(metaclass=SingletonMeta):
   def __init__(
     self,
     log_file: Optional[str] = None,
-    smk: Optional[bytes] = None,
   ) -> None:
     """
     A singleton service locator for managing and providing access to core components.
@@ -25,17 +24,16 @@ class AppManager(metaclass=SingletonMeta):
 
     Args:
       log_file: Optional log file name for the session.
-      smk: The Session Master Key, if it has already been acquired.
     """
     self._log_manager = AutoSecretsLogger(log_file=log_file)
-    self.smk = smk
-    self.crypto_utils = CryptoUtils(self._log_manager, self.smk)
+    self._smk: Optional[bytes] = None
 
     # Lazy Load
     self._branch_manager: Optional[BranchManager] = None
     self._cache_manager: Optional[CacheManager] = None
     self._secret_manager: Optional[SecretManagerBase] = None
     self._key_retriever: Optional[KeyRetriever] = None
+    self._crypto_utils: Optional[CryptoUtils] = None
 
   @property
   def secret_manager(self) -> SecretManagerBase:
@@ -64,6 +62,24 @@ class AppManager(metaclass=SingletonMeta):
     if self._key_retriever is None:
       self._key_retriever = KeyRetriever(self._log_manager)
     return self._key_retriever
+
+  @property
+  def crypto_utils(self) -> CryptoUtils:
+    """Get fully configured KeyRetriever instance."""
+    if self._crypto_utils is None:
+      self._crypto_utils = CryptoUtils(self._log_manager, self._smk)
+    return self._crypto_utils
+
+  @property
+  def smk(self) -> Optional[bytes]:
+    """Get the secret master key."""
+    return self._smk
+
+  @smk.setter
+  def smk(self, smk: Optional[bytes]):
+    if self._smk != smk:
+      self._smk = smk
+      self._crypto_utils = None
 
   def get_logger(
     self,

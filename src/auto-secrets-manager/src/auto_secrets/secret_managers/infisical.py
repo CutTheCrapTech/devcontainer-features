@@ -24,14 +24,14 @@ from .base import (
 )
 
 
-class InifisicalConfigError(Exception):
-  """InifisicalConfig-related errors."""
+class InfisicalConfigError(Exception):
+  """InfisicalConfig-related errors."""
 
   pass
 
 
 @dataclass
-class InifisicalConfig:
+class InfisicalConfig:
   """Infisical configuration settings."""
 
   host: str = field(default_factory=str)
@@ -44,19 +44,19 @@ class InifisicalConfig:
     config_dict = CommonUtils.parse_json("AUTO_SECRETS_SECRET_MANAGER_CONFIG", config)
 
     if "host" not in config_dict or not config_dict.get("host") or not isinstance(config_dict.get("host"), str):
-      raise InifisicalConfigError(f"Missing 'host' or invalid value in AUTO_SECRETS_CACHE_CONFIG - {config_dict}")
+      raise InfisicalConfigError(f"Missing 'host' or invalid value in AUTO_SECRETS_CACHE_CONFIG - {config_dict}")
     if (
       "project_id" not in config_dict
       or not config_dict.get("project_id")
       or not isinstance(config_dict.get("project_id"), str)
     ):
-      raise InifisicalConfigError(f"Missing 'project_id' or invalid value in AUTO_SECRETS_CACHE_CONFIG - {config_dict}")
+      raise InfisicalConfigError(f"Missing 'project_id' or invalid value in AUTO_SECRETS_CACHE_CONFIG - {config_dict}")
     if (
       "client_id" not in config_dict
       or not config_dict.get("client_id")
       or not isinstance(config_dict.get("client_id"), str)
     ):
-      raise InifisicalConfigError(f"Missing 'client_id' or invalid value in AUTO_SECRETS_CACHE_CONFIG - {config_dict}")
+      raise InfisicalConfigError(f"Missing 'client_id' or invalid value in AUTO_SECRETS_CACHE_CONFIG - {config_dict}")
 
     self.host = config_dict.get("host")
     self.project_id = config_dict.get("project_id")
@@ -75,7 +75,7 @@ class InfisicalSecretManager(SecretManagerBase):
     self.logger = log_manager.get_logger(name="secret_managers", component="infisical")
     self.crypto_utils = crypto_utils
 
-    secret_manager_config = InifisicalConfig()
+    secret_manager_config = InfisicalConfig()
 
     self._client: Optional[InfisicalSDKClient] = None
     self._authenticated = False

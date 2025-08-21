@@ -194,13 +194,13 @@ class TestAutoSecretsLogger(unittest.TestCase):
   @patch("pathlib.Path.mkdir", side_effect=PermissionError("Access denied"))
   @patch("logging.StreamHandler")
   @patch("sys.stderr", new_callable=MagicMock)
-  def test_logger_file_permission_error_fallback(self, mock_stderr: Mock, mock_stream_handler: Mock) -> None:
+  def test_logger_file_permission_error_fallback(
+    self, mock_stderr: Mock, mock_stream_handler: Mock, mock_mkdir: Mock
+  ) -> None:
     """Test logger falls back to console when file permissions fail."""
     mock_handler_instance = Mock()
     mock_stream_handler.return_value = mock_handler_instance
-
     logger = AutoSecretsLogger()
-
     # Should fall back to console output
     self.assertTrue(logger.console_output)
     mock_stream_handler.assert_called_once_with(sys.stderr)
@@ -256,7 +256,6 @@ class TestAutoSecretsLogger(unittest.TestCase):
       patch("logging.getLogger") as mock_get_logger,
     ):
       logger = AutoSecretsLogger()
-
       # Test different name scenarios
       test_cases = [
         ("auto_secrets", "auto_secrets"),
@@ -266,6 +265,11 @@ class TestAutoSecretsLogger(unittest.TestCase):
       ]
 
       for input_name, expected_name in test_cases:
+        # Clear the logger cache to force new getLogger calls
+        logger.clear_cache()
+        # Reset the mock before each test case
+        mock_get_logger.reset_mock()
+
         logger.get_logger(input_name, "component")
         mock_get_logger.assert_called_with(expected_name)
 

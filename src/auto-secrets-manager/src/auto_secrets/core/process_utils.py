@@ -1,6 +1,5 @@
 """
-Process lifecycle management utilities, encapsulated in a class to
-adhere to project conventions.
+Process lifecycle management utilities.
 """
 
 import ctypes

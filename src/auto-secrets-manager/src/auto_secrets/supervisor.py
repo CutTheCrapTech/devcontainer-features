@@ -13,8 +13,6 @@ import os
 import signal
 import sys
 import time
-from pathlib import Path
-from types import FrameType
 from typing import Any, Optional
 
 # --- Project-specific imports ---
@@ -22,20 +20,19 @@ from .daemon import SecretsDaemon
 from .key_master import KeyMaster
 from .managers.app_manager import AppManager
 from .managers.common_config import CommonConfig
+from .monitored_process import MonitoredProcess
 
 
 class SupervisorError(Exception):
   pass
 
 
-class Supervisor:
+class Supervisor(MonitoredProcess):
   """The main supervisor process."""
 
   def __init__(self) -> None:
     try:
-      self.running = True
-      self.logger = app.get_logger("cli", "cli.background_refresh")
-      self.pid_file: Optional[Path] = None
+      super().__init__(process_name="supervisor", heartbeat_interval=60.0)
 
       common_config = CommonConfig()
       self.ssh_agent_key_comment = common_config.ssh_agent_key_comment
@@ -47,11 +44,8 @@ class Supervisor:
 
       self.child_pids: dict[str, int] = {}
       self.smk_fd: Optional[int] = None
+      self.key_retriever = self.app.key_retriever
 
-      self.key_retriever = app.key_retriever
-
-      self.state_dir = app.cache_manager.base_dir / "state"
-      self.state_dir.mkdir(parents=True, exist_ok=True)
     except Exception as e:
       if self.logger:
         self.logger.critical(f"Supervisor failed to initialize: {e}", exc_info=True)
@@ -59,31 +53,9 @@ class Supervisor:
         logging.critical(f"Supervisor failed to initialize: {e}", exc_info=True)
       sys.exit(1)
 
-  def _setup_pid_file(self) -> None:
-    """Create and lock a PID file in the correct state directory."""
-    self.pid_file = self.state_dir / "supervisor.pid"
-    if self.pid_file.exists():
-      try:
-        old_pid = int(self.pid_file.read_text().strip())
-        os.kill(old_pid, 0)
-        self.logger.error(f"Supervisor already running with PID {old_pid}.")
-        sys.exit(1)
-      except (OSError, ValueError):
-        self.logger.warning("Removing stale supervisor PID file.")
-        self.pid_file.unlink()
-
-    self.pid_file.write_text(str(os.getpid()))
-    self.logger.info(f"Supervisor PID file created: {self.pid_file}")
-
-  def _setup_signal_handlers(self) -> None:
-    """Set up signal handlers for graceful shutdown."""
-
-    def signal_handler(signum: int, frame: Optional[FrameType]) -> None:
-      self.logger.info(f"Received signal {signum}, initiating shutdown...")
-      self.running = False
-
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
+  def _acquire_smk(self) -> Optional[bytes]:
+    """Supervisor doesn't need SMK itself."""
+    return None
 
   def _get_session_master_key(self) -> None:
     """
@@ -100,6 +72,31 @@ class Supervisor:
     except Exception as e:
       self.logger.critical(f"Could not acquire Session Master Key: {e}", exc_info=True)
       sys.exit(1)
+
+  def _check_child_heartbeat(self, name: str, pid: int, max_age_minutes: int = 2) -> bool:
+    """Check if child process heartbeat is healthy."""
+    try:
+      heartbeat_file = self.state_dir / f"{name.lower()}.heartbeat"
+      if not heartbeat_file.exists():
+        self.logger.warning(f"No heartbeat file found for {name} - process may be unhealthy")
+        return False  # No heartbeat = not healthy
+
+      from datetime import datetime, timedelta
+
+      heartbeat_time = datetime.fromisoformat(heartbeat_file.read_text().strip())
+      age = datetime.now() - heartbeat_time
+
+      # Consider stale if older than max_age_minutes
+      if age > timedelta(minutes=max_age_minutes):
+        self.logger.warning(f"{name} heartbeat is stale: {age.total_seconds():.1f}s old (max: {max_age_minutes}m)")
+        return False
+
+      self.logger.debug(f"{name} heartbeat is healthy: {age.total_seconds():.1f}s old")
+      return True
+
+    except Exception as e:
+      self.logger.error(f"Error checking {name} heartbeat: {e}")
+      return False  # Assume unhealthy on error
 
   def _launch_child(self, name: str, target_class: Any) -> None:
     """Fork the process to launch a child running the target class."""
@@ -122,40 +119,47 @@ class Supervisor:
       self.logger.info(f"Launched {name} with PID: {pid}")
       self.child_pids[name] = pid
 
-  def run(self) -> None:
-    """Main supervisor loop: launch and monitor child processes."""
-    self._setup_pid_file()
-    self._setup_signal_handlers()
-    self.logger.info(f"Supervisor started with PID: {os.getpid()}")
+  def _initialize(self) -> None:
+    """Setup supervisor-specific resources."""
+    if self.ssh_agent_enabled:
+      self.logger.info("Acquiring session key for children...")
+      self._get_session_master_key()
+      if self.smk_fd is not None:
+        os.environ["AUTO_SECRETS_SMK_FD"] = str(self.smk_fd)
+        self._launch_child("KeyMaster", KeyMaster)
 
-    try:
-      # --- The logic now uses the derived ssh_agent_enabled flag ---
-      if self.ssh_agent_enabled:
-        self.logger.info("Acquiring session key...")
-        self._get_session_master_key()
+    self._launch_child("Daemon", SecretsDaemon)
 
-        if self.smk_fd is not None:
-          os.environ["AUTO_SECRETS_SMK_FD"] = str(self.smk_fd)
-          self._launch_child("KeyMaster", KeyMaster)
-        else:
-          self.logger.error("Failed to get a valid SMK_FD, KeyMaster will not be launched.")
+  def _run(self) -> None:
+    """Monitor child processes."""
+    for name, pid in list(self.child_pids.items()):
+      pid_dead, status = os.waitpid(pid, os.WNOHANG)
+      if pid_dead == pid:
+        self.logger.warning(f"{name} terminated, restarting...")
+        target = KeyMaster if name == "KeyMaster" else SecretsDaemon
+        self._launch_child(name, target)
+      else:
+        # Process is alive, check heartbeat
+        if not self._check_child_heartbeat(name, pid, max_age_minutes=3):
+          self.logger.warning(f"{name} heartbeat stale, killing and restarting...")
+          try:
+            os.kill(pid, signal.SIGTERM)
+          except ProcessLookupError:
+            self.logger.info(f"{name} already gone, restarting...")
+            pass
+          # Give it a few seconds to die
+          time.sleep(3)
 
-      # --- The Daemon is always launched ---
-      self.logger.info("Launching the background daemon...")
-      self._launch_child("Daemon", SecretsDaemon)
-
-      # Monitoring loop remains robust
-      while self.running:
-        for name, pid in list(self.child_pids.items()):
+          # Check if it actually died
           pid_dead, status = os.waitpid(pid, os.WNOHANG)
           if pid_dead == pid:
-            self.logger.warning(f"{name} (PID: {pid}) terminated with status {status}. Restarting...")
+            # Successfully killed, restart it
+            self.logger.info(f"{name} killed successfully, restarting...")
             target = KeyMaster if name == "KeyMaster" else SecretsDaemon
             self._launch_child(name, target)
-
-        time.sleep(5)
-    finally:
-      self._cleanup()
+          else:
+            # Still alive, log warning and continue
+            self.logger.warning(f"{name} didn't die after SIGTERM, will retry next iteration")
 
   def _cleanup(self) -> None:
     """Gracefully terminate child processes and clean up resources."""
@@ -183,13 +187,15 @@ class Supervisor:
 
     self.logger.info("Supervisor shutdown complete.")
 
+    super()._cleanup()
+
 
 def main() -> None:
   """Instantiate and run the Supervisor. This is the script entry point."""
   print("Starting Auto Secrets Supervisor daemon...")
   try:
     supervisor = Supervisor()
-    supervisor.run()
+    supervisor.start(sleep=5.0)
   except KeyboardInterrupt:
     # This catch is for a Ctrl+C during the initial setup phase.
     # The signal handlers inside the class handle it once the run loop starts.

@@ -9,44 +9,30 @@ The secure gatekeeper for the Session Master Key (SMK).
 
 import logging
 import os
-import signal
 import socket
 import sys
 from pathlib import Path
-from types import FrameType
 from typing import Any, Optional
 
 # --- Project-specific imports ---
-from .core.process_utils import ProcessUtils
 from .key_master_config import LEGITIMATE_CLI_PATHS
-from .managers.app_manager import AppManager
-from .managers.log_manager import AutoSecretsLogger
+from .monitored_process import MonitoredProcess
 
 
-class KeyMaster:
+class KeyMasterError(Exception):
+  pass
+
+
+class KeyMaster(MonitoredProcess):
   """Manages the SMK and serves authenticated clients."""
 
   def __init__(self) -> None:
     try:
-      self.running = True
+      super().__init__(process_name="key_master", heartbeat_interval=30.0)
       self.socket: Optional[socket.socket] = None
       self.socket_path: Path
-      self.smk: Optional[bytes] = None
-      self.logger = AutoSecretsLogger(log_file="daemon.log").get_logger("daemon", "daemon")
-      # --- THE SINGLE DERIVED KEY FOR THE ENTIRE SESSION ---
-      self.session_encryption_key: Optional[bytes] = None
-
-      ProcessUtils.set_parent_death_signal(self.logger)
-
-      self._acquire_smk()  # Initialize AppManager after getting smk
-      self.app = AppManager(log_file="key_master.log", smk=self.smk)
-      self.crypto_utils = self.app.crypto_utils
-      self.session_encryption_key = self.crypto_utils.derive_session_encryption_key()
-
-      self.logger = self.app.get_logger("key_master", "key_master")
 
       self._setup_socket()
-      self._setup_signal_handlers()
 
       self.logger.info("Key Master initialized successfully")
     except Exception as e:
@@ -56,23 +42,24 @@ class KeyMaster:
         logging.critical(f"Key Master failed to initialize: {e}", exc_info=True)
       sys.exit(1)
 
-  def _acquire_smk(self) -> None:
+  def _acquire_smk(self) -> Optional[bytes]:
     """Acquire the Session Master Key from the inherited file descriptor."""
     self.logger.info("Acquiring Session Master Key from file descriptor...")
     smk_fd_str = os.environ.get("AUTO_SECRETS_SMK_FD")
     if not smk_fd_str:
-      raise RuntimeError("AUTO_SECRETS_SMK_FD environment variable not set. Cannot start.")
+      return None
 
     try:
       smk_fd = int(smk_fd_str)
       with os.fdopen(smk_fd, "rb") as f:
-        self.smk = f.read()
-      if not self.smk:
-        raise ValueError("Failed to read key from file descriptor (empty).")
+        smk = f.read()
+      if not smk:
+        raise KeyMasterError("Failed to read key from file descriptor (empty).")
       self.logger.info("Successfully acquired Session Master Key.")
+      return smk
     except (ValueError, OSError) as e:
       self.logger.error(f"Failed to process SMK file descriptor {smk_fd_str}: {e}")
-      raise
+      sys.exit(1)
 
   def _setup_socket(self) -> None:
     """Create and bind the Unix domain socket."""
@@ -88,16 +75,6 @@ class KeyMaster:
     os.chmod(self.socket_path, 0o600)
     self.socket.listen(5)
     self.logger.info(f"Listening on Unix socket: {self.socket_path}")
-
-  def _setup_signal_handlers(self) -> None:
-    """Set up signal handlers for graceful shutdown."""
-
-    def signal_handler(signum: int, frame: Optional[FrameType]) -> None:
-      self.logger.info(f"Received signal {signum}, shutting down...")
-      self.running = False
-
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
 
   def _is_client_authentic(self, conn: socket.socket) -> bool:
     """Perform the multi-factor authentication of a connecting client."""
@@ -173,28 +150,26 @@ class KeyMaster:
     finally:
       conn.close()
 
-  def run(self) -> None:
-    """Main loop to accept and handle client connections."""
+  def _initialize(self) -> None:
+    """Pre Run"""
+    if self.socket:
+      # Set a timeout on the accept call so we can periodically
+      # check the self.running flag for graceful shutdown.
+      self.socket.settimeout(1.0)
+
+  def _run(self) -> None:
+    """Main daemon loop."""
     if not self.socket:
       self.logger.critical("Socket is not initialized. Cannot run.")
-      return
-
+      raise KeyMasterError("Socket is not initialized. Cannot run.")
     try:
-      while self.running:
-        # Set a timeout on the accept call so we can periodically
-        # check the self.running flag for graceful shutdown.
-        self.socket.settimeout(1.0)
-        try:
-          conn, addr = self.socket.accept()
-          self.logger.debug(f"Accepted connection from {addr}")
-          self._handle_client(conn, addr)
-        except socket.timeout:
-          continue  # Loop back and check self.running
-        except Exception as e:
-          self.logger.error(f"Error in accept loop: {e}", exc_info=True)
-
-    finally:
-      self._cleanup()
+      conn, addr = self.socket.accept()
+      self.logger.debug(f"Accepted connection from {addr}")
+      self._handle_client(conn, addr)
+    except socket.timeout:
+      return  # Loop back and check self.running
+    except Exception as e:
+      self.logger.warning(f"Error in accept loop: {e}", exc_info=True)
 
   def _cleanup(self) -> None:
     """Close the socket and remove its file."""
@@ -204,6 +179,7 @@ class KeyMaster:
     if self.socket_path.exists():
       self.socket_path.unlink()
     self.logger.info("Key Master shutdown complete.")
+    super()._cleanup()
 
 
 def main() -> None:
@@ -212,7 +188,7 @@ def main() -> None:
   # In production, it's launched by the Supervisor.
   key_master = KeyMaster()
   try:
-    key_master.run()
+    key_master.start(sleep=0.0)
   except KeyboardInterrupt:
     print("\nKey Master interrupted.")
     key_master.running = False

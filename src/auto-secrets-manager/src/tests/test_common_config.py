@@ -192,11 +192,19 @@ class TestCommonConfig(TestCase):
     """Test dataclass initialization with explicit values."""
     test_ssh_comment: str = "init-ssh-key"
     test_cache_dir: str = "/init/cache/dir"
+    import os
+    from unittest.mock import patch
 
-    config = CommonConfig(ssh_agent_key_comment=test_ssh_comment, cache_base_dir=test_cache_dir)
-
-    self.assertEqual(config.ssh_agent_key_comment, test_ssh_comment)
-    self.assertEqual(config.cache_base_dir, test_cache_dir)
+    with patch.dict(
+      os.environ,
+      {
+        "AUTO_SECRETS_SSH_AGENT_KEY_COMMENT": test_ssh_comment,
+        "AUTO_SECRETS_CACHE_DIR": test_cache_dir,  # Changed from AUTO_SECRETS_CACHE_BASE_DIR
+      },
+    ):
+      config = CommonConfig()
+      self.assertEqual(config.ssh_agent_key_comment, test_ssh_comment)
+      self.assertEqual(config.cache_base_dir, test_cache_dir)
 
   def test_post_init_overwrites_initialization_values(self) -> None:
     """Test that post_init overwrites values set during initialization."""

@@ -19,7 +19,7 @@ class TestConfigLoaderImports(TestCase):
 
   def test_module_has_required_constants(self) -> None:
     """Test that the module has the required constants defined."""
-    assert hasattr(key_master_config, "TRUSTED_PATHS_CONFIG_FILE")
+    assert hasattr(key_master_config, "_TRUSTED_PATHS_CONFIG_FILE")
     assert hasattr(key_master_config, "LEGITIMATE_CLI_PATHS")
 
   def test_trusted_paths_config_file_type(self) -> None:
