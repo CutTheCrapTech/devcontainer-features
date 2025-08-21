@@ -76,7 +76,7 @@ class AppManager(metaclass=SingletonMeta):
     return self._smk
 
   @smk.setter
-  def smk(self, smk: Optional[bytes]):
+  def smk(self, smk: Optional[bytes]) -> None:
     if self._smk != smk:
       self._smk = smk
       self._crypto_utils = None

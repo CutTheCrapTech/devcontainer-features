@@ -43,6 +43,10 @@ class TestAutoSecretsLoggerConfig(unittest.TestCase):
 
   def test_config_default_values(self) -> None:
     """Test config with default values."""
+    # Clear environment variables to ensure clean test
+    os.environ.pop("AUTO_SECRETS_LOG_DIR", None)
+    os.environ.pop("AUTO_SECRETS_LOG_LEVEL", None)
+
     config = AutoSecretsLoggerConfig(log_dir="/default/log", log_level="INFO", log_file="test.log")
 
     self.assertEqual(config.log_dir, "/default/log")
@@ -63,7 +67,7 @@ class TestAutoSecretsLoggerConfig(unittest.TestCase):
   def test_config_partial_environment_override(self) -> None:
     """Test config with only some env vars set."""
     os.environ["AUTO_SECRETS_LOG_LEVEL"] = "WARNING"
-    # Don't set AUTO_SECRETS_LOG_DIR
+    os.environ.pop("AUTO_SECRETS_LOG_DIR", None)  # Ensure this is not set
 
     config = AutoSecretsLoggerConfig(log_dir="/default/log", log_level="INFO", log_file="test.log")
 

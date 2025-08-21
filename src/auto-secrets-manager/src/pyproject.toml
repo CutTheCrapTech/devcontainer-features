@@ -215,6 +215,7 @@ omit = [
   "auto_secrets/daemon.py",
   "auto_secrets/key_master.py",
   "auto_secrets/supervisor.py",
+  "auto_secrets/monitored_process.py",
 ]
 
 [tool.tox]
